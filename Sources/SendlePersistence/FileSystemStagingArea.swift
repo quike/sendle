@@ -38,12 +38,12 @@ public struct FileSystemStagingArea: StagingArea {
 
   /// Refuses anything outside `root`: a wrong URL here must never delete a book.
   public func remove(_ directory: URL) {
+    let target = directory.standardizedFileURL
     let rootComponents = root.standardizedFileURL.pathComponents
-    let components = directory.standardizedFileURL.pathComponents
-    guard components.count > rootComponents.count,
-      Array(components.prefix(rootComponents.count)) == rootComponents
+    guard target.pathComponents.count > rootComponents.count,
+      Array(target.pathComponents.prefix(rootComponents.count)) == rootComponents
     else { return }
-    try? FileManager.default.removeItem(at: directory)
+    try? FileManager.default.removeItem(at: target)
   }
 
   /// Clears folders left behind when a send was interrupted, e.g. by a crash.

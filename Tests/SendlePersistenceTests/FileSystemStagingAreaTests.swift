@@ -42,6 +42,7 @@ struct FileSystemStagingAreaTests {
   }
 
   @Test func neverRemovesAnythingOutsideItsRoot() throws {
+    let folder = try staging.makeDirectory()
     let book = base.appending(path: "Books/Moby-Dick.epub", directoryHint: .isDirectory)
     try FileManager.default.createDirectory(at: book, withIntermediateDirectories: true)
     let lookalike = base.appending(path: "staging-other", directoryHint: .isDirectory)
@@ -51,9 +52,11 @@ struct FileSystemStagingAreaTests {
     staging.remove(lookalike)
     staging.remove(staging.root)
     staging.remove(staging.root.appending(path: "../Books/Moby-Dick.epub"))
+    staging.remove(folder.appending(path: "../../Books/Moby-Dick.epub"))
 
     #expect(FileManager.default.fileExists(atPath: book.path()))
     #expect(FileManager.default.fileExists(atPath: lookalike.path()))
+    #expect(FileManager.default.fileExists(atPath: staging.root.path()))
   }
 
   @Test func purgeClearsLeftoversFromAnInterruptedSend() throws {
