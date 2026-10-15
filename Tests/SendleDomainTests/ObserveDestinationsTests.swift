@@ -28,4 +28,28 @@ struct ObserveDestinationsTests {
     monitor.continuation.yield([.fixture()])
     #expect(await updates.next() == [.usb(.fixture()), .email(.fixture)])
   }
+
+  @Test func endsWhenTheMonitorEnds() async {
+    let monitor = FakeDestinationMonitor()
+    let observe = ObserveDestinations(monitor: monitor, settings: InMemorySettingsStore())
+    var updates = observe().makeAsyncIterator()
+
+    monitor.continuation.finish()
+
+    #expect(await updates.next() == nil)
+  }
+
+  @Test func stopsWatchingKindlesWhenNobodyListens() async {
+    let monitor = FakeDestinationMonitor()
+    let stopped = Signal()
+    monitor.continuation.onTermination = { _ in Task { await stopped.fire() } }
+    let observe = ObserveDestinations(monitor: monitor, settings: InMemorySettingsStore())
+
+    let listener = Task {
+      for await _ in observe() {}
+    }
+    listener.cancel()
+
+    await stopped.wait()
+  }
 }
