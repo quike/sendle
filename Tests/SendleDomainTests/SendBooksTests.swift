@@ -249,4 +249,19 @@ struct SendBooksTests {
     #expect(channel.deliveries.count == 1)
     #expect(await harness.history.records().isEmpty)
   }
+
+  @Test func theDefaultClockAndSleepWork() async throws {
+    let channel = FakeDeliveryChannel(.fail(.connectionFailed(host: "smtp.gmail.com")), .succeed)
+    let history = InMemorySendHistoryStore()
+    let sendBooks = SendBooks(
+      channels: FakeDeliveryChannelFactory(channel: channel), preparer: FakeEPUBPreparer(),
+      converter: FakeFormatConverter(), staging: FakeStagingArea(), history: history,
+      retryDelay: .zero)
+    let before = Date()
+
+    await sendBooks([.fixture()], to: email) { _ in }
+
+    #expect(channel.deliveries.count == 2)
+    #expect(try #require(await history.records().first).date >= before)
+  }
 }
