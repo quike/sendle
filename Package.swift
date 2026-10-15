@@ -6,6 +6,7 @@ let package = Package(
   platforms: [.macOS(.v14)],
   targets: [
     .target(name: "SendleDomain"),
+    .target(name: "SendlePersistence", dependencies: ["SendleDomain"]),
     .target(
       name: "SendleTestSupport",
       dependencies: ["SendleDomain"],
@@ -14,6 +15,10 @@ let package = Package(
     .testTarget(
       name: "SendleDomainTests",
       dependencies: ["SendleDomain", "SendleTestSupport"]
+    ),
+    .testTarget(
+      name: "SendlePersistenceTests",
+      dependencies: ["SendlePersistence", "SendleTestSupport"]
     ),
   ]
 )
