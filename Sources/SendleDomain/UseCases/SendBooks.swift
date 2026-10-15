@@ -98,7 +98,8 @@ public struct SendBooks: Sendable {
       case .prepareEPUB:
         file = try await preparer.prepare(book, in: directory)
       case .convert(let format):
-        file = try await converter.convert(file, to: format, in: directory)
+        let converted = try await converter.convert(file, to: format, in: directory)
+        file = PreparedFile(url: converted.url, format: converted.format, fixes: file.fixes)
       case .deliver:
         let channel = try await channels.channel(for: destination)
         try await deliver(file, named: FileNaming.baseName(for: book), via: channel) { fraction in

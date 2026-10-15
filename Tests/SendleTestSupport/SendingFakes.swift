@@ -42,8 +42,7 @@ public final class FakeFormatConverter: FormatConverter {
     converted.withLock { $0.append(file) }
     if let failure { throw failure }
     return PreparedFile(
-      url: staging.appending(path: "converted.\(format.fileExtension)"), format: format,
-      fixes: file.fixes)
+      url: staging.appending(path: "converted.\(format.fileExtension)"), format: format)
   }
 }
 
