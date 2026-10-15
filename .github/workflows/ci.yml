@@ -1,0 +1,31 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions: {}
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: macos-15
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Select the newest Xcode
+        run: sudo xcode-select -s "$(ls -d /Applications/Xcode_*.app | sort -V | tail -1)"
+      - name: Lint
+        run: swift format lint --strict --recursive Package.swift Sources Tests
+      - name: Test
+        env:
+          # The runner's login keychain may be locked or prompt; Keychain tests run locally.
+          SENDLE_SKIP_KEYCHAIN_TESTS: "1"
+        run: swift test

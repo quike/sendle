@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "lineLength": 100,
+  "indentation": { "spaces": 2 },
+  "maximumBlankLines": 1,
+  "respectsExistingLineBreaks": true,
+  "lineBreakBeforeEachArgument": false,
+  "rules": {
+    "NeverForceUnwrap": true,
+    "NeverUseForceTry": true,
+    "NeverUseImplicitlyUnwrappedOptionals": true,
+    "OrderedImports": true,
+    "UseLetInEveryBoundCaseVariable": true
+  }
+}
