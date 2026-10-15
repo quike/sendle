@@ -10,6 +10,11 @@ struct FileNamingTests {
     ("  Spaced   out  ", "", "Spaced out"),
     (".hidden", nil, "hidden"),
     ("   ", nil, "Book"),
+    ("Ender’s Game", "Orson Scott Card", "Ender's Game - Orson Scott Card"),
+    ("Straße", "Søren Kierkegaard", "Strasse - Soren Kierkegaard"),
+    ("Łódź", nil, "Lodz"),
+    ("", "Anon", "Anon"),
+    ("a\u{7F}b", nil, "a b"),
   ])
   func makesPortableNames(title: String, author: String?, expected: String) {
     #expect(FileNaming.baseName(for: .fixture(title: title, author: author)) == expected)
