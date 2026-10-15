@@ -83,6 +83,26 @@ struct JSONSettingsStoreTests {
     #expect(settings.email == .fixture)
   }
 
+  @Test func readsTheSettingsFormatThisVersionWrites() async throws {
+    let json = """
+      {
+        "activeDestination" : "usb",
+        "email" : {
+          "kindleAddress" : "reader@kindle.com",
+          "provider" : "gmail",
+          "senderAddress" : "me@gmail.com",
+          "server" : { "host" : "smtp.gmail.com", "port" : 465, "security" : "implicitTLS" }
+        },
+        "layout" : "shelf"
+      }
+      """
+    try Data(json.utf8).write(to: directory.appending(path: "settings.json"))
+
+    let settings = await JSONSettingsStore(directory: directory).load()
+
+    #expect(settings == AppSettings(email: .fixture, layout: .shelf, activeDestination: .usb))
+  }
+
   @Test func reportsAFailedWrite() async throws {
     let blocker = directory.appending(path: "blocker")
     try Data().write(to: blocker)
@@ -149,5 +169,15 @@ struct JSONSendHistoryStoreTests {
       .contentsOfDirectory(atPath: directory.path(percentEncoded: false))
       .filter { $0.hasPrefix("history.corrupt-5") }
     #expect(kept.count == 2)
+  }
+
+  @Test func readsTheHistoryFormatThisVersionWrites() async throws {
+    let json = """
+      [ { "bookID" : "book-1", "date" : "2027-01-15T08:00:00Z", "destination" : "email",
+          "outcome" : "sent" } ]
+      """
+    try Data(json.utf8).write(to: directory.appending(path: "history.json"))
+
+    #expect(await JSONSendHistoryStore(directory: directory).records() == [record("book-1")])
   }
 }
