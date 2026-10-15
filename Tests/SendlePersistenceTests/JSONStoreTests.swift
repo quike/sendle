@@ -44,6 +44,23 @@ struct JSONSettingsStoreTests {
     #expect(try String(contentsOf: kept, encoding: .utf8) == "{ not json")
   }
 
+  @Test func keepsAnUnreadableFileAsideInsteadOfOverwritingIt() async throws {
+    let file = directory.appending(path: "settings.json")
+    try Data(#"{"layout": "list"}"#.utf8).write(to: file)
+    try FileManager.default.setAttributes(
+      [.posixPermissions: 0o000], ofItemAtPath: file.path(percentEncoded: false))
+    let now = now
+    let store = JSONSettingsStore(directory: directory, now: { now })
+
+    #expect(await store.load() == .defaults)
+    try await store.save(.defaults)
+
+    let kept = directory.appending(path: "settings.corrupt-1800000000.json")
+    try FileManager.default.setAttributes(
+      [.posixPermissions: 0o600], ofItemAtPath: kept.path(percentEncoded: false))
+    #expect(try String(contentsOf: kept, encoding: .utf8) == #"{"layout": "list"}"#)
+  }
+
   @Test func reportsAFailedWrite() async throws {
     let blocker = directory.appending(path: "blocker")
     try Data().write(to: blocker)
@@ -95,5 +112,20 @@ struct JSONSendHistoryStoreTests {
     #expect(
       FileManager.default.fileExists(
         atPath: directory.appending(path: "history.corrupt-5.json").path()))
+  }
+
+  @Test func keepsEveryCorruptFileEvenWithinTheSameSecond() async throws {
+    let file = directory.appending(path: "history.json")
+    let store = JSONSendHistoryStore(directory: directory, now: { Date(timeIntervalSince1970: 5) })
+
+    try Data("first".utf8).write(to: file)
+    #expect(await store.records().isEmpty)
+    try Data("second".utf8).write(to: file)
+    #expect(await store.records().isEmpty)
+
+    let kept = try FileManager.default
+      .contentsOfDirectory(atPath: directory.path(percentEncoded: false))
+      .filter { $0.hasPrefix("history.corrupt-5") }
+    #expect(kept.count == 2)
   }
 }
