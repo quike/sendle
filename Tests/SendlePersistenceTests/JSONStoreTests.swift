@@ -19,14 +19,14 @@ struct JSONSettingsStoreTests {
 
   @Test func savesAndLoadsSettings() async throws {
     let settings = AppSettings(email: .fixture, layout: .list, activeDestination: .usb)
-    try await JSONSettingsStore(directory: directory).save(settings)
+    try await JSONSettingsStore(directory: directory).update { $0 = settings }
 
     #expect(await JSONSettingsStore(directory: directory).load() == settings)
   }
 
   @Test func createsTheDataFolderOnFirstSave() async throws {
     let nested = directory.appending(path: "not/yet/there")
-    try await JSONSettingsStore(directory: nested).save(.defaults)
+    try await JSONSettingsStore(directory: nested).update { $0 = .defaults }
 
     #expect(FileManager.default.fileExists(atPath: nested.appending(path: "settings.json").path()))
   }
@@ -53,7 +53,7 @@ struct JSONSettingsStoreTests {
     let store = JSONSettingsStore(directory: directory, now: { now })
 
     #expect(await store.load() == .defaults)
-    try await store.save(.defaults)
+    try await store.update { $0 = .defaults }
 
     let kept = directory.appending(path: "settings.corrupt-1800000000.json")
     try FileManager.default.setAttributes(
@@ -61,12 +61,34 @@ struct JSONSettingsStoreTests {
     #expect(try String(contentsOf: kept, encoding: .utf8) == #"{"layout": "list"}"#)
   }
 
+  @Test func updateReturnsTheSettingsBeforeTheChange() async throws {
+    let store = JSONSettingsStore(directory: directory)
+    try await store.update { $0.layout = .list }
+
+    let previous = try await store.update { $0.layout = .shelf }
+
+    #expect(previous.layout == .list)
+    #expect(await store.load().layout == .shelf)
+  }
+
+  @Test func updatesFromDifferentWritersAllSurvive() async throws {
+    let store = JSONSettingsStore(directory: directory)
+
+    async let layout = store.update { $0.layout = .shelf }
+    async let email = store.update { $0.email = .fixture }
+    _ = try await (layout, email)
+
+    let settings = await store.load()
+    #expect(settings.layout == .shelf)
+    #expect(settings.email == .fixture)
+  }
+
   @Test func reportsAFailedWrite() async throws {
     let blocker = directory.appending(path: "blocker")
     try Data().write(to: blocker)
     let store = JSONSettingsStore(directory: blocker.appending(path: "inside"))
 
-    await #expect(throws: StorageError.self) { try await store.save(.defaults) }
+    await #expect(throws: StorageError.self) { try await store.update { $0 = .defaults } }
   }
 }
 

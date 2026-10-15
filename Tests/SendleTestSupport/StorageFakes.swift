@@ -13,9 +13,14 @@ public actor InMemorySettingsStore: SettingsStore {
     settings
   }
 
-  public func save(_ settings: AppSettings) throws(StorageError) {
+  @discardableResult
+  public func update(
+    _ change: @Sendable (inout AppSettings) -> Void
+  ) throws(StorageError) -> AppSettings {
     if let failure { throw failure }
-    self.settings = settings
+    let previous = settings
+    change(&settings)
+    return previous
   }
 }
 

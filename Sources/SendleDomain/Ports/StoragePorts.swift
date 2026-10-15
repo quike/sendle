@@ -1,6 +1,11 @@
 public protocol SettingsStore: Sendable {
   func load() async -> AppSettings
-  func save(_ settings: AppSettings) async throws(StorageError)
+  /// Applies `change` to the stored settings in one step, so writers never undo each other, and
+  /// returns the settings as they were before the change.
+  @discardableResult
+  func update(
+    _ change: @Sendable (inout AppSettings) -> Void
+  ) async throws(StorageError) -> AppSettings
 }
 
 public protocol SecretStore: Sendable {

@@ -14,7 +14,14 @@ public actor JSONSettingsStore: SettingsStore {
     file.read(quarantiningCorruptAt: now()) ?? .defaults
   }
 
-  public func save(_ settings: AppSettings) throws(StorageError) {
-    try file.write(settings)
+  @discardableResult
+  public func update(
+    _ change: @Sendable (inout AppSettings) -> Void
+  ) throws(StorageError) -> AppSettings {
+    let previous = load()
+    var updated = previous
+    change(&updated)
+    try file.write(updated)
+    return previous
   }
 }

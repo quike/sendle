@@ -66,17 +66,15 @@ public struct ConfigureEmail: Sendable {
     }
     guard issues.isEmpty, let server else { throw .invalid(issues) }
 
+    let email = EmailSettings(
+      kindleAddress: kindle, senderAddress: sender, provider: input.provider, server: server)
     do throws(StorageError) {
-      var current = await settings.load()
-      let previous = current.email?.senderAddress
       if !password.isEmpty {
         try await secrets.setPassword(password, for: sender)
       }
-      current.email = EmailSettings(
-        kindleAddress: kindle, senderAddress: sender, provider: input.provider, server: server)
-      try await settings.save(current)
-      if let previous, previous != sender {
-        try await secrets.removePassword(for: previous)
+      let previous = try await settings.update { $0.email = email }
+      if let oldSender = previous.email?.senderAddress, oldSender != sender {
+        try await secrets.removePassword(for: oldSender)
       }
     } catch {
       throw .storage(error)
