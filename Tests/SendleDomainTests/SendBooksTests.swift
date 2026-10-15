@@ -223,4 +223,30 @@ struct SendBooksTests {
     #expect(await harness.history.records().isEmpty)
     #expect(harness.staging.snapshot.removed.count == 1)
   }
+
+  @Test func cancellingDuringTheRetryDelaySkipsTheSecondAttempt() async {
+    let channel = FakeDeliveryChannel(.fail(.connectionFailed(host: "smtp.gmail.com")), .succeed)
+    let harness = Harness(channel: channel)
+    let waiting = Signal()
+    let book = Book.fixture()
+    let events = Recorder<SendEvent>()
+    let sendBooks = SendBooks(
+      channels: harness.channels, preparer: harness.preparer, converter: harness.converter,
+      staging: harness.staging, history: harness.history,
+      sleep: { _ in
+        await waiting.fire()
+        try? await Task.sleep(for: .seconds(3_600))
+      })
+
+    let task = Task {
+      await sendBooks([book], to: email) { await events.record($0) }
+    }
+    await waiting.wait()
+    task.cancel()
+    await task.value
+
+    #expect(await events.values.last == .failed(book.id, .cancelled))
+    #expect(channel.deliveries.count == 1)
+    #expect(await harness.history.records().isEmpty)
+  }
 }

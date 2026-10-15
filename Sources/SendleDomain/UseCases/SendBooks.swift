@@ -120,6 +120,7 @@ public struct SendBooks: Sendable {
     } catch {
       guard error.isRetryable, !Task.isCancelled else { throw error }
       await sleep(retryDelay)
+      if Task.isCancelled { throw .cancelled }
       try await channel.deliver(file, named: name, progress: progress)
     }
   }
