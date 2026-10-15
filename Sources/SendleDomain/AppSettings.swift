@@ -21,10 +21,11 @@ public struct AppSettings: Hashable, Sendable, Codable {
     self.activeDestination = activeDestination
   }
 
-  /// Files written by other versions still load: missing or unknown values fall back to defaults.
+  /// A missing or unknown layout or destination falls back to its default. An unreadable email
+  /// block throws instead, so the store keeps the file aside rather than losing the setup.
   public init(from decoder: any Decoder) throws {
     let container = try decoder.container(keyedBy: CodingKeys.self)
-    email = try? container.decodeIfPresent(EmailSettings.self, forKey: .email)
+    email = try container.decodeIfPresent(EmailSettings.self, forKey: .email)
     layout = (try? container.decodeIfPresent(LibraryLayout.self, forKey: .layout)) ?? .grid
     activeDestination =
       (try? container.decodeIfPresent(DestinationKind.self, forKey: .activeDestination)) ?? .email

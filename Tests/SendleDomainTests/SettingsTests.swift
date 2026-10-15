@@ -50,4 +50,11 @@ struct AppSettingsTests {
     #expect(settings.layout == .grid)
     #expect(settings.activeDestination == .email)
   }
+
+  @Test func anEmailBlockThisVersionCannotReadFailsInsteadOfBeingDropped() {
+    let json = #"{"email": {"provider": "outlook"}}"#
+    #expect(throws: DecodingError.self) {
+      try JSONDecoder().decode(AppSettings.self, from: Data(json.utf8))
+    }
+  }
 }
