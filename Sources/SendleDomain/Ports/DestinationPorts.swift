@@ -1,4 +1,5 @@
 public protocol DestinationMonitor: Sendable {
-  /// Emits the full list of mounted Kindles whenever it changes, starting with the current list.
+  /// An independent stream per call: it starts with the mounted Kindles and emits the full list
+  /// whenever it changes.
   func volumes() -> AsyncStream<[KindleVolume]>
 }

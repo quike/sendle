@@ -2,7 +2,7 @@ import Foundation
 
 public protocol BooksLibrary: Sendable {
   func books() async throws(LibraryError) -> [Book]
-  /// Emits whenever the library may have changed.
+  /// An independent stream per call that emits whenever the library may have changed.
   func changes() -> AsyncStream<Void>
 }
 

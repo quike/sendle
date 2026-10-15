@@ -7,6 +7,7 @@ public enum LibraryError: Error, Hashable, Sendable {
 
 public enum SendFailure: Error, Hashable, Sendable {
   case authenticationFailed(MailProvider)
+  /// Only for failures before the server accepted the message: SendBooks retries it once.
   case connectionFailed(host: String)
   case rejected(String)
   case notConfigured
