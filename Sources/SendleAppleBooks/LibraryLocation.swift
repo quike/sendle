@@ -8,7 +8,7 @@ public enum LibraryLocation: Hashable, Sendable {
   /// One database file, such as a fixture for manual checks.
   case file(URL)
 
-  public static let environmentKey = "SENDLE_LIBRARY_DB"
+  package static let environmentKey = "SENDLE_LIBRARY_DB"
 
   /// Books' own folder, unless `SENDLE_LIBRARY_DB` names a database file.
   public static func standard(
