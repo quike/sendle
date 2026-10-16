@@ -28,6 +28,15 @@ struct XMLDeclarationFixTests {
   }
 
   @Test(arguments: [
+    #"<?xml-stylesheet type="text/css" href="style.css"?><html/>"#,
+    #"<?xml-stylesheet type="text/css" href="encoding.css"?><html/>"#,
+  ])
+  func treatsAStylesheetInstructionAsNoDeclaration(document: String) {
+    #expect(
+      XMLDeclarationFix.apply(to: document) == XMLDeclarationFix.declaration + "\n" + document)
+  }
+
+  @Test(arguments: [
     #"<?xml version="1.0" encoding="utf-8"?><html/>"#,
     "<?xml version='1.0' encoding='UTF-8'?><html/>",
     #"<?xml version="1.0" encoding="iso-8859-1"?><html/>"#,

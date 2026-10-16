@@ -7,7 +7,7 @@ package enum XMLDeclarationFix {
   /// already names its encoding, because its bytes are in that encoding.
   package static func apply(to text: String) -> String? {
     let body = text.drop(while: \.isWhitespace)
-    guard body.hasPrefix("<?xml") else { return declaration + "\n" + text }
+    guard body.prefixMatch(of: #/<\?xml\s/#) != nil else { return declaration + "\n" + text }
     guard let end = body.range(of: "?>"), !body[..<end.upperBound].contains("encoding") else {
       return nil
     }
