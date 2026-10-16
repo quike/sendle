@@ -80,13 +80,28 @@ struct CachedCoverProviderTests {
     #expect(!FileManager.default.fileExists(atPath: cache.path(percentEncoded: false)))
   }
 
+  @Test(arguments: [0, -1])
+  func returnsNothingBelowOnePixel(maxPixel: Int) async throws {
+    try writeEPUB(cover: try ImageFixtures.png(width: 300, height: 450))
+
+    #expect(await provider.cover(for: book(), maxPixel: maxPixel) == nil)
+    #expect(!FileManager.default.fileExists(atPath: cache.path(percentEncoded: false)))
+  }
+
+  @Test func servesTheCoverOfAProtectedBook() async throws {
+    try writeEPUB(cover: try ImageFixtures.png(width: 300, height: 450))
+
+    let png = try #require(await provider.cover(for: book(availability: .protected), maxPixel: 120))
+
+    #expect(ImageFixtures.size(of: png)?.height == 120)
+  }
+
   @Test func returnsNilWhenThereIsNoUsableCover() async throws {
     try EPUBFixture.book().write(to: epub)
     #expect(await provider.cover(for: book(), maxPixel: 120) == nil)
 
     try writeEPUB(cover: Data("not an image".utf8))
     #expect(await provider.cover(for: book(), maxPixel: 120) == nil)
-    #expect(await provider.cover(for: book(), maxPixel: 0) == nil)
     #expect(!FileManager.default.fileExists(atPath: cache.path(percentEncoded: false)))
   }
 
