@@ -7,6 +7,8 @@ public protocol SystemActions: AnyObject {
   /// Shows Sendle.app in Finder, so it can be dragged into the Full Disk Access list.
   func revealApp()
   func closePanel()
+  /// Takes the keyboard back from a text field, such as search.
+  func endEditing()
 }
 
 public struct StatusItemState: Equatable, Sendable {

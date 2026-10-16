@@ -7,6 +7,7 @@ struct KeyInputTests {
       (KeyInput(.escape), PanelCommand.escape),
       (KeyInput(.escape, isEditingText: true), .escape),
       (KeyInput(.down), .move(.down)),
+      (KeyInput(.down, isEditingText: true), .move(.down)),
       (KeyInput(.left), .move(.left)),
       (KeyInput(.character("a"), command: true), .selectAll),
       (KeyInput(.character("1"), command: true), .layout(.grid)),
@@ -20,7 +21,7 @@ struct KeyInputTests {
   }
 
   @Test(arguments: [
-    KeyInput(.down, isEditingText: true),
+    KeyInput(.left, isEditingText: true),
     KeyInput(.character("a"), command: true, isEditingText: true),
     KeyInput(.character("a")),
     KeyInput(.character("q"), command: true),

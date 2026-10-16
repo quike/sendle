@@ -25,7 +25,7 @@ struct BookGrid: View {
             .foregroundStyle(Theme.muted)
             .lineLimit(1)
         }
-        .bookInteractions(panel.library, item)
+        .bookInteractions(panel, item)
         .transition(Theme.entrance(index: index, reduceMotion: reduceMotion))
       }
     }
@@ -62,7 +62,7 @@ struct BookShelf: View {
           ForEach(recent) { item in
             BookCover(panel: panel, item: item, size: .large, titleSize: 8)
               .frame(width: 62, height: 93)
-              .bookInteractions(panel.library, item)
+              .bookInteractions(panel, item)
           }
         }
         .padding(.horizontal, 6)
@@ -105,7 +105,7 @@ struct BookRow: View {
       in: RoundedRectangle(cornerRadius: 14, style: .continuous)
     )
     .opacity(item.tone == .unavailable ? 0.5 : 1)
-    .bookInteractions(library, item)
+    .bookInteractions(panel, item)
   }
 }
 
@@ -278,9 +278,10 @@ extension ClickKind {
 
 extension View {
   /// Click to select, hover for quick-send: the same in every layout.
-  func bookInteractions(_ library: LibraryViewModel, _ item: BookItemViewModel) -> some View {
-    contentShape(Rectangle())
-      .onTapGesture { library.click(item.id, .current) }
+  func bookInteractions(_ panel: PanelModel, _ item: BookItemViewModel) -> some View {
+    let library = panel.library
+    return contentShape(Rectangle())
+      .onTapGesture { panel.click(item.id, .current) }
       .onHover { inside in
         if inside {
           library.hovered = item.id

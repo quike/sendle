@@ -9,10 +9,12 @@ final class FakeSystemActions: SystemActions {
   var opened: [URL] = []
   var revealedApp = 0
   var closedPanel = 0
+  var endedEditing = 0
 
   func open(_ url: URL) { opened.append(url) }
   func revealApp() { revealedApp += 1 }
   func closePanel() { closedPanel += 1 }
+  func endEditing() { endedEditing += 1 }
 }
 
 @MainActor
@@ -260,6 +262,31 @@ struct PanelModelTests {
     panel.showSetup(at: .kindleEmail)
     #expect(!panel.handle(KeyInput(.character("a"), command: true)))
     #expect(!panel.handle(KeyInput(.character("q"), command: true)))
+  }
+
+  @Test func upAndDownLeaveTheSearchFieldForTheLibrary() async {
+    let (panel, _) = makePanel()
+    await panel.launch()
+    await panel.panelDidOpen()
+
+    #expect(panel.handle(KeyInput(.down, isEditingText: true)))
+    #expect(panel.library.selection.ids == [BookID(rawValue: "a")])
+    #expect(!panel.handle(KeyInput(.left, isEditingText: true)))
+    #expect(!panel.handle(KeyInput(.character("a"), command: true, isEditingText: true)))
+
+    await panel.openSettings(.kindle)
+    #expect(!panel.handle(KeyInput(.down, isEditingText: true)))
+  }
+
+  @Test func clickingABookTakesTheKeyboardBackFromSearch() async {
+    let (panel, _) = makePanel()
+    await panel.launch()
+    await panel.panelDidOpen()
+
+    panel.click(BookID(rawValue: "a"), .plain)
+
+    #expect(system.endedEditing == 1)
+    #expect(panel.library.selection.ids == [BookID(rawValue: "a")])
   }
 
   // MARK: Settings sheet

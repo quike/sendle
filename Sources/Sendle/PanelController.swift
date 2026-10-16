@@ -73,6 +73,8 @@ final class PanelController: NSObject, NSWindowDelegate {
 
     isVisible = true
     window.makeKeyAndOrderFront(nil)
+    // The panel opens with the library holding the keyboard; ⌘F or a click focuses search.
+    window.makeFirstResponder(nil)
     NSAnimationContext.runAnimationGroup { context in
       context.duration = 0.16
       window.animator().alphaValue = 1
@@ -156,5 +158,9 @@ extension PanelController: SystemActions {
 
   func closePanel() {
     hide()
+  }
+
+  func endEditing() {
+    window.makeFirstResponder(nil)
   }
 }

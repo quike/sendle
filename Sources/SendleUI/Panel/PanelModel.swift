@@ -116,6 +116,12 @@ public final class PanelModel {
     system?.revealApp()
   }
 
+  /// A click on a book takes the keyboard back from the search field, so arrows reach the library.
+  package func click(_ id: BookID, _ kind: ClickKind) {
+    system?.endEditing()
+    library.click(id, kind)
+  }
+
   private func watchForAccess() {
     guard accessWatch == nil else { return }
     accessWatch = Task { [weak self] in

@@ -39,8 +39,9 @@ extension KeyInput {
     switch key {
     case .escape:
       return .escape
-    case .up: return arrow(.up)
-    case .down: return arrow(.down)
+    // Up and down leave a text field, as in Spotlight; PanelModel only takes them on the library.
+    case .up: return command ? nil : .move(.up)
+    case .down: return command ? nil : .move(.down)
     case .left: return arrow(.left)
     case .right: return arrow(.right)
     case .character(let character):

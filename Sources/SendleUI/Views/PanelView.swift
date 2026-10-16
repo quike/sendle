@@ -23,10 +23,13 @@ public struct PanelView: View {
         .frame(width: 20, height: 10)
         .offset(x: arrowOffset, y: -9)
       ZStack {
-        switch panel.route {
-        case .library: LibraryScreen(panel: panel)
-        case .setup: SetupScreen(panel: panel)
+        Group {
+          switch panel.route {
+          case .library: LibraryScreen(panel: panel)
+          case .setup: SetupScreen(panel: panel)
+          }
         }
+        .disabled(panel.isShowingSettings)
         if panel.isShowingSettings {
           SettingsSheet(panel: panel).transition(.move(edge: .bottom))
         }
