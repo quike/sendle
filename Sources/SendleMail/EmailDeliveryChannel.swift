@@ -114,6 +114,21 @@ public struct EmailDeliveryChannel: DeliveryChannel {
   }
 }
 
+extension EmailDeliveryChannel: CustomStringConvertible, CustomDebugStringConvertible,
+  CustomReflectable
+{
+  /// Every textual form leaves out the password, so logs and test failures can't leak it.
+  public var description: String {
+    "EmailDeliveryChannel(email: \(email), recipient: \(recipient), password: <redacted>)"
+  }
+
+  public var debugDescription: String { description }
+
+  public var customMirror: Mirror {
+    Mirror(self, children: ["email": email, "recipient": recipient, "password": "<redacted>"])
+  }
+}
+
 /// Base64 wrapped at 76 columns, each line ending in CRLF, as `MIMEMessage` writes it.
 enum Base64Size {
   static func encoded(_ bytes: Int64) -> Int64 {

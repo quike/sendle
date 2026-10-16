@@ -126,6 +126,18 @@ struct EmailDeliveryChannelTests {
     #expect(await progress.values.last == 1)
   }
 
+  @Test func neverPrintsThePassword() {
+    let channel = channel(ScriptedSMTPTransport([]))
+    var dumped = ""
+    dump(channel, to: &dumped)
+
+    for text in [String(describing: channel), String(reflecting: channel), "\(channel)", dumped] {
+      #expect(!text.contains("app-password"))
+      #expect(text.contains("<redacted>"))
+      #expect(text.contains("reader@kindle.com"))
+    }
+  }
+
   // MARK: Size
 
   @Test func refusesAFileOverAmazonsLimitWithoutConnecting() async throws {
