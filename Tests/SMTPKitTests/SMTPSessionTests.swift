@@ -300,6 +300,26 @@ struct SMTPSessionTests {
     #expect(transport.events == [.close])
   }
 
+  @Test func givesTheGoodbyeFiveSeconds() async {
+    let transport = ScriptedSMTPTransport([.code(221, "Bye")])
+
+    await session(transport).quit()
+
+    #expect(
+      transport.events == [
+        .write("QUIT\r\n", timeout: .seconds(5)), .read(timeout: .seconds(5)), .close,
+      ])
+  }
+
+  @Test func skipsTheGoodbyeReplyWhenQuitCannotBeWritten() async {
+    let transport = ScriptedSMTPTransport(
+      [.code(221, "Bye")], failingWrite: (index: 0, error: .failed("reset")))
+
+    await session(transport).quit()
+
+    #expect(transport.events == [.write("QUIT\r\n", timeout: .seconds(5)), .close])
+  }
+
   @Test func quittingIgnoresABrokenConnection() async {
     let transport = ScriptedSMTPTransport([])
 

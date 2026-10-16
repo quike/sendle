@@ -99,10 +99,14 @@ public actor SMTPSession {
     try await expect([250], at: .endOfMessage, timeout: timeouts.endOfMessage)
   }
 
-  /// Says goodbye and closes the connection; a failure here changes nothing.
+  /// Says goodbye and closes the connection; a failure here changes nothing. The goodbye gets
+  /// five seconds, since it holds up the next book and decides nothing.
   public func quit() async {
-    try? await transport.write(Data("QUIT\r\n".utf8), timeout: timeouts.step)
-    _ = try? await transport.readReply(timeout: timeouts.step)
+    let timeout = Duration.seconds(5)
+    do {
+      try await transport.write(Data("QUIT\r\n".utf8), timeout: timeout)
+      _ = try await transport.readReply(timeout: timeout)
+    } catch {}
     await transport.close()
   }
 
