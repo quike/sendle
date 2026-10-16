@@ -27,14 +27,21 @@ public actor InMemorySettingsStore: SettingsStore {
 public actor MemorySecretStore: SecretStore {
   public private(set) var passwords: [String: String]
   private let removalFailure: StorageError?
+  private let readFailure: StorageError?
 
-  public init(_ passwords: [String: String] = [:], removalFailure: StorageError? = nil) {
+  public init(
+    _ passwords: [String: String] = [:],
+    removalFailure: StorageError? = nil,
+    readFailure: StorageError? = nil
+  ) {
     self.passwords = passwords
     self.removalFailure = removalFailure
+    self.readFailure = readFailure
   }
 
-  public func password(for account: String) -> String? {
-    passwords[account]
+  public func password(for account: String) throws(StorageError) -> String? {
+    if let readFailure { throw readFailure }
+    return passwords[account]
   }
 
   public func setPassword(_ password: String, for account: String) {

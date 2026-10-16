@@ -16,6 +16,7 @@ let package = Package(
     .target(name: "SendleCovers", dependencies: ["SendleDomain", "SendleEPUB"]),
     .target(name: "SendleUI", dependencies: ["SendleDomain"]),
     .target(name: "SMTPKit"),
+    .target(name: "SendleMail", dependencies: ["SendleDomain", "SMTPKit"]),
     .executableTarget(
       name: "Sendle",
       dependencies: [
@@ -49,6 +50,7 @@ let package = Package(
       dependencies: ["SendleCovers", "SendleTestSupport"]
     ),
     .testTarget(name: "SMTPKitTests", dependencies: ["SMTPKit", "SendleTestSupport"]),
+    .testTarget(name: "SendleMailTests", dependencies: ["SendleMail", "SendleTestSupport"]),
     .testTarget(
       name: "SendleUITests",
       dependencies: ["SendleUI", "SendleTestSupport"]
