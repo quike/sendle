@@ -5,9 +5,12 @@ import SendleUI
 import Testing
 
 struct SelectionTests {
-  /// Books a…f in grid order; `blocked` ones can't be sent.
-  func items(blocked: Set<String> = []) -> [BookItemViewModel] {
-    let books = ["a", "b", "c", "d", "e", "f"].map {
+  /// Books a…f (or `ids`) in grid order; `blocked` ones can't be sent.
+  func items(
+    _ ids: [String] = ["a", "b", "c", "d", "e", "f"],
+    blocked: Set<String> = []
+  ) -> [BookItemViewModel] {
+    let books = ids.map {
       Book.fixture(id: $0, availability: blocked.contains($0) ? .missing : .ready)
     }
     return LibraryItems.make(
@@ -82,6 +85,39 @@ struct SelectionTests {
 
     selection.move(.up, columns: 3, in: items())
     #expect(ids(selection) == ["b"])
+  }
+
+  @Test func arrowsMoveOnFromTheBookShiftClickedLast() {
+    var selection = Selection()
+    selection.click(id("b"), .plain, in: items())
+    selection.click(id("d"), .range, in: items())
+
+    selection.move(.right, columns: 3, in: items())
+
+    #expect(ids(selection) == ["e"])
+  }
+
+  @Test func upAndDownKeepTheColumnPastABlockedBook() {
+    let grid = items(["a", "b", "c", "d", "e", "f", "g", "h", "i"], blocked: ["e"])
+    var selection = Selection()
+    selection.click(id("b"), .plain, in: grid)
+
+    selection.move(.down, columns: 3, in: grid)
+    #expect(ids(selection) == ["h"])
+
+    selection.move(.up, columns: 3, in: grid)
+    #expect(ids(selection) == ["b"])
+  }
+
+  @Test func anArrowAfterSelectAllKeepsOnlyTheLastBook() {
+    var selection = Selection()
+    selection.selectAll(in: items())
+
+    selection.move(.down, columns: 1, in: items())
+    #expect(ids(selection) == ["f"])
+
+    selection.move(.up, columns: 1, in: items())
+    #expect(ids(selection) == ["e"])
   }
 
   @Test func arrowsStartFromTheEdgesWhenNothingIsSelected() {
