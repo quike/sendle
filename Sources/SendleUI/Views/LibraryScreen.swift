@@ -42,7 +42,11 @@ struct LibraryScreen: View {
   }
 
   private var subtitle: String {
-    panel.library.state == .loaded ? panel.library.summary : "Reading your Books library…"
+    switch panel.library.state {
+    case .loading: "Reading your Books library…"
+    case .loaded: panel.library.summary
+    case .failed: "Library unavailable"
+    }
   }
 }
 

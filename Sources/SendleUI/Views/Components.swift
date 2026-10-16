@@ -100,6 +100,25 @@ struct FormatBadge: View {
   }
 }
 
+/// The press feedback the button styles share; with Reduce Motion on, buttons don't move.
+private struct PressEffect: ViewModifier {
+  let isPressed: Bool
+  let scale: CGFloat
+  @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+  func body(content: Content) -> some View {
+    content
+      .scaleEffect(isPressed && !reduceMotion ? scale : 1)
+      .animation(reduceMotion ? nil : Theme.press, value: isPressed)
+  }
+}
+
+extension View {
+  fileprivate func pressEffect(_ isPressed: Bool, scale: CGFloat = 0.97) -> some View {
+    modifier(PressEffect(isPressed: isPressed, scale: scale))
+  }
+}
+
 /// The blue call to action. No glow: inside a scroll view its shadow draws a grey band.
 struct PrimaryButtonStyle: ButtonStyle {
   var fullWidth = false
@@ -113,8 +132,7 @@ struct PrimaryButtonStyle: ButtonStyle {
       .frame(maxWidth: fullWidth ? .infinity : nil, minHeight: 34)
       .background(Theme.action, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
       .opacity(isEnabled ? 1 : 0.4)
-      .scaleEffect(configuration.isPressed ? 0.97 : 1)
-      .animation(Theme.press, value: configuration.isPressed)
+      .pressEffect(configuration.isPressed)
       .contentShape(Rectangle())
   }
 }
@@ -131,8 +149,7 @@ struct SecondaryButtonStyle: ButtonStyle {
       .frame(maxWidth: fullWidth ? .infinity : nil, minHeight: 30)
       .glass(cornerRadius: 11, highlighted: configuration.isPressed)
       .opacity(isEnabled ? 1 : 0.4)
-      .scaleEffect(configuration.isPressed ? 0.97 : 1)
-      .animation(Theme.press, value: configuration.isPressed)
+      .pressEffect(configuration.isPressed)
       .contentShape(Rectangle())
   }
 }
@@ -156,8 +173,7 @@ struct CircleButtonStyle: ButtonStyle {
       .frame(width: 30, height: 30)
       .background(configuration.isPressed ? Theme.glassHigh : Theme.glass, in: Circle())
       .overlay(Circle().strokeBorder(Theme.line))
-      .scaleEffect(configuration.isPressed ? 0.94 : 1)
-      .animation(Theme.press, value: configuration.isPressed)
+      .pressEffect(configuration.isPressed, scale: 0.94)
   }
 }
 
