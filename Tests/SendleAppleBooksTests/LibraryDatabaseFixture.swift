@@ -75,7 +75,7 @@ final class LibraryDatabaseFixture {
   }
 
   /// Checkpoints, closes the writer and deletes the `-wal` and `-shm` files, as after Books quits.
-  /// A read-only connection can't open a WAL database in that state.
+  /// Sendle then reads a copy instead of opening it in place.
   func closeAndRemoveSideFiles() throws {
     try writer?.execute("PRAGMA wal_checkpoint(TRUNCATE)")
     writer = nil

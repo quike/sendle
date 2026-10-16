@@ -1,5 +1,4 @@
 import Foundation
-import SQLite3
 import SendleAppleBooks
 import SendleTestSupport
 import Testing
@@ -54,17 +53,5 @@ struct SQLiteConnectionTests {
     #expect(
       !FileManager.default.fileExists(
         atPath: folder.appending(path: "nothing.sqlite").path(percentEncoded: false)))
-  }
-
-  @Test func cannotReadAWALDatabaseReadOnlyOnceItsSideFilesAreGone() throws {
-    try fixture.insert(.init())
-    try fixture.closeAndRemoveSideFiles()
-
-    let error = #expect(throws: SQLiteError.self) {
-      let reader = try SQLiteConnection(url: fixture.url, readOnly: true)
-      _ = try reader.columns(of: "ZBKLIBRARYASSET")
-    }
-
-    #expect(error?.code == SQLITE_CANTOPEN)
   }
 }

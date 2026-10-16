@@ -106,7 +106,7 @@ struct LibraryReaderTests {
     }
   }
 
-  @Test func readsAPrivateCopyWhenTheDatabaseCannotBeOpenedReadOnly() throws {
+  @Test func readsAPrivateCopyWhenBooksSideFilesAreGone() throws {
     let fixture = try LibraryDatabaseFixture(in: folder)
     try fixture.insert(.init(assetID: "A1"))
     try fixture.closeAndRemoveSideFiles()
@@ -117,6 +117,19 @@ struct LibraryReaderTests {
     #expect(
       try FileManager.default.contentsOfDirectory(atPath: scratch.path(percentEncoded: false))
         .isEmpty)
+  }
+
+  @Test func readsInPlaceWhileBooksSideFilesAreThere() throws {
+    let fixture = try LibraryDatabaseFixture(in: folder)
+    try fixture.insert(.init(assetID: "A1"))
+    let locked = try makeTemporaryDirectory()
+    let path = locked.path(percentEncoded: false)
+    try FileManager.default.setAttributes([.posixPermissions: 0o555], ofItemAtPath: path)
+    defer { try? FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: path) }
+
+    let records = try LibraryReader(scratchDirectory: locked).records(in: fixture.url)
+
+    #expect(records.map(\.assetID) == ["A1"])
   }
 
   @Test func readsRowsThatOnlyTheWALHoldsThroughTheCopy() throws {

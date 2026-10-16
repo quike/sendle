@@ -26,9 +26,11 @@ package struct LibraryReader: Sendable {
     self.scratchDirectory = scratchDirectory
   }
 
-  /// Opens the database read-only. When that fails (a WAL database whose `-wal` and `-shm` files
-  /// are gone can't be opened read-only), reads a private copy instead.
+  /// Opens the database read-only while Books' `-wal` and `-shm` files are there. Otherwise, or
+  /// when that open fails, reads a private copy: without them, some SQLite versions fail the open
+  /// and others create the files, which would write into Books' folder.
   package func records(in database: URL) throws(LibraryError) -> [AssetRecord] {
+    guard Self.hasSideFiles(database) else { return try readCopy(of: database) }
     do throws(ReadFailure) {
       return try Self.read(database, readOnly: true)
     } catch {
@@ -101,6 +103,12 @@ package struct LibraryReader: Sendable {
 
   private static func wal(of database: URL) -> URL {
     URL(filePath: database.path(percentEncoded: false) + "-wal")
+  }
+
+  private static func hasSideFiles(_ database: URL) -> Bool {
+    ["-wal", "-shm"].allSatisfy {
+      FileManager.default.fileExists(atPath: database.path(percentEncoded: false) + $0)
+    }
   }
 }
 
