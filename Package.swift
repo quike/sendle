@@ -15,6 +15,13 @@ let package = Package(
     .target(name: "SendleEPUB", dependencies: ["SendleDomain"]),
     .target(name: "SendleCovers", dependencies: ["SendleDomain", "SendleEPUB"]),
     .target(name: "SendleUI", dependencies: ["SendleDomain"]),
+    .executableTarget(
+      name: "Sendle",
+      dependencies: [
+        "SendleDomain", "SendleUI", "SendlePersistence", "SendleAppleBooks", "SendleEPUB",
+        "SendleCovers",
+      ]
+    ),
     .target(
       name: "SendleTestSupport",
       dependencies: ["SendleDomain"],
