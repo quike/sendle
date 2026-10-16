@@ -66,6 +66,68 @@ struct LibraryViewModelTests {
     #expect(model.items.isEmpty)
   }
 
+  @Test func keepsTheLastBooksWhenAReloadFails() async {
+    let (model, _) = makeModel()
+    var reported: [Problem] = []
+    model.reportProblem = { reported.append($0) }
+    await model.appear()
+
+    library.result = .failure(.unreadable("disk I/O error"))
+    await model.reload()
+
+    #expect(model.state == .loaded)
+    #expect(model.items.map(\.id.rawValue) == ["a", "b"])
+    #expect(reported == [ProblemPresenter.problem(for: .unreadable("disk I/O error"))])
+  }
+
+  @Test func dropsTheBooksWhenAccessIsTakenAway() async {
+    let (model, _) = makeModel()
+    var reported: [Problem] = []
+    model.reportProblem = { reported.append($0) }
+    await model.appear()
+
+    library.result = .failure(.accessDenied)
+    await model.reload()
+
+    #expect(model.state == .failed(ProblemPresenter.problem(for: .accessDenied)))
+    #expect(model.items.isEmpty)
+    #expect(reported.isEmpty)
+  }
+
+  @Test func runsOneReloadAtATimeSoTheLatestWins() async throws {
+    let (model, _) = makeModel()
+    let gate = Signal()
+    library.gate = gate
+    let first = Task { await model.reload() }
+    #expect(await eventually { library.loads == 1 })
+
+    library.result = .success(books(["new"]))
+    library.gate = nil
+    let second = Task { await model.reload() }
+    try await Task.sleep(for: .milliseconds(50))
+    #expect(library.loads == 1)
+
+    await gate.fire()
+    await first.value
+    await second.value
+
+    #expect(model.items.map(\.id.rawValue) == ["new"])
+    #expect(library.loads == 2)
+  }
+
+  @Test func readsNewSendsWithoutReadingBooksAgain() async throws {
+    let (model, _) = makeModel()
+    await model.appear()
+    let loads = library.loads
+
+    try await history.append(
+      SendRecord(bookID: BookID(rawValue: "b"), destination: .email, date: .now, outcome: .sent))
+    await model.refreshHistory()
+
+    #expect(model.items.last?.tone == .sent)
+    #expect(library.loads == loads)
+  }
+
   // MARK: Watching Books
 
   @Test func reloadsWhenBooksChangesWhileThePanelIsOpen() async {

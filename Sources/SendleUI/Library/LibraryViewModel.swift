@@ -30,6 +30,8 @@ public final class LibraryViewModel {
   package private(set) var selection = Selection()
   package var hovered: BookID?
   package let sendHint = "Sending arrives with email support"
+  /// Told when a reload fails but the books from the last good one stay on screen.
+  @ObservationIgnored package var reportProblem: (@MainActor (Problem) -> Void)?
 
   private var sends: [BookID: SendRecord] = [:]
   private var volumes: [KindleVolume] = []
@@ -37,6 +39,7 @@ public final class LibraryViewModel {
   private var watcher: Task<Void, Never>?
   private var watcherGeneration = 0
   private var destinationUpdates: Task<Void, Never>?
+  @ObservationIgnored private var reloading: Task<Void, Never>?
 
   private let loadLibrary: LoadLibrary
   private let observeDestinations: ObserveDestinations
@@ -111,20 +114,19 @@ public final class LibraryViewModel {
     watcher = nil
   }
 
+  /// Reloads run one after another, so a slow older read can't replace a newer one.
   package func reload() async {
-    do {
-      let loaded = try await loadLibrary()
-      sends = LibraryItems.latestSends(in: await history.records())
-      books = loaded
-      needsAccess = false
-      state = .loaded
-      watchForChanges()
-    } catch {
-      books = []
-      needsAccess = error == .accessDenied
-      state = .failed(ProblemPresenter.problem(for: error))
+    let previous = reloading
+    let next = Task { [weak self] in
+      await previous?.value
+      await self?.load()
     }
-    selection.keep(in: items)
+    reloading = next
+    await next.value
+  }
+
+  package func refreshHistory() async {
+    sends = LibraryItems.latestSends(in: await history.records())
   }
 
   /// A new Kindle email shows at once; the destination stream only re-reads it when a Kindle moves.
@@ -168,6 +170,28 @@ public final class LibraryViewModel {
   }
 
   // MARK: Private
+
+  /// A failure other than lost access keeps the books already shown and says so.
+  private func load() async {
+    do {
+      let loaded = try await loadLibrary()
+      await refreshHistory()
+      books = loaded
+      needsAccess = false
+      state = .loaded
+      watchForChanges()
+    } catch {
+      let problem = ProblemPresenter.problem(for: error)
+      if error != .accessDenied, state == .loaded, !books.isEmpty {
+        reportProblem?(problem)
+      } else {
+        books = []
+        needsAccess = error == .accessDenied
+        state = .failed(problem)
+      }
+    }
+    selection.keep(in: items)
+  }
 
   private func show(_ destinations: [Destination]) {
     self.destinations = destinations

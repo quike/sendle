@@ -42,6 +42,7 @@ public final class PanelModel {
     self.setup = setup
     self.settings = settings
     self.covers = covers
+    library.reportProblem = { [weak self] problem in self?.show(notice: problem) }
   }
 
   /// The shell owns the panel, so it's attached after both exist.

@@ -63,6 +63,18 @@ struct PanelModelTests {
 
   // MARK: Routes
 
+  @Test func reportsAFailedReloadAsANotice() async {
+    let (panel, _) = makePanel()
+    await panel.launch()
+
+    library.result = .failure(.unreadable("disk I/O error"))
+    await panel.library.reload()
+
+    #expect(panel.notice == ProblemPresenter.problem(for: .unreadable("disk I/O error")))
+    #expect(panel.statusItem.needsAttention)
+    #expect(panel.library.state == .loaded)
+  }
+
   @Test func opensOnTheLibraryWhenBooksCanBeRead() async {
     let (panel, _) = makePanel()
     await panel.launch()
@@ -170,9 +182,11 @@ struct PanelModelTests {
     first.cancel()
     panel.panelDidClose()
     library.gate = nil
-    await panel.panelDidOpen()
+    // Reloads run in order, so the reopened panel's waits for the late one.
+    let second = Task { await panel.panelDidOpen() }
     await gate.fire()
     await first.value
+    await second.value
 
     #expect(library.changeSubscribers == 1)
   }
