@@ -1,0 +1,210 @@
+import Foundation
+import Observation
+import SendleDomain
+import os
+
+private let logger = Logger(subsystem: "io.github.quike.Sendle", category: "ui")
+
+package enum LibraryState: Equatable, Sendable {
+  case loading
+  case loaded
+  case failed(Problem)
+}
+
+/// The books, search, filters, layout, destinations and selection behind every layout.
+@Observable @MainActor
+public final class LibraryViewModel {
+  package private(set) var state = LibraryState.loading
+  package private(set) var books: [Book] = []
+  package private(set) var needsAccess = false
+  package var query = "" {
+    didSet { selection.keep(in: items) }
+  }
+  package var filter = LibraryFilter.all {
+    didSet { selection.keep(in: items) }
+  }
+  package private(set) var layout = LibraryLayout.grid
+  package private(set) var destinations: [Destination] = []
+  package private(set) var hasKindleEmail = false
+  package private(set) var preferredDestination = DestinationKind.email
+  package private(set) var selection = Selection()
+  package var hovered: BookID?
+  package let sendHint = "Sending arrives with email support"
+
+  private var sends: [BookID: SendRecord] = [:]
+  private var volumes: [KindleVolume] = []
+  private var isVisible = false
+  private var watcher: Task<Void, Never>?
+  private var watcherGeneration = 0
+  private var destinationUpdates: Task<Void, Never>?
+
+  private let loadLibrary: LoadLibrary
+  private let observeDestinations: ObserveDestinations
+  private let settings: any SettingsStore
+  private let history: any SendHistoryStore
+  private let converterAvailable: Bool
+  private let now: @Sendable () -> Date
+
+  public init(
+    loadLibrary: LoadLibrary,
+    observeDestinations: ObserveDestinations,
+    settings: any SettingsStore,
+    history: any SendHistoryStore,
+    converterAvailable: Bool = false,
+    now: @escaping @Sendable () -> Date = { Date() }
+  ) {
+    self.loadLibrary = loadLibrary
+    self.observeDestinations = observeDestinations
+    self.settings = settings
+    self.history = history
+    self.converterAvailable = converterAvailable
+    self.now = now
+  }
+
+  package var items: [BookItemViewModel] {
+    LibraryItems.make(
+      books: books, sends: sends, filter: filter, query: query,
+      destination: activeDestination?.kind ?? preferredDestination,
+      converterAvailable: converterAvailable, now: now())
+  }
+
+  package var recentItems: [BookItemViewModel] { Array(items.prefix(8)) }
+
+  package var summary: String {
+    let sendable = books.filter { $0.availability == .ready }.count
+    return "\(books.count) \(books.count == 1 ? "book" : "books") · \(sendable) sendable"
+  }
+
+  /// The saved choice while it's available, otherwise the first destination there is.
+  package var activeDestination: Destination? {
+    destinations.first { $0.kind == preferredDestination } ?? destinations.first
+  }
+
+  package var canSend: Bool { false }
+
+  // MARK: Lifecycle
+
+  /// Reads the remembered layout and destination, then follows Kindles for the app's lifetime.
+  package func start() async {
+    let saved = await settings.load()
+    layout = saved.layout
+    preferredDestination = saved.activeDestination
+    hasKindleEmail = saved.email != nil
+    let updates = observeDestinations()
+    destinationUpdates = Task { [weak self] in
+      for await destinations in updates {
+        guard let self else { return }
+        self.show(destinations)
+      }
+    }
+  }
+
+  package func appear() async {
+    isVisible = true
+    await reload()
+  }
+
+  /// Books' library files stay unwatched while nobody looks.
+  package func disappear() {
+    isVisible = false
+    watcher?.cancel()
+    watcher = nil
+  }
+
+  package func reload() async {
+    do {
+      let loaded = try await loadLibrary()
+      sends = LibraryItems.latestSends(in: await history.records())
+      books = loaded
+      needsAccess = false
+      state = .loaded
+      watchForChanges()
+    } catch {
+      books = []
+      needsAccess = error == .accessDenied
+      state = .failed(ProblemPresenter.problem(for: error))
+    }
+    selection.keep(in: items)
+  }
+
+  /// A new Kindle email shows at once; the destination stream only re-reads it when a Kindle moves.
+  package func refreshSettings() async {
+    let email = await settings.load().email?.kindleAddress
+    hasKindleEmail = email != nil
+    show(ObserveDestinations.destinations(email: email, volumes: volumes))
+  }
+
+  // MARK: Choices
+
+  package func setLayout(_ layout: LibraryLayout) async {
+    guard layout != self.layout else { return }
+    self.layout = layout
+    await save { $0.layout = layout }
+  }
+
+  package func activate(_ kind: DestinationKind) async {
+    preferredDestination = kind
+    selection.keep(in: items)
+    await save { $0.activeDestination = kind }
+  }
+
+  package func click(_ id: BookID, _ kind: ClickKind) {
+    selection.click(id, kind, in: items)
+  }
+
+  package func selectAll() {
+    selection.selectAll(in: items)
+  }
+
+  /// False when there was nothing to clear, so Esc can move on to closing things.
+  package func clearSelection() -> Bool {
+    guard !selection.isEmpty else { return false }
+    selection.clear()
+    return true
+  }
+
+  package func move(_ direction: MoveDirection) {
+    selection.move(direction, columns: layout == .grid ? 3 : 1, in: items)
+  }
+
+  // MARK: Private
+
+  private func show(_ destinations: [Destination]) {
+    self.destinations = destinations
+    volumes = destinations.compactMap {
+      if case .usb(let volume) = $0 { volume } else { nil }
+    }
+    selection.keep(in: items)
+  }
+
+  /// The stream ends at once when Books' folder can't be watched; the next good load tries again.
+  private func watchForChanges() {
+    guard isVisible, watcher == nil else { return }
+    let changes = loadLibrary.changes()
+    watcherGeneration += 1
+    let generation = watcherGeneration
+    watcher = Task { [weak self] in
+      for await _ in changes {
+        await self?.reload()
+      }
+      if self?.watcherGeneration == generation { self?.watcher = nil }
+    }
+  }
+
+  private func save(_ change: @Sendable (inout AppSettings) -> Void) async {
+    do {
+      try await settings.update(change)
+    } catch {
+      logger.error("Could not save a panel choice: \(String(describing: error))")
+    }
+  }
+}
+
+extension Destination {
+  package var chipTitle: String {
+    switch self {
+    case .email: "Kindle email"
+    case .usb(let volume): "\(volume.name) · USB"
+    }
+  }
+}
