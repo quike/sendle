@@ -20,8 +20,10 @@ public struct KeychainSecretStore: SecretStore {
     let status = SecItemCopyMatching(query as CFDictionary, &item)
     switch status {
     case errSecSuccess:
-      guard let data = item as? Data else { return nil }
-      return String(decoding: data, as: UTF8.self)
+      guard let data = item as? Data, let password = String(data: data, encoding: .utf8) else {
+        throw .keychain(status: errSecDecode)
+      }
+      return password
     case errSecItemNotFound:
       return nil
     default:

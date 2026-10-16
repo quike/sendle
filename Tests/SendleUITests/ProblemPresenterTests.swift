@@ -54,6 +54,11 @@ struct ProblemPresenterTests {
       (.diskFull, "Not enough space on the Kindle", nil),
       (.localStorage("disk full"), "Couldn't write temporary files on this Mac", nil),
       (.cancelled, "Cancelled", nil),
+      (.unconfirmed(host: "smtp.gmail.com"), "smtp.gmail.com didn't confirm the book", nil),
+      (
+        .passwordUnavailable, "Sendle couldn't read the app password",
+        .openSettings(.sender)
+      ),
     ] as [(SendFailure, String, FixAction?)])
   func explainsSendFailures(failure: SendFailure, title: String, fix: FixAction?) {
     let problem = ProblemPresenter.problem(for: failure)
@@ -83,6 +88,19 @@ struct ProblemPresenterTests {
 
     #expect(hints[0]?.contains("2-Step Verification") == true)
     #expect(Set(hints).count == MailProvider.allCases.count)
+  }
+
+  @Test func warnsAgainstSendingAnUnconfirmedBookTwice() {
+    let problem = ProblemPresenter.problem(for: .unconfirmed(host: "smtp.mail.me.com"))
+
+    #expect(problem.message == "It may still arrive. Check your Kindle before you send it again.")
+  }
+
+  @Test func namesEachProviderMidSentence() {
+    #expect(
+      MailProvider.allCases.map(\.inlineName) == [
+        "Gmail", "iCloud Mail", "Fastmail", "the mail server",
+      ])
   }
 
   @Test func blamesAmazonOnlyForAmazonsOwnLimit() {

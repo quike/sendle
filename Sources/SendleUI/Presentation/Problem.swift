@@ -48,4 +48,8 @@ extension MailProvider {
     case .custom: "The mail server"
     }
   }
+
+  package var inlineName: String {
+    self == .custom ? "the mail server" : displayName
+  }
 }

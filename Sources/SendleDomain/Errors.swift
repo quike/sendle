@@ -9,8 +9,12 @@ public enum SendFailure: Error, Hashable, Sendable {
   case authenticationFailed(MailProvider)
   /// Only for failures before the server accepted the message: SendBooks retries it once.
   case connectionFailed(host: String)
+  /// The connection broke after the whole message was sent: the server may have accepted it.
+  case unconfirmed(host: String)
   case rejected(String)
   case notConfigured
+  /// The sender's app password is missing from the Keychain, or the Keychain refused to give it.
+  case passwordUnavailable
   case tooLarge(bytes: Int64, limit: Int64)
   case protected
   case inCloudOnly

@@ -29,6 +29,8 @@ struct SendFailureTests {
     #expect(!SendFailure.authenticationFailed(.gmail).isRetryable)
     #expect(!SendFailure.rejected("550").isRetryable)
     #expect(!SendFailure.cancelled.isRetryable)
+    #expect(!SendFailure.unconfirmed(host: "smtp.gmail.com").isRetryable)
+    #expect(!SendFailure.passwordUnavailable.isRetryable)
   }
 }
 

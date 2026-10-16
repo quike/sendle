@@ -36,10 +36,18 @@ public enum ProblemPresenter {
       Problem(
         "Couldn't reach \(host)", message: "Check your internet connection, then try again.",
         fix: Fix("Retry", .retry))
+    case .unconfirmed(let host):
+      Problem(
+        "\(host) didn't confirm the book",
+        message: "It may still arrive. Check your Kindle before you send it again.")
     case .rejected(let detail):
       Problem("The mail server refused the message", message: detail)
     case .notConfigured:
       Problem("Set up your Kindle email first", fix: Fix("Open Settings", .openSettings(.kindle)))
+    case .passwordUnavailable:
+      Problem(
+        "Sendle couldn't read the app password", message: "Enter it again in Settings › Sender.",
+        fix: Fix("Open Settings", .openSettings(.sender)))
     case .tooLarge(let bytes, let limit):
       Problem(
         tooLargeTitle(bytes: bytes, limit: limit),
