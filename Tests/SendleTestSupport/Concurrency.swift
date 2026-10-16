@@ -29,3 +29,13 @@ public actor Signal {
     await withCheckedContinuation { waiters.append($0) }
   }
 }
+
+/// Polls `condition` until it holds or five seconds pass, for state other tasks update.
+@MainActor
+public func eventually(_ condition: () -> Bool) async -> Bool {
+  for _ in 0..<500 {
+    if condition() { return true }
+    try? await Task.sleep(for: .milliseconds(10))
+  }
+  return condition()
+}

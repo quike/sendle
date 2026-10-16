@@ -23,6 +23,30 @@ public struct EmailSetupInput: Hashable, Sendable {
   }
 }
 
+extension EmailSetupInput: CustomStringConvertible, CustomDebugStringConvertible,
+  CustomReflectable
+{
+  /// Every textual form hides the password, so logs and test failures can't leak it.
+  public var description: String {
+    let server = customServer.map { String(describing: $0) } ?? "nil"
+    return "EmailSetupInput(kindleAddress: \(kindleAddress), senderAddress: \(senderAddress), "
+      + "provider: \(provider), customServer: \(server), password: \(redactedPassword))"
+  }
+
+  public var debugDescription: String { description }
+
+  public var customMirror: Mirror {
+    Mirror(
+      self,
+      children: [
+        "kindleAddress": kindleAddress, "senderAddress": senderAddress, "provider": provider,
+        "customServer": customServer as Any, "password": redactedPassword,
+      ])
+  }
+
+  private var redactedPassword: String { password.isEmpty ? "<empty>" : "<redacted>" }
+}
+
 public enum EmailSetupIssue: Hashable, Sendable {
   case invalidKindleAddress
   case invalidSenderAddress
@@ -52,8 +76,9 @@ public struct ConfigureEmail: Sendable {
   public func callAsFunction(
     _ input: EmailSetupInput
   ) async throws(EmailSetupError) -> [EmailSetupWarning] {
-    let kindle = KindleEmail(rawValue: input.kindleAddress.trimmingCharacters(in: .whitespaces))
-    let sender = input.senderAddress.trimmingCharacters(in: .whitespaces)
+    let kindle = KindleEmail(
+      rawValue: input.kindleAddress.trimmingCharacters(in: .whitespacesAndNewlines))
+    let sender = input.senderAddress.trimmingCharacters(in: .whitespacesAndNewlines)
     let password = Self.normalized(input.password, for: input.provider)
     let server = input.provider.defaultServer ?? input.customServer
 
@@ -68,16 +93,18 @@ public struct ConfigureEmail: Sendable {
 
     let email = EmailSettings(
       kindleAddress: kindle, senderAddress: sender, provider: input.provider, server: server)
+    let previous: AppSettings
     do throws(StorageError) {
       if !password.isEmpty {
         try await secrets.setPassword(password, for: sender)
       }
-      let previous = try await settings.update { $0.email = email }
-      if let oldSender = previous.email?.senderAddress, oldSender != sender {
-        try await secrets.removePassword(for: oldSender)
-      }
+      previous = try await settings.update { $0.email = email }
     } catch {
       throw .storage(error)
+    }
+    // The setup is saved: a password left behind for the old sender is untidy, not a failure.
+    if let oldSender = previous.email?.senderAddress, oldSender != sender {
+      try? await secrets.removePassword(for: oldSender)
     }
     return kindle.isAmazonAddress ? [] : [.kindleAddressNotAmazon]
   }

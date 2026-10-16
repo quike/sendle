@@ -1,6 +1,6 @@
 import Foundation
 
-public enum SendOutcome: String, Sendable, Codable {
+public enum SendOutcome: String, Sendable, Codable, CaseIterable {
   case sent
   case failed
 }

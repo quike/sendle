@@ -47,4 +47,14 @@ struct LoadLibraryTests {
 
     await #expect(throws: LibraryError.accessDenied) { try await load() }
   }
+
+  @Test func passesOnLibraryChanges() async {
+    let library = FakeBooksLibrary(.success([]))
+    let load = LoadLibrary(library: library, inspector: StubProtectionInspector())
+    var changes = load.changes().makeAsyncIterator()
+
+    library.announceChange()
+
+    #expect(await changes.next() != nil)
+  }
 }

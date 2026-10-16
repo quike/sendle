@@ -58,3 +58,14 @@ struct AppSettingsTests {
     }
   }
 }
+
+struct PersistedEnumTests {
+  /// settings.json and history.json store these raw values: renaming one loses saved data.
+  @Test func rawValuesNeverChange() {
+    #expect(MailProvider.allCases.map(\.rawValue) == ["gmail", "iCloud", "fastmail", "custom"])
+    #expect(SMTPSecurity.allCases.map(\.rawValue) == ["implicitTLS", "startTLS"])
+    #expect(LibraryLayout.allCases.map(\.rawValue) == ["grid", "list", "shelf"])
+    #expect(DestinationKind.allCases.map(\.rawValue) == ["email", "usb"])
+    #expect(SendOutcome.allCases.map(\.rawValue) == ["sent", "failed"])
+  }
+}

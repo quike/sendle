@@ -2,6 +2,7 @@ import SendleDomain
 import SendleTestSupport
 import Testing
 
+@Suite(.timeLimit(.minutes(1)))
 struct ObserveDestinationsTests {
   @Test func listsPluggedInKindlesBeforeEmail() {
     let scribe = KindleVolume.fixture(name: "Kindle Scribe")
@@ -22,34 +23,47 @@ struct ObserveDestinationsTests {
       monitor: monitor, settings: InMemorySettingsStore(AppSettings(email: .fixture)))
     var updates = observe().makeAsyncIterator()
 
-    monitor.continuation.yield([])
     #expect(await updates.next() == [.email(.fixture)])
 
-    monitor.continuation.yield([.fixture()])
+    monitor.update([.fixture()])
     #expect(await updates.next() == [.usb(.fixture()), .email(.fixture)])
+  }
+
+  @Test func everyListenerGetsEveryChange() async {
+    let monitor = FakeDestinationMonitor()
+    let observe = ObserveDestinations(monitor: monitor, settings: InMemorySettingsStore())
+    var first = observe().makeAsyncIterator()
+    var second = observe().makeAsyncIterator()
+
+    monitor.update([.fixture()])
+
+    #expect(await first.next() == [])
+    #expect(await first.next() == [.usb(.fixture())])
+    #expect(await second.next() == [])
+    #expect(await second.next() == [.usb(.fixture())])
   }
 
   @Test func endsWhenTheMonitorEnds() async {
     let monitor = FakeDestinationMonitor()
     let observe = ObserveDestinations(monitor: monitor, settings: InMemorySettingsStore())
     var updates = observe().makeAsyncIterator()
+    #expect(await updates.next() == [])
 
-    monitor.continuation.finish()
+    monitor.finish()
 
     #expect(await updates.next() == nil)
   }
 
   @Test func stopsWatchingKindlesWhenNobodyListens() async {
     let monitor = FakeDestinationMonitor()
-    let stopped = Signal()
-    monitor.continuation.onTermination = { _ in Task { await stopped.fire() } }
     let observe = ObserveDestinations(monitor: monitor, settings: InMemorySettingsStore())
 
     let listener = Task {
       for await _ in observe() {}
     }
+    #expect(await eventually { monitor.subscriberCount == 1 })
     listener.cancel()
 
-    await stopped.wait()
+    #expect(await eventually { monitor.subscriberCount == 0 })
   }
 }

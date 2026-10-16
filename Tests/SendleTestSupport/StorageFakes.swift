@@ -26,9 +26,11 @@ public actor InMemorySettingsStore: SettingsStore {
 
 public actor MemorySecretStore: SecretStore {
   public private(set) var passwords: [String: String]
+  private let removalFailure: StorageError?
 
-  public init(_ passwords: [String: String] = [:]) {
+  public init(_ passwords: [String: String] = [:], removalFailure: StorageError? = nil) {
     self.passwords = passwords
+    self.removalFailure = removalFailure
   }
 
   public func password(for account: String) -> String? {
@@ -39,7 +41,8 @@ public actor MemorySecretStore: SecretStore {
     passwords[account] = password
   }
 
-  public func removePassword(for account: String) {
+  public func removePassword(for account: String) throws(StorageError) {
+    if let removalFailure { throw removalFailure }
     passwords[account] = nil
   }
 }

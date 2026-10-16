@@ -24,4 +24,9 @@ public struct LoadLibrary: Sendable {
         return lhs.title.localizedStandardCompare(rhs.title) == .orderedAscending
       }
   }
+
+  /// Emits whenever the library may have changed. Ends at once when the library can't be watched.
+  public func changes() -> AsyncStream<Void> {
+    library.changes()
+  }
 }

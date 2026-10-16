@@ -107,4 +107,36 @@ struct ConfigureEmailTests {
     }
     #expect(await secrets.passwords["me@gmail.com"] == "old")
   }
+
+  @Test func acceptsAddressesPastedWithATrailingNewline() async throws {
+    _ = try await configure(input(kindle: "reader@kindle.com\n", sender: "me@gmail.com\r\n"))
+
+    #expect(await settings.settings.email?.kindleAddress == .fixture)
+    #expect(await settings.settings.email?.senderAddress == "me@gmail.com")
+  }
+
+  @Test func savesEvenWhenTheOldPasswordCannotBeRemoved() async throws {
+    let secrets = MemorySecretStore(
+      ["me@gmail.com": "old"], removalFailure: .keychain(status: -25_300))
+    let settings = InMemorySettingsStore(AppSettings(email: .fixture))
+    let configure = ConfigureEmail(settings: settings, secrets: secrets)
+
+    _ = try await configure(input(sender: "new@gmail.com"))
+
+    #expect(await settings.settings.email?.senderAddress == "new@gmail.com")
+    #expect(await secrets.passwords["new@gmail.com"] == "abcdefghijklmnop")
+  }
+
+  @Test func describingTheInputNeverShowsThePassword() {
+    let typed = input(password: "hunter2-app-pass")
+    var dumped = ""
+    dump(typed, to: &dumped)
+
+    for text in [String(describing: typed), String(reflecting: typed), "\(typed)", dumped] {
+      #expect(!text.contains("hunter2"))
+      #expect(text.contains("<redacted>"))
+      #expect(text.contains("reader@kindle.com"))
+    }
+    #expect(String(describing: input(password: "")).contains("<empty>"))
+  }
 }

@@ -1,4 +1,4 @@
-public enum SMTPSecurity: String, Sendable, Codable {
+public enum SMTPSecurity: String, Sendable, Codable, CaseIterable {
   case implicitTLS
   case startTLS
 }
