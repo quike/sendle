@@ -12,6 +12,7 @@ let package = Package(
       dependencies: ["SendleDomain"],
       linkerSettings: [.linkedLibrary("sqlite3")]
     ),
+    .target(name: "SendleEPUB", dependencies: ["SendleDomain"]),
     .target(
       name: "SendleTestSupport",
       dependencies: ["SendleDomain"],
@@ -28,6 +29,10 @@ let package = Package(
     .testTarget(
       name: "SendleAppleBooksTests",
       dependencies: ["SendleAppleBooks", "SendleTestSupport"]
+    ),
+    .testTarget(
+      name: "SendleEPUBTests",
+      dependencies: ["SendleEPUB", "SendleTestSupport"]
     ),
   ]
 )
