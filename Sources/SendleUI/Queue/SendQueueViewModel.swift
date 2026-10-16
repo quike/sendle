@@ -54,7 +54,7 @@ public final class SendQueueViewModel {
 
   // MARK: Actions
 
-  /// Starts a run. A second one waits until the first has finished and been looked at.
+  /// Starts a run and replaces the queue. Ignored while a run is in progress.
   package func send(_ books: [Book], to destination: Destination) {
     guard !isRunning, !books.isEmpty else { return }
     rows = books.map { QueueRow(book: $0) }
@@ -75,9 +75,10 @@ public final class SendQueueViewModel {
     run?.cancel()
   }
 
+  /// An unconfirmed book may already be with Amazon, so a retry never resends it.
   package func retryFailed() {
     guard !isRunning, let destination else { return }
-    send(failures.map(\.book), to: destination)
+    send(retryable.map(\.book), to: destination)
   }
 
   package func dismiss() {
@@ -105,9 +106,9 @@ public final class SendQueueViewModel {
       }
     case .failed(let id, let failure):
       if failure != .cancelled {
+        let detail = String(describing: failure)
         logger.error(
-          "Sending \(id.rawValue, privacy: .private) failed: \(String(describing: failure), privacy: .private)"
-        )
+          "Sending \(id.rawValue, privacy: .private) failed: \(detail, privacy: .private)")
       }
       update(id) { $0.status = failure == .cancelled ? .cancelled : .failed(failure) }
     }
@@ -117,6 +118,16 @@ public final class SendQueueViewModel {
 
   private var failures: [QueueRow] {
     rows.filter { if case .failed = $0.status { true } else { false } }
+  }
+
+  private var retryable: [QueueRow] {
+    rows.filter {
+      switch $0.status {
+      case .failed(.unconfirmed): false
+      case .failed: true
+      default: false
+      }
+    }
   }
 
   private func update(_ id: BookID, _ change: (inout QueueRow) -> Void) {

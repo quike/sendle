@@ -183,6 +183,22 @@ struct SendQueueViewModelTests {
     #expect(statuses(queue) == [.sent])
   }
 
+  @Test func retryLeavesAnUnconfirmedBookAlone() async {
+    let unreachable = SendFailure.connectionFailed(host: "smtp.gmail.com")
+    let queue = makeQueue(
+      FakeDeliveryChannel(
+        .fail(unreachable), .fail(unreachable), .fail(.unconfirmed(host: "smtp.gmail.com")),
+        .succeed))
+    queue.send([moby, dracula], to: email)
+    await queue.waitUntilFinished()
+
+    queue.retryFailed()
+    await queue.waitUntilFinished()
+
+    #expect(queue.rows.map(\.id) == [moby.id])
+    #expect(statuses(queue) == [.sent])
+  }
+
   @Test func clearsOnlyAFinishedQueue() async {
     let channel = FakeDeliveryChannel(.hangUntilCancelled)
     let queue = makeQueue(channel)
