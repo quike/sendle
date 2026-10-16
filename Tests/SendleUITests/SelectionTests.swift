@@ -130,6 +130,16 @@ struct SelectionTests {
     #expect(ids(up) == ["f"])
   }
 
+  @Test func arrowsFromAnEdgeSkipABlockedBookOneAtATime() {
+    var down = Selection()
+    down.move(.down, columns: 3, in: items(blocked: ["a"]))
+    var up = Selection()
+    up.move(.up, columns: 3, in: items(blocked: ["f"]))
+
+    #expect(ids(down) == ["b"])
+    #expect(ids(up) == ["e"])
+  }
+
   @Test func arrowsStopAtTheEnds() {
     var selection = Selection()
     selection.click(id("f"), .plain, in: items())

@@ -74,8 +74,10 @@ package struct Selection: Equatable, Sendable {
       }
     let current = lead.flatMap { lead in items.firstIndex { $0.id == lead } }
     var index = current.map { $0 + step } ?? (step > 0 ? 0 : items.count - 1)
+    // From an edge, skip blocked books one at a time, not a whole row.
+    let skip = current == nil ? (step > 0 ? 1 : -1) : step
     while items.indices.contains(index), !items[index].canSend {
-      index += step
+      index += skip
     }
     guard items.indices.contains(index) else {
       if let lead, ids.contains(lead) { select(lead) }
