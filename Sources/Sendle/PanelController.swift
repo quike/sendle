@@ -110,10 +110,10 @@ final class PanelController: NSObject, NSWindowDelegate {
 
   /// Text fields keep their editing keys; everything else goes to the panel's shortcuts.
   private func handle(_ event: NSEvent) -> Bool {
-    let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
+    let flags = event.modifierFlags.intersection([.command, .shift, .option, .control])
     let isEditingText = window.firstResponder is NSText
     if isEditingText, flags.contains(.command), let action = Self.editingAction(for: event, flags) {
-      return NSApp.sendAction(action, to: nil, from: window)
+      return window.firstResponder?.tryToPerform(action, with: nil) ?? false
     }
     guard let key = Self.key(of: event) else { return false }
     return model.handle(KeyInput(key, command: flags == .command, isEditingText: isEditingText))
