@@ -13,6 +13,7 @@ package final class LibraryWatcher: @unchecked Sendable {
   private var isBatching = false
   private var isStopped = false
 
+  /// `onChange` runs on the watcher's private queue, so it must not call `start()`.
   package init(
     directory: URL,
     isLibraryFile: @escaping @Sendable (String) -> Bool,
@@ -32,11 +33,13 @@ package final class LibraryWatcher: @unchecked Sendable {
         self?.refreshFileSources()
         self?.scheduleChange()
       }
+      guard directorySource != nil else { return false }
       refreshFileSources()
-      return directorySource != nil
+      return true
     }
   }
 
+  /// Cancels every source. An `onChange` that is already due may still run once.
   package func stop() {
     queue.async { [self] in
       isStopped = true

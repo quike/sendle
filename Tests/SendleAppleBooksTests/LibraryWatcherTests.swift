@@ -35,6 +35,21 @@ struct LibraryWatcherTests {
     try await waitForChanges(count: 1)
   }
 
+  @Test func watchesALibraryFileCreatedAfterStarting() async throws {
+    let watcher = makeWatcher(batchDelay: .milliseconds(50))
+    #expect(watcher.start())
+    defer { watcher.stop() }
+    let wal = folder.appending(path: "BKLibrary-1-1.sqlite-wal")
+    try Data("wal".utf8).write(to: wal)
+    try await waitForChanges(count: 1)
+    try await Task.sleep(for: .milliseconds(200))
+    let baseline = await changes.values.count
+
+    try append("frame", to: wal)
+
+    try await waitForChanges(count: baseline + 1)
+  }
+
   @Test func keepsWatchingAFileThatWasReplaced() async throws {
     let watcher = makeWatcher(batchDelay: .milliseconds(50))
     #expect(watcher.start())
