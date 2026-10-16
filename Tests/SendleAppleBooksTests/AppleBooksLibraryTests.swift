@@ -27,7 +27,7 @@ struct AppleBooksLibraryTests {
       .init(
         assetID: "P1", title: "Manual", author: nil, path: pdf.path(percentEncoded: false),
         language: nil,
-        storeID: "1234", creationDate: 0, contentType: 3, fileSize: 0)
+        storeID: "1234", creationDate: 0, contentType: 3, fileSize: 99)
     )
 
     let result = try await library().books().sorted { $0.id.rawValue < $1.id.rawValue }
@@ -99,6 +99,28 @@ struct AppleBooksLibraryTests {
 
     #expect(result.map(\.id.rawValue) == ["pdf-by-name"])
     #expect(result.first?.format == .pdf)
+  }
+
+  @Test func prefersBooksContentTypeToTheExtension() async throws {
+    try fixture.insert(
+      .init(assetID: "epub", path: "/Books/Book.bin", contentType: 1),
+      .init(assetID: "pdf", path: "/Books/Scan.epub", contentType: 3)
+    )
+
+    let formats = Dictionary(
+      uniqueKeysWithValues: try await library().books().map { ($0.id.rawValue, $0.format) })
+
+    #expect(formats == ["epub": .epub, "pdf": .pdf])
+  }
+
+  @Test func usesBooksSizeWhenTheFileIsMissing() async throws {
+    let gone = books.appending(path: "Gone.pdf").path(percentEncoded: false)
+    try fixture.insert(.init(assetID: "gone", path: gone, contentType: 3, fileSize: 500))
+
+    let book = try #require(try await library().books().first)
+
+    #expect(book.availability == .missing)
+    #expect(book.sizeBytes == 500)
   }
 
   @Test func keepsUnicodeAndQuotesIntact() async throws {
