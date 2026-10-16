@@ -29,6 +29,8 @@ public final class PanelModel {
 
   @ObservationIgnored private weak var system: (any SystemActions)?
   @ObservationIgnored private var accessWatch: Task<Void, Never>?
+  /// Bumped by every open and close, so an opening that a newer one replaced leaves the state alone.
+  @ObservationIgnored private var session = 0
 
   public init(
     library: LibraryViewModel,
@@ -65,10 +67,13 @@ public final class PanelModel {
     await library.reload()
   }
 
-  /// Library access is checked again every time the panel opens. Cancel it if the panel closes
-  /// before it finishes.
+  /// Library access is checked again every time the panel opens. The shell cancels this when the
+  /// panel closes before it finishes; a newer open or close then owns the state.
   public func panelDidOpen() async {
+    session += 1
+    let opened = session
     await library.appear()
+    guard opened == session else { return }
     guard !Task.isCancelled else { return panelDidClose() }
     if library.needsAccess {
       showSetup(at: .libraryAccess)
@@ -78,6 +83,7 @@ public final class PanelModel {
   }
 
   public func panelDidClose() {
+    session += 1
     library.disappear()
     accessWatch?.cancel()
     accessWatch = nil

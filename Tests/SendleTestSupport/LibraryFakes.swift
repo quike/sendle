@@ -7,6 +7,7 @@ public final class FakeBooksLibrary: BooksLibrary {
     var result: Result<[Book], LibraryError>
     var canWatch = true
     var loads = 0
+    var gate: Signal?
   }
 
   private let state: OSAllocatedUnfairLock<State>
@@ -28,14 +29,22 @@ public final class FakeBooksLibrary: BooksLibrary {
     set { state.withLock { $0.canWatch = newValue } }
   }
 
+  /// While set, `books()` waits for it to fire before answering.
+  public var gate: Signal? {
+    get { state.withLock { $0.gate } }
+    set { state.withLock { $0.gate = newValue } }
+  }
+
   public var loads: Int { state.withLock { $0.loads } }
   public var changeSubscribers: Int { changeFeed.subscriberCount }
 
   public func books() async throws(LibraryError) -> [Book] {
-    try state.withLock { state in
+    let (result, gate) = state.withLock { state in
       state.loads += 1
-      return state.result
-    }.get()
+      return (state.result, state.gate)
+    }
+    if let gate { await gate.wait() }
+    return try result.get()
   }
 
   public func changes() -> AsyncStream<Void> {

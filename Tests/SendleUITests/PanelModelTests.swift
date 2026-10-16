@@ -157,6 +157,24 @@ struct PanelModelTests {
     #expect(library.changeSubscribers == 0)
   }
 
+  @Test func aLateOpeningLeavesTheReopenedPanelWatching() async {
+    let (panel, _) = makePanel()
+    await panel.launch()
+    let gate = Signal()
+    library.gate = gate
+
+    let first = Task { await panel.panelDidOpen() }
+    #expect(await eventually { library.loads == 2 })
+    first.cancel()
+    panel.panelDidClose()
+    library.gate = nil
+    await panel.panelDidOpen()
+    await gate.fire()
+    await first.value
+
+    #expect(library.changeSubscribers == 1)
+  }
+
   @Test func finishingSetupShowsTheLibraryWithTheNewEmail() async {
     let (panel, settings) = makePanel(AppSettings())
     await panel.launch()
