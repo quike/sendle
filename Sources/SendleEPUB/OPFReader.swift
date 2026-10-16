@@ -47,9 +47,9 @@ public enum OPFReader {
   /// Finds the package document through `META-INF/container.xml` and reads it.
   package static func package(inEPUBAt root: URL) -> EPUBPackage? {
     guard
-      let container = try? Data(contentsOf: root.appending(path: "META-INF/container.xml")),
+      let container = BookFile.contents(of: root.appending(path: "META-INF/container.xml")),
       let path = packagePath(inContainer: container),
-      let document = try? Data(contentsOf: root.appending(path: path))
+      let document = BookFile.contents(of: root.appending(path: path))
     else { return nil }
     return package(document, at: path)
   }

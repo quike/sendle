@@ -26,7 +26,7 @@ public struct EPUBProtectionInspector: ProtectionInspector {
     }
     if exists("sinf.xml") || exists("rights.xml") { return true }
     guard exists("encryption.xml") else { return false }
-    guard let manifest = try? Data(contentsOf: metaInf.appending(path: "encryption.xml")) else {
+    guard let manifest = BookFile.contents(of: metaInf.appending(path: "encryption.xml")) else {
       return true
     }
     return EncryptionManifest.encryptsMoreThanFonts(manifest)

@@ -68,6 +68,17 @@ struct EPUBProtectionInspectorTests {
     #expect(inspector.isProtected(book()))
   }
 
+  @Test func treatsALinkedEncryptionManifestAsProtected() throws {
+    try EPUBFixture.book().write(to: root)
+    let outside = folder.appending(path: "encryption.xml")
+    try Data(#"<encryption xmlns="urn:oasis:names:tc:opendocument:xmlns:container"/>"#.utf8)
+      .write(to: outside)
+    try FileManager.default.createSymbolicLink(
+      at: root.appending(path: "META-INF/encryption.xml"), withDestinationURL: outside)
+
+    #expect(inspector.isProtected(book()))
+  }
+
   @Test func passesAnEmptyEncryptionManifest() throws {
     try write(encryption: #"<encryption xmlns="urn:oasis:names:tc:opendocument:xmlns:container"/>"#)
 

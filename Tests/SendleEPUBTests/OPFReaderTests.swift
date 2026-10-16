@@ -150,6 +150,20 @@ struct OPFReaderTests {
     try book.write(to: root)
     #expect(OPFReader.package(inEPUBAt: root) == nil)
   }
+
+  @Test func readsOnlyRegularFilesInsideTheBook() throws {
+    var book = EPUBFixture.book()
+    book.files["META-INF/container.xml"] = nil
+    try book.write(to: root)
+    let outside = folder.appending(path: "container.xml")
+    try Data(EPUBFixture.container.utf8).write(to: outside)
+    try FileManager.default.createDirectory(
+      at: root.appending(path: "META-INF"), withIntermediateDirectories: true)
+    try FileManager.default.createSymbolicLink(
+      at: root.appending(path: "META-INF/container.xml"), withDestinationURL: outside)
+
+    #expect(OPFReader.package(inEPUBAt: root) == nil)
+  }
 }
 
 struct ArchivePathTests {
