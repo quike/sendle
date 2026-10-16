@@ -89,10 +89,12 @@ public enum ProblemPresenter {
   }
 
   private static func tooLargeTitle(bytes: Int64, limit: Int64) -> String {
-    let size = Formatting.size(bytes)
+    let precise = Formatting.size(bytes) == Formatting.size(limit)
+    let size = Formatting.size(bytes, precise: precise)
+    let limitSize = Formatting.size(limit, precise: precise)
     return limit == FormatPolicy.emailSizeLimit
-      ? "\(size) is over Amazon's \(Formatting.size(limit)) email limit"
-      : "\(size) is over your mail server's \(Formatting.size(limit)) limit"
+      ? "\(size) is over Amazon's \(limitSize) email limit"
+      : "\(size) is over your mail server's \(limitSize) limit"
   }
 
   private static func passwordHint(_ provider: MailProvider) -> String {

@@ -112,6 +112,12 @@ struct ProblemPresenterTests {
     #expect(server.title == "30 MB is over your mail server's 25 MB limit")
   }
 
+  @Test func tellsApartSizesThatRoundAlike() {
+    let problem = ProblemPresenter.problem(for: .tooLarge(bytes: 21_200_000, limit: 20_690_000))
+
+    #expect(problem.title == "21.2 MB is over your mail server's 20.7 MB limit")
+  }
+
   @Test func offersUSBForALargeBookOnlyWhileAKindleIsPluggedIn() {
     let failure = SendFailure.tooLarge(bytes: 62_000_000, limit: FormatPolicy.emailSizeLimit)
 

@@ -46,7 +46,7 @@ package struct BookItemViewModel: Identifiable, Hashable, Sendable {
         detail = "\(how) · \(Formatting.age(of: lastSend.date, now: now))"
         tone = .sent
       } else {
-        detail = book.sizeBytes.map(Formatting.size) ?? ""
+        detail = book.sizeBytes.map { Formatting.size($0) } ?? ""
         tone = .plain
       }
       canSend = true
