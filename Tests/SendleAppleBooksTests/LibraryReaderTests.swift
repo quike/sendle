@@ -21,7 +21,7 @@ struct LibraryReaderTests {
       .init(
         assetID: "A1", title: "Moby-Dick", author: "Herman Melville",
         path: "/Books/Moby-Dick.epub", language: "en", storeID: "123",
-        creationDate: 700_000_000.5, contentType: 1, state: 1, fileSize: 42))
+        creationDate: 700_000_000.5, contentType: 3, state: 2, fileSize: 42))
 
     let records = try reader.records(in: fixture.url)
 
@@ -34,8 +34,8 @@ struct LibraryReaderTests {
     #expect(record.language == "en")
     #expect(record.storeID == "123")
     #expect(record.creationDate == 700_000_000.5)
-    #expect(record.contentType == 1)
-    #expect(record.state == 1)
+    #expect(record.contentType == 3)
+    #expect(record.state == 2)
     #expect(record.fileSize == 42)
   }
 
@@ -45,7 +45,7 @@ struct LibraryReaderTests {
       .init(assetID: "book"),
       .init(assetID: "sample", isSample: 1),
       .init(assetID: "hidden", isHidden: 1),
-      .init(assetID: "series", path: nil, contentType: 5),
+      .init(assetID: "series", contentType: 5),
       .init(assetID: "no-path", path: nil),
       .init(assetID: "empty-path", path: ""),
       .init(assetID: nil),
@@ -114,6 +114,24 @@ struct LibraryReaderTests {
     let records = try reader.records(in: fixture.url)
 
     #expect(records.map(\.assetID) == ["A1"])
+    #expect(
+      try FileManager.default.contentsOfDirectory(atPath: scratch.path(percentEncoded: false))
+        .isEmpty)
+  }
+
+  @Test func readsRowsThatOnlyTheWALHoldsThroughTheCopy() throws {
+    let fixture = try LibraryDatabaseFixture(in: folder)
+    try fixture.insert(.init(assetID: "A1"))
+    let locked = try makeTemporaryDirectory()
+    let database = locked.appending(path: fixture.url.lastPathComponent)
+    try FileManager.default.copyItem(at: fixture.url, to: database)
+    try FileManager.default.copyItem(
+      at: fixture.walURL, to: URL(filePath: database.path(percentEncoded: false) + "-wal"))
+    let path = locked.path(percentEncoded: false)
+    try FileManager.default.setAttributes([.posixPermissions: 0o555], ofItemAtPath: path)
+    defer { try? FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: path) }
+
+    #expect(try reader.records(in: database).map(\.assetID) == ["A1"])
     #expect(
       try FileManager.default.contentsOfDirectory(atPath: scratch.path(percentEncoded: false))
         .isEmpty)

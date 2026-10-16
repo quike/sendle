@@ -89,7 +89,8 @@ package struct LibraryReader: Sendable {
     let query = AssetQuery(columns: columns)
     guard query.missingRequired.isEmpty else { throw .missingColumns(query.missingRequired) }
     if !query.missingOptional.isEmpty {
-      logger.notice("Books library lacks \(query.missingOptional.joined(separator: ", "))")
+      logger.notice(
+        "Books library lacks \(query.missingOptional.joined(separator: ", "), privacy: .public)")
     }
     do throws(SQLiteError) {
       return try connection.rows(query.sql, query.record)
