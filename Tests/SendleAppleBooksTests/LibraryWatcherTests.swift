@@ -75,14 +75,14 @@ struct LibraryWatcherTests {
   }
 
   @Test func ignoresOtherFiles() async throws {
-    let watcher = makeWatcher(batchDelay: .milliseconds(50))
+    let watcher = makeWatcher(batchDelay: .milliseconds(300))
     #expect(watcher.start())
     let shm = folder.appending(path: "BKLibrary-1-1.sqlite-shm")
     try Data("shm".utf8).write(to: shm)
     try await waitForChanges(count: 1)  // the folder itself changed: a new entry
 
     try append("more", to: shm)
-    try await Task.sleep(for: .milliseconds(500))
+    try await Task.sleep(for: .milliseconds(800))
     watcher.stop()
 
     #expect(await changes.values.count == 1)
