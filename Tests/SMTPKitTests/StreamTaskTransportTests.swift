@@ -1,6 +1,5 @@
 import Foundation
 import SMTPKit
-import SendleTestSupport
 import Testing
 
 @Suite(.timeLimit(.minutes(1)))
@@ -25,12 +24,9 @@ struct StreamTaskTransportTests {
   }
 
   @Test func writesWhatTheServerReads() async throws {
-    let heard = Recorder<String>()
     let server = try LoopbackServer { client in
       client.send("220 ready\r\n")
-      let line = client.readLine() ?? ""
-      Task { await heard.record(line) }
-      client.send("250 hello \(line)\r\n")
+      client.send("250 hello \(client.readLine() ?? "")\r\n")
     }
     let transport = transport(server)
     try await transport.open()
@@ -39,7 +35,6 @@ struct StreamTaskTransportTests {
     try await transport.write(Data("EHLO [127.0.0.1]\r\n".utf8), timeout: .seconds(5))
 
     #expect(try await transport.readReply(timeout: .seconds(5)).text == "hello EHLO [127.0.0.1]")
-    #expect(await heard.values == ["EHLO [127.0.0.1]"])
     await transport.close()
   }
 
@@ -81,8 +76,8 @@ struct StreamTaskTransportTests {
   }
 
   @Test func failsWhenNothingListens() async throws {
-    let port = try LoopbackServer { _ in }.port
-    let transport = StreamTaskTransport(host: "127.0.0.1", port: port, implicitTLS: false)
+    let transport = StreamTaskTransport(
+      host: "127.0.0.1", port: try LoopbackServer.unusedPort(), implicitTLS: false)
     try await transport.open()
 
     await #expect {
