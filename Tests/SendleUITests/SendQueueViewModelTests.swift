@@ -12,17 +12,28 @@ struct SendQueueViewModelTests {
   let dracula = Book.fixture(id: "b", title: "Dracula")
   let meditations = Book.fixture(id: "c", title: "Meditations", format: .pdf)
   let email = Destination.email(.fixture)
+  let activity = ActivityLog()
+
+  @MainActor final class ActivityLog {
+    var begun = 0
+    var ended = 0
+  }
 
   func makeQueue(
     _ channel: FakeDeliveryChannel = FakeDeliveryChannel(),
     fixes: [EPUBFix] = []
   ) -> SendQueueViewModel {
-    SendQueueViewModel(
+    let activity = activity
+    return SendQueueViewModel(
       sendBooks: SendBooks(
         channels: FakeDeliveryChannelFactory(channel: channel),
         preparer: FakeEPUBPreparer(fixes: fixes),
         converter: FakeFormatConverter(isAvailable: false), staging: FakeStagingArea(),
-        history: history, retryDelay: .zero, sleep: { _ in }))
+        history: history, retryDelay: .zero, sleep: { _ in }),
+      keepAwake: {
+        activity.begun += 1
+        return { activity.ended += 1 }
+      })
   }
 
   func statuses(_ queue: SendQueueViewModel) -> [QueueStatus] {
@@ -114,6 +125,7 @@ struct SendQueueViewModelTests {
     queue.send([dracula], to: email)
 
     #expect(queue.rows.map(\.id) == [moby.id])
+    #expect(activity.begun == 1)
     queue.cancel()
     await queue.waitUntilFinished()
   }
@@ -127,6 +139,32 @@ struct SendQueueViewModelTests {
     await queue.waitUntilFinished()
 
     #expect(finished == 1)
+  }
+
+  @Test func keepsTheMacAwakeUntilTheRunFinishes() async {
+    let queue = makeQueue()
+    #expect(activity.begun == 0)
+
+    queue.send([moby, dracula], to: email)
+    #expect(activity.begun == 1)
+    await queue.waitUntilFinished()
+
+    #expect(activity.begun == 1)
+    #expect(activity.ended == 1)
+  }
+
+  @Test func letsTheMacSleepAgainAfterACancel() async {
+    let channel = FakeDeliveryChannel(.hangUntilCancelled)
+    let queue = makeQueue(channel)
+    queue.send([moby], to: email)
+    await channel.waitUntilDeliveryStarts()
+    #expect(activity.ended == 0)
+
+    queue.cancel()
+    await queue.waitUntilFinished()
+
+    #expect(activity.begun == 1)
+    #expect(activity.ended == 1)
   }
 
   // MARK: Failures

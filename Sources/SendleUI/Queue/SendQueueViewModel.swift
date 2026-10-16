@@ -8,6 +8,9 @@ private let logger = Logger(subsystem: "io.github.quike.Sendle", category: "ui")
 /// The books being sent, one run at a time, and what came of them.
 @Observable @MainActor
 public final class SendQueueViewModel {
+  /// Begins holding off App Nap and idle sleep, and returns what ends it.
+  package typealias KeepAwake = @MainActor () -> @MainActor () -> Void
+
   package private(set) var rows: [QueueRow] = []
   package private(set) var destination: Destination?
   package private(set) var isRunning = false
@@ -17,10 +20,17 @@ public final class SendQueueViewModel {
   @ObservationIgnored package var onFinish: (@MainActor () async -> Void)?
 
   @ObservationIgnored private var run: Task<Void, Never>?
+  @ObservationIgnored private var endActivity: (@MainActor () -> Void)?
   private let sendBooks: SendBooks
+  private let keepAwake: KeepAwake
 
-  public init(sendBooks: SendBooks) {
+  public convenience init(sendBooks: SendBooks) {
+    self.init(sendBooks: sendBooks, keepAwake: Self.processActivity)
+  }
+
+  package init(sendBooks: SendBooks, keepAwake: @escaping KeepAwake) {
     self.sendBooks = sendBooks
+    self.keepAwake = keepAwake
   }
 
   package var isEmpty: Bool { rows.isEmpty }
@@ -61,6 +71,8 @@ public final class SendQueueViewModel {
     self.destination = destination
     summary = nil
     isRunning = true
+    // A run goes on behind a closed panel, where nothing else keeps an accessory app awake.
+    endActivity = keepAwake()
     let sendBooks = sendBooks
     run = Task { [weak self] in
       await sendBooks(books, to: destination) { [weak self] event in
@@ -137,6 +149,8 @@ public final class SendQueueViewModel {
 
   private func finish() async {
     isRunning = false
+    endActivity?()
+    endActivity = nil
     summary = makeSummary()
     await onFinish?()
   }
@@ -153,6 +167,12 @@ public final class SendQueueViewModel {
       title: one ? "\(first.book.title) is on its way" : "\(sent.count) books are on their way",
       message: "Amazon delivers \(one ? "it" : "them") over Wi-Fi. If anything's off, Amazon "
         + "emails your sender address.")
+  }
+
+  private static func processActivity() -> @MainActor () -> Void {
+    let activity = ProcessInfo.processInfo.beginActivity(
+      options: .userInitiated, reason: "Sending books to Kindle")
+    return { ProcessInfo.processInfo.endActivity(activity) }
   }
 
   private static func books(_ count: Int) -> String {
