@@ -97,7 +97,7 @@ struct BookRow: View {
         .padding(.top, 2)
       }
       Spacer(minLength: 6)
-      RowMark(item: item, isSelected: isSelected, isHovered: isHovered, hint: library.sendHint)
+      RowMark(panel: panel, item: item, isSelected: isSelected, isHovered: isHovered)
     }
     .padding(7)
     .background(
@@ -111,10 +111,10 @@ struct BookRow: View {
 
 /// The round mark at the end of a row: selected, quick-send on hover, or why it can't go.
 private struct RowMark: View {
+  let panel: PanelModel
   let item: BookItemViewModel
   let isSelected: Bool
   let isHovered: Bool
-  let hint: String
 
   var body: some View {
     Group {
@@ -125,20 +125,23 @@ private struct RowMark: View {
         Image(systemName: item.book.availability == .inCloudOnly ? "icloud" : "lock")
           .foregroundStyle(Theme.faint).frame(width: 30, height: 30)
       } else {
-        QuickSendButton(isProminent: isHovered, hint: hint)
+        QuickSendButton(panel: panel, item: item, isProminent: isHovered)
       }
     }
     .font(.system(size: 12, weight: .semibold))
   }
 }
 
-/// Sends one book to the active destination. Disabled until email sending exists.
+/// Sends one book to the active destination chip.
 struct QuickSendButton: View {
+  let panel: PanelModel
+  let item: BookItemViewModel
   let isProminent: Bool
-  let hint: String
 
   var body: some View {
+    let library = panel.library
     Button {
+      panel.quickSend(item.id)
     } label: {
       Image(systemName: "paperplane.fill")
         .font(.system(size: 11, weight: .semibold))
@@ -148,9 +151,9 @@ struct QuickSendButton: View {
           isProminent ? AnyShapeStyle(Theme.action) : AnyShapeStyle(Theme.glass), in: Circle())
     }
     .buttonStyle(.plain)
-    .disabled(true)
-    .opacity(0.6)
-    .help(hint)
+    .disabled(!library.canSend)
+    .opacity(library.canSend ? 1 : 0.6)
+    .help(library.quickSendHelp)
     .accessibilityLabel("Send")
   }
 }
@@ -205,7 +208,7 @@ struct BookCover: View {
       }
       .overlay(alignment: .bottomTrailing) {
         if isHovered, item.canSend, size == .large {
-          QuickSendButton(isProminent: true, hint: panel.library.sendHint).padding(6)
+          QuickSendButton(panel: panel, item: item, isProminent: true).padding(6)
         }
       }
       .shadow(color: .black.opacity(isHovered ? 0.6 : 0.45), radius: isHovered ? 12 : 8, y: 6)

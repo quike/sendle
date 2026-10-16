@@ -11,9 +11,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
   func applicationDidFinishLaunching(_ notification: Notification) {
     NSApp.appearance = NSAppearance(named: .darkAqua)
-    let composition = Composition(loginItem: MainAppLoginItem())
+    let snapshotFolder = ProcessInfo.processInfo.environment[Snapshot.environmentKey]
+    let composition = Composition(
+      loginItem: MainAppLoginItem(), channels: snapshotFolder.map { _ in SnapshotChannels() })
     self.composition = composition
-    if let folder = ProcessInfo.processInfo.environment[Snapshot.environmentKey] {
+    if let folder = snapshotFolder {
       Task {
         await Snapshot.render(composition, to: URL(filePath: folder, directoryHint: .isDirectory))
         NSApp.terminate(nil)

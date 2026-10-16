@@ -13,13 +13,14 @@ struct Composition {
   let panel: PanelModel
   private let settings: JSONSettingsStore
 
-  init(loginItem: any LoginItem) {
+  /// `channels` replaces email delivery, as snapshot mode does so that nothing is sent.
+  init(loginItem: any LoginItem, channels override: (any DeliveryChannelFactory)? = nil) {
     let data = DataDirectory.url()
     let settings = JSONSettingsStore(directory: data)
     let secrets = KeychainSecretStore()
     let staging = FileSystemStagingArea()
-    let channels = DeliveryChannels(
-      email: EmailChannelFactory(settings: settings, secrets: secrets))
+    let channels =
+      override ?? DeliveryChannels(email: EmailChannelFactory(settings: settings, secrets: secrets))
     let configure = ConfigureEmail(settings: settings, secrets: secrets)
     let sendTest = SendTestEmail(settings: settings, channels: channels, staging: staging)
     let history = JSONSendHistoryStore(directory: data)

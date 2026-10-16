@@ -2,6 +2,7 @@ import AppKit
 import SendleDomain
 import SendleUI
 import SwiftUI
+import os
 
 /// `SENDLE_SNAPSHOT_DIR=<folder>` writes a PNG of each panel screen there and quits, to look at
 /// the UI without clicking through it. It saves layout choices, so pair it with `SENDLE_DATA_DIR`.
@@ -25,7 +26,12 @@ enum Snapshot {
       }
       panel.library.selectAll()
       await write(window, "library-selected.png", to: folder)
-      _ = panel.library.clearSelection()
+      panel.sendSelection()
+      await write(window, "queue-sending.png", to: folder)
+      panel.queue.cancel()
+      await panel.queue.waitUntilFinished()
+      await write(window, "queue-done.png", to: folder)
+      panel.finishQueue()
     }
     for step in SetupStep.allCases {
       panel.showSetup(at: step)
@@ -47,5 +53,29 @@ enum Snapshot {
     view.cacheDisplay(in: view.bounds, to: bitmap)
     try? bitmap.representation(using: .png, properties: [:])?.write(
       to: folder.appending(path: name))
+  }
+}
+
+/// Snapshot mode sends nothing: the first book goes at once, the next stops at 62%.
+struct SnapshotChannels: DeliveryChannelFactory, DeliveryChannel {
+  private let calls = OSAllocatedUnfairLock(initialState: 0)
+
+  func channel(for destination: Destination) async throws(SendFailure) -> any DeliveryChannel {
+    self
+  }
+
+  func deliver(
+    _ file: PreparedFile,
+    named baseName: String,
+    progress: @Sendable (Double) async -> Void
+  ) async throws(SendFailure) {
+    let call = calls.withLock { calls in
+      defer { calls += 1 }
+      return calls
+    }
+    await progress(call == 0 ? 1 : 0.62)
+    guard call > 0 else { return }
+    try? await Task.sleep(for: .seconds(3_600))
+    throw .cancelled
   }
 }

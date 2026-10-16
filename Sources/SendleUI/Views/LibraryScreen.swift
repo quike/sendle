@@ -33,7 +33,7 @@ struct LibraryScreen: View {
     .padding(14)
     .overlay(alignment: .bottom) {
       if !library.selection.isEmpty {
-        SendBar(library: library)
+        SendBar(panel: panel)
           .padding(14)
           .transition(.move(edge: .bottom).combined(with: .opacity))
       }
@@ -240,10 +240,12 @@ struct LibraryContent: View {
   }
 }
 
+/// "Send" to the active destination, whose menu switches it.
 struct SendBar: View {
-  let library: LibraryViewModel
+  let panel: PanelModel
 
   var body: some View {
+    let library = panel.library
     let shape = RoundedRectangle(cornerRadius: 16, style: .continuous)
     HStack(spacing: 8) {
       VStack(alignment: .leading, spacing: 1) {
@@ -253,14 +255,30 @@ struct SendBar: View {
         Text(library.sendHint).font(.system(size: 9.5)).foregroundStyle(Theme.faint)
       }
       Spacer(minLength: 8)
-      Button {
-      } label: {
-        HStack(spacing: 5) {
-          Text("Send")
-          Text("to \(library.activeDestination?.chipTitle ?? "Kindle")").opacity(0.75)
+      HStack(spacing: 2) {
+        Button("Send") { panel.sendSelection() }
+          .buttonStyle(.plain)
+          .fixedSize()
+          .padding(.leading, 14)
+          .frame(minHeight: 34)
+          .contentShape(Rectangle())
+        Menu {
+          ForEach(library.destinations, id: \.self) { destination in
+            Button(destination.chipTitle) { Task { await library.activate(destination.kind) } }
+          }
+        } label: {
+          Text("to \(library.activeDestination?.chipTitle ?? "Kindle") ▾").opacity(0.75)
         }
+        .menuStyle(.borderlessButton)
+        .menuIndicator(.hidden)
+        .fixedSize()
+        .padding(.trailing, 12)
+        .help("Choose where Send goes")
       }
-      .buttonStyle(PrimaryButtonStyle())
+      .font(.system(size: 12.5, weight: .semibold))
+      .foregroundStyle(.white)
+      .background(Theme.action, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+      .opacity(library.canSend ? 1 : 0.4)
       .disabled(!library.canSend)
     }
     .padding(.leading, 12)
