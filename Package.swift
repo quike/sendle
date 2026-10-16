@@ -14,6 +14,7 @@ let package = Package(
     ),
     .target(name: "SendleEPUB", dependencies: ["SendleDomain"]),
     .target(name: "SendleCovers", dependencies: ["SendleDomain", "SendleEPUB"]),
+    .target(name: "SendleUI", dependencies: ["SendleDomain"]),
     .target(
       name: "SendleTestSupport",
       dependencies: ["SendleDomain"],
@@ -38,6 +39,10 @@ let package = Package(
     .testTarget(
       name: "SendleCoversTests",
       dependencies: ["SendleCovers", "SendleTestSupport"]
+    ),
+    .testTarget(
+      name: "SendleUITests",
+      dependencies: ["SendleUI", "SendleTestSupport"]
     ),
   ]
 )
