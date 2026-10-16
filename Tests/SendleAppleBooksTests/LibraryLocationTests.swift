@@ -32,17 +32,24 @@ struct LibraryLocationTests {
 
   @Test func ignoresAnEmptyOverride() {
     #expect(
-      LibraryLocation.standard(environment: ["SENDLE_LIBRARY_DB": ""]) != .file(URL(filePath: "")))
+      LibraryLocation.standard(environment: ["SENDLE_LIBRARY_DB": ""])
+        == LibraryLocation.standard(environment: [:]))
   }
 
-  @Test func picksTheNewestLibraryDatabase() throws {
-    let old = try touch("BKLibrary-1-091020131601.sqlite", modified: 1_000)
-    let new = try touch("BKLibrary-1-202410151200.sqlite", modified: 2_000)
-    _ = try touch("BKLibrary-1-202410151200.sqlite-wal", modified: 3_000)
+  @Test func picksTheLibraryDatabaseWithTheNewestDate() throws {
+    _ = try touch("BKLibrary-1-2.sqlite", modified: 1_000)
+    let newest = try touch("BKLibrary-1-1.sqlite", modified: 2_000)
+    _ = try touch("BKLibrary-1-1.sqlite-wal", modified: 3_000)
     _ = try touch("BKSeriesDatabase-1.sqlite", modified: 4_000)
 
-    #expect(try LibraryLocation.directory(folder).databaseURL().lastPathComponent == new)
-    #expect(old != new)
+    #expect(try LibraryLocation.directory(folder).databaseURL().lastPathComponent == newest)
+  }
+
+  @Test func breaksADateTieByName() throws {
+    _ = try touch("BKLibrary-1-1.sqlite", modified: 1_000)
+    let later = try touch("BKLibrary-1-2.sqlite", modified: 1_000)
+
+    #expect(try LibraryLocation.directory(folder).databaseURL().lastPathComponent == later)
   }
 
   @Test func reportsAFolderWithoutALibraryAsNotFound() throws {
