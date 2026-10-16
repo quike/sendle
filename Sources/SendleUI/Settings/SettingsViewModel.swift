@@ -28,8 +28,17 @@ public final class SettingsViewModel {
     launchAtLoginError = nil
   }
 
+  /// The setup is checked as a whole; when the fields to fix are in the other section, go there.
   package func save() async -> Bool {
-    await form.save()
+    guard await form.save() else {
+      let sections = Set(
+        form.issues.map { $0 == .invalidKindleAddress ? SettingsSection.kindle : .sender })
+      if !sections.isEmpty, !sections.contains(section) {
+        section = sections.contains(.kindle) ? .kindle : .sender
+      }
+      return false
+    }
+    return true
   }
 
   package func setLaunchAtLogin(_ enabled: Bool) {

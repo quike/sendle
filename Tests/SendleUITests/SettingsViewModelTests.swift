@@ -32,6 +32,14 @@ struct SettingsViewModelTests {
       loginItem: loginItem)
   }
 
+  /// A model with nothing saved yet, as before the first setup.
+  func makeUnconfiguredModel() -> SettingsViewModel {
+    let empty = InMemorySettingsStore()
+    return SettingsViewModel(
+      configure: ConfigureEmail(settings: empty, secrets: MemorySecretStore()), settings: empty,
+      loginItem: loginItem)
+  }
+
   @Test func opensAtASectionWithTheSavedSetup() async {
     let model = makeModel()
 
@@ -59,6 +67,33 @@ struct SettingsViewModelTests {
     #expect(await model.save())
     #expect(
       await settings.settings.email?.kindleAddress == KindleEmail(rawValue: "other@kindle.com"))
+  }
+
+  @Test func aSaveMissingSenderDetailsShowsTheSenderSection() async {
+    let model = makeUnconfiguredModel()
+    await model.open(at: .kindle)
+    model.form.kindleAddress = "reader@kindle.com"
+
+    #expect(await !model.save())
+    #expect(model.section == .sender)
+  }
+
+  @Test func aSaveMissingTheKindleAddressShowsTheKindleSection() async {
+    let model = makeUnconfiguredModel()
+    await model.open(at: .sender)
+    model.form.senderAddress = "me@gmail.com"
+    model.form.password = "abcdefghijklmnop"
+
+    #expect(await !model.save())
+    #expect(model.section == .kindle)
+  }
+
+  @Test func aSaveWithProblemsHereStaysHere() async {
+    let model = makeUnconfiguredModel()
+    await model.open(at: .sender)
+
+    #expect(await !model.save())
+    #expect(model.section == .sender)
   }
 
   @Test func turnsLaunchAtLoginOnAndOff() async {
