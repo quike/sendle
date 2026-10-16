@@ -69,7 +69,9 @@ package final class EmailForm {
     return isPlausible
   }
 
+  /// A save that is already running makes a second request do nothing.
   package func save() async -> Bool {
+    guard !isSaving else { return false }
     isSaving = true
     defer { isSaving = false }
     do {

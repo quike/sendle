@@ -110,8 +110,10 @@ final class PanelController: NSObject, NSWindowDelegate {
     hide()
   }
 
-  /// Text fields keep their editing keys; everything else goes to the panel's shortcuts.
+  /// Text fields keep their editing keys; everything else goes to the panel's shortcuts. A field
+  /// composing text with an input method keeps every key, because Return commits the composition.
   private func handle(_ event: NSEvent) -> Bool {
+    if (window.firstResponder as? NSTextView)?.hasMarkedText() == true { return false }
     let isEditingText = window.firstResponder is NSText
     if isEditingText,
       let command = TextEditingCommand(

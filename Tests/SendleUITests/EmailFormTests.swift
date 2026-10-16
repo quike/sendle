@@ -54,6 +54,17 @@ struct EmailFormTests {
         == SMTPServer(host: "mail.example.com", port: 465, security: .implicitTLS))
   }
 
+  @Test func aSecondSaveWhileOneRunsIsIgnored() async {
+    let form = filled(makeForm())
+
+    let first = Task { await form.save() }
+    let second = Task { await form.save() }
+
+    #expect(await first.value)
+    #expect(await second.value == false)
+    #expect(await settings.settings.email == .fixture)
+  }
+
   @Test func showsEveryProblemAtOnce() async {
     let form = makeForm()
     form.provider = .custom
