@@ -29,12 +29,12 @@ struct SelectionTests {
     #expect(ids(selection) == ["c"])
   }
 
-  @Test func clickingTheOnlySelectedBookDeselectsIt() {
+  @Test func clickingTheOnlySelectedBookKeepsIt() {
     var selection = Selection()
     selection.click(id("a"), .plain, in: items())
     selection.click(id("a"), .plain, in: items())
 
-    #expect(selection.isEmpty)
+    #expect(ids(selection) == ["a"])
   }
 
   @Test func commandClickAddsOrRemovesOneBook() {

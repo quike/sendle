@@ -31,7 +31,7 @@ package struct Selection: Equatable, Sendable {
     guard items.contains(where: { $0.id == id && $0.canSend }) else { return }
     switch kind {
     case .plain:
-      ids = ids == [id] ? [] : [id]
+      ids = [id]
       anchor = id
     case .toggle:
       if ids.remove(id) == nil { ids.insert(id) }
