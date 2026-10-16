@@ -3,6 +3,8 @@ import Foundation
 public enum SendOutcome: String, Sendable, Codable, CaseIterable {
   case sent
   case failed
+  /// The server had the whole book but never confirmed it, so it may still arrive.
+  case unconfirmed
 }
 
 public struct SendRecord: Hashable, Sendable, Codable {

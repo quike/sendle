@@ -40,6 +40,12 @@ struct LibraryItemsTests {
     #expect(items([moby, jane], sends: sends, filter: .notSent).map(\.id) == [jane.id])
   }
 
+  @Test func notSentHidesBooksThatMayHaveBeenSent() {
+    let sends = [sent(moby, daysAgo: 1, .unconfirmed)]
+
+    #expect(items([moby, jane], sends: sends, filter: .notSent).map(\.id) == [jane.id])
+  }
+
   @Test(arguments: ["melville", "MOBY", "bronte", "  eyre  "])
   func searchMatchesTitleOrAuthorIgnoringCaseAndAccents(query: String) {
     #expect(items([moby, jane], query: query).count == 1)
@@ -77,6 +83,25 @@ struct LibraryItemsTests {
     #expect(item.detail == "Sent by email · 2d ago")
     #expect(item.tone == .sent)
     #expect(item.canSend)
+  }
+
+  @Test func warnsThatAnUnconfirmedBookMayHaveBeenSent() throws {
+    let sends = [sent(moby, daysAgo: 3), sent(moby, daysAgo: 1, .unconfirmed)]
+
+    let item = try #require(items([moby], sends: sends).first)
+
+    #expect(item.detail == "May have been sent · check your Kindle")
+    #expect(item.tone == .warning)
+    #expect(item.canSend)
+  }
+
+  @Test func aLaterSendSettlesAnUnconfirmedOne() throws {
+    let sends = [sent(moby, daysAgo: 3, .unconfirmed), sent(moby, daysAgo: 2)]
+
+    let item = try #require(items([moby], sends: sends).first)
+
+    #expect(item.detail == "Sent by email · 2d ago")
+    #expect(item.tone == .sent)
   }
 
   @Test(arguments: [Availability.protected, .inCloudOnly, .missing])

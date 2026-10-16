@@ -68,6 +68,6 @@ struct PersistedEnumTests {
     #expect(SMTPSecurity.allCases.map(\.rawValue) == ["implicitTLS", "startTLS"])
     #expect(LibraryLayout.allCases.map(\.rawValue) == ["grid", "list", "shelf"])
     #expect(DestinationKind.allCases.map(\.rawValue) == ["email", "usb"])
-    #expect(SendOutcome.allCases.map(\.rawValue) == ["sent", "failed"])
+    #expect(SendOutcome.allCases.map(\.rawValue) == ["sent", "failed", "unconfirmed"])
   }
 }

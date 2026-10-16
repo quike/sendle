@@ -248,7 +248,21 @@ struct SendBooksTests {
       ])
     #expect(channel.deliveries.count == 1)
     #expect(await harness.history.records().map(\.bookID) == [first.id])
-    #expect(await harness.history.records().map(\.outcome) == [.failed])
+    #expect(await harness.history.records().map(\.outcome) == [.unconfirmed])
+  }
+
+  @Test func remembersABookTheServerDidNotConfirm() async {
+    let unconfirmed = SendFailure.unconfirmed(host: "smtp.gmail.com")
+    let harness = Harness(channel: FakeDeliveryChannel(.fail(unconfirmed)))
+    let book = Book.fixture()
+
+    let events = await harness.send([book], to: email)
+
+    #expect(events.last == .failed(book.id, unconfirmed))
+    #expect(
+      await harness.history.records() == [
+        SendRecord(bookID: book.id, destination: .email, date: harness.now, outcome: .unconfirmed)
+      ])
   }
 
   @Test func cancellingDuringTheRetryDelaySkipsTheSecondAttempt() async {

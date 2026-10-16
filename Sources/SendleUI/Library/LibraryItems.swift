@@ -23,9 +23,9 @@ package enum LibraryItems {
       }
   }
 
-  /// The newest successful send of each book.
+  /// The newest send of each book that may have reached Amazon.
   package static func latestSends(in records: [SendRecord]) -> [BookID: SendRecord] {
-    records.filter { $0.outcome == .sent }
+    records.filter { $0.outcome == .sent || $0.outcome == .unconfirmed }
       .reduce(into: [:]) { latest, record in
         if latest[record.bookID].map({ $0.date < record.date }) ?? true {
           latest[record.bookID] = record

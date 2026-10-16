@@ -38,7 +38,10 @@ package struct BookItemViewModel: Identifiable, Hashable, Sendable {
       tone = book.availability == .ready ? .warning : .unavailable
       canSend = false
     case .send:
-      if let lastSend {
+      if lastSend?.outcome == .unconfirmed {
+        detail = "May have been sent · check your Kindle"
+        tone = .warning
+      } else if let lastSend {
         let how = lastSend.destination == .email ? "Sent by email" : "Sent over USB"
         detail = "\(how) · \(Formatting.age(of: lastSend.date, now: now))"
         tone = .sent
