@@ -14,14 +14,14 @@ public enum ProblemPresenter {
     case .notFound:
       Problem(
         "Sendle can't find a Books library",
-        message: "Open Books, add an EPUB or PDF, then try again.", fix: Fix("Try Again", .retry))
+        message: "Open Books, add an EPUB or PDF, then try again.", fix: Fix("Retry", .retry))
     case .unsupportedSchema(let missing):
       Problem(
         "This version of Books isn't supported yet",
         message: "Its library has no \(missing.joined(separator: ", ")).")
     case .unreadable(let detail):
       Problem(
-        "Sendle couldn't read your Books library", message: detail, fix: Fix("Try Again", .retry))
+        "Sendle couldn't read your Books library", message: detail, fix: Fix("Retry", .retry))
     }
   }
 
@@ -56,11 +56,11 @@ public enum ProblemPresenter {
       Problem(
         "Your Kindle can't read EPUB over USB",
         message: "Sendle converts EPUBs with Calibre, which isn't installed.",
-        fix: Fix("Send by Email", .useDestination(.email)))
+        fix: Fix("Send by email", .useDestination(.email)))
     case .conversionFailed(let output):
       Problem(
         "Calibre couldn't convert this book", message: output,
-        fix: Fix("Send by Email", .useDestination(.email)))
+        fix: Fix("Send by email", .useDestination(.email)))
     case .deviceDisconnected:
       Problem("The Kindle was unplugged during the copy", fix: Fix("Retry", .retry))
     case .diskFull:

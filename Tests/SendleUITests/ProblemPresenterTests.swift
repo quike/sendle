@@ -62,6 +62,20 @@ struct ProblemPresenterTests {
     #expect(problem.fix?.action == fix)
   }
 
+  @Test(
+    arguments: [
+      (ProblemPresenter.problem(for: LibraryError.notFound), "Retry"),
+      (ProblemPresenter.problem(for: LibraryError.unreadable("x")), "Retry"),
+      (ProblemPresenter.problem(for: LibraryError.accessDenied), "Open Privacy Settings"),
+      (ProblemPresenter.problem(for: SendFailure.connectionFailed(host: "h")), "Retry"),
+      (ProblemPresenter.problem(for: SendFailure.conversionUnavailable), "Send by email"),
+      (ProblemPresenter.problem(for: SendFailure.conversionFailed("e")), "Send by email"),
+      (ProblemPresenter.problem(for: SendFailure.notConfigured), "Open Settings"),
+    ] as [(Problem, String)])
+  func labelsEachFixInSentenceCase(problem: Problem, label: String) {
+    #expect(problem.fix?.label == label)
+  }
+
   @Test func givesEachProviderItsOwnPasswordHint() {
     let hints = MailProvider.allCases.map {
       ProblemPresenter.problem(for: .authenticationFailed($0)).message
