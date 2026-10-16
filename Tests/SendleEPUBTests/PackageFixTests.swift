@@ -79,6 +79,19 @@ struct LanguageFixTests {
         + "\n</opf:metadata></opf:package>")
   }
 
+  @Test(arguments: [
+    "<dc:language/>", "<dc:language></dc:language>", "<dc:language> </dc:language>",
+  ])
+  func replacesAnEmptyLanguage(empty: String) {
+    let package = "<metadata>\(empty)</metadata>"
+
+    #expect(
+      LanguageFix.apply(to: package, hasLanguage: false, language: "es")
+        == "<metadata>"
+        + #"<dc:language xmlns:dc="http://purl.org/dc/elements/1.1/">es</dc:language>"#
+        + "\n</metadata>")
+  }
+
   @Test(
     arguments: [
       ("pt_BR", "pt-BR"), ("en-GB", "en-GB"), ("fra", "fra"), (nil, "en"), ("", "en"),
