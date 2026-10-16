@@ -1,14 +1,28 @@
 import AppKit
 import SendleDomain
+import SendlePersistence
 import SendleUI
 import SwiftUI
 import os
 
 /// `SENDLE_SNAPSHOT_DIR=<folder>` writes a PNG of each panel screen there and quits, to look at
-/// the UI without clicking through it. It saves layout choices, so pair it with `SENDLE_DATA_DIR`.
+/// the UI without clicking through it. It saves layout choices and records a fake send, so it
+/// needs `SENDLE_DATA_DIR`.
 @MainActor
 enum Snapshot {
   static let environmentKey = "SENDLE_SNAPSHOT_DIR"
+
+  /// Quits with an error unless `SENDLE_DATA_DIR` points away from the real data folder.
+  static func requireDataDirectory(
+    environment: [String: String] = ProcessInfo.processInfo.environment
+  ) {
+    guard environment[DataDirectory.environmentKey]?.isEmpty ?? true else { return }
+    FileHandle.standardError.write(
+      Data(
+        ("SENDLE_SNAPSHOT_DIR needs SENDLE_DATA_DIR, so the snapshot's fake sends stay out of "
+          + "your real history.\n").utf8))
+    exit(1)
+  }
 
   static func render(_ composition: Composition, to folder: URL) async {
     try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)

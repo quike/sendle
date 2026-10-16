@@ -12,6 +12,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
   func applicationDidFinishLaunching(_ notification: Notification) {
     NSApp.appearance = NSAppearance(named: .darkAqua)
     let snapshotFolder = ProcessInfo.processInfo.environment[Snapshot.environmentKey]
+    if snapshotFolder != nil { Snapshot.requireDataDirectory() }
     let composition = Composition(
       loginItem: MainAppLoginItem(), channels: snapshotFolder.map { _ in SnapshotChannels() })
     self.composition = composition
