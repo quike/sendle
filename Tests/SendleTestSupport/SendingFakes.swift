@@ -56,6 +56,7 @@ public final class FakeDeliveryChannel: DeliveryChannel {
     case succeed
     case fail(SendFailure)
     case hangUntilCancelled
+    case hangThenFail(SendFailure)
   }
 
   private let script: OSAllocatedUnfairLock<[Behavior]>
@@ -89,6 +90,9 @@ public final class FakeDeliveryChannel: DeliveryChannel {
     case .hangUntilCancelled:
       try? await Task.sleep(for: .seconds(3_600))
       throw .cancelled
+    case .hangThenFail(let failure):
+      try? await Task.sleep(for: .seconds(3_600))
+      throw failure
     }
   }
 

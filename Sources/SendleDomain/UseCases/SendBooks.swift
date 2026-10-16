@@ -76,7 +76,11 @@ public struct SendBooks: Sendable {
       await record(book, to: destination, .sent)
       return .sent(book.id, fixes: file.fixes)
     } catch {
-      let failure = Task.isCancelled ? .cancelled : error
+      let failure: SendFailure
+      switch error {
+      case .unconfirmed: failure = error  // The server may still deliver it, cancelled or not.
+      default: failure = Task.isCancelled ? .cancelled : error
+      }
       if failure != .cancelled {
         await record(book, to: destination, .failed)
       }

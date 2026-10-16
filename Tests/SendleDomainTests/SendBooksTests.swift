@@ -224,6 +224,33 @@ struct SendBooksTests {
     #expect(harness.staging.snapshot.removed.count == 1)
   }
 
+  @Test func aCancelAfterTheServerHadTheWholeBookStaysUnconfirmed() async {
+    let unconfirmed = SendFailure.unconfirmed(host: "smtp.gmail.com")
+    let channel = FakeDeliveryChannel(.hangThenFail(unconfirmed))
+    let harness = Harness(channel: channel)
+    let first = Book.fixture(id: "first")
+    let second = Book.fixture(id: "second")
+    let events = Recorder<SendEvent>()
+    let sendBooks = harness.sendBooks
+
+    let task = Task {
+      await sendBooks([first, second], to: email) { await events.record($0) }
+    }
+    await channel.waitUntilDeliveryStarts()
+    task.cancel()
+    await task.value
+
+    #expect(
+      await events.values == [
+        .preparing(first.id),
+        .failed(first.id, unconfirmed),
+        .failed(second.id, .cancelled),
+      ])
+    #expect(channel.deliveries.count == 1)
+    #expect(await harness.history.records().map(\.bookID) == [first.id])
+    #expect(await harness.history.records().map(\.outcome) == [.failed])
+  }
+
   @Test func cancellingDuringTheRetryDelaySkipsTheSecondAttempt() async {
     let channel = FakeDeliveryChannel(.fail(.connectionFailed(host: "smtp.gmail.com")), .succeed)
     let harness = Harness(channel: channel)
