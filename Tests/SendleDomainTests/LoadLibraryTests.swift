@@ -3,6 +3,7 @@ import SendleDomain
 import SendleTestSupport
 import Testing
 
+@Suite(.timeLimit(.minutes(1)))
 struct LoadLibraryTests {
   @Test func marksBooksWithDRMEvidenceAsProtected() async throws {
     let open = Book.fixture(id: "open")
