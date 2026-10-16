@@ -59,3 +59,33 @@ public struct StubProtectionInspector: ProtectionInspector {
     protectedIDs.contains(book.id)
   }
 }
+
+public final class FakeCoverProvider: CoverProvider {
+  public struct Request: Hashable, Sendable {
+    public let id: BookID
+    public let maxPixel: Int
+
+    public init(id: BookID, maxPixel: Int) {
+      self.id = id
+      self.maxPixel = maxPixel
+    }
+  }
+
+  private let covers: [BookID: Data]
+  private let gate: Signal?
+  private let log = OSAllocatedUnfairLock<[Request]>(initialState: [])
+
+  /// With a `gate`, every request waits for it to fire.
+  public init(_ covers: [BookID: Data] = [:], gate: Signal? = nil) {
+    self.covers = covers
+    self.gate = gate
+  }
+
+  public var requests: [Request] { log.withLock { $0 } }
+
+  public func cover(for book: Book, maxPixel: Int) async -> Data? {
+    log.withLock { $0.append(Request(id: book.id, maxPixel: maxPixel)) }
+    if let gate { await gate.wait() }
+    return covers[book.id]
+  }
+}
