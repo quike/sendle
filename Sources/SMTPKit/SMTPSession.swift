@@ -22,6 +22,7 @@ public actor SMTPSession {
   private let startTLS: Bool
   private let clientName: String
   private let timeouts: SMTPTimeouts
+  private var isSecure = false
 
   /// `clientName` is what EHLO announces; an address literal is valid for any Mac.
   public init(
@@ -45,11 +46,13 @@ public actor SMTPSession {
     guard capabilities.startTLS else { throw .tlsUnavailable }
     try await command("STARTTLS", expecting: [220], at: .startTLS)
     try await run(.startTLS) { () throws(SMTPTransportError) in try await transport.upgradeToTLS() }
+    isSecure = true
     try await hello()
   }
 
   /// AUTH PLAIN, or AUTH LOGIN when that is all the server offers.
   public func authenticate(username: String, password: String) async throws(SMTPError) {
+    guard isSecure || !startTLS else { throw .tlsUnavailable }
     if capabilities.authMechanisms.contains("PLAIN") {
       let token = Data("\0\(username)\0\(password)".utf8).base64EncodedString()
       try await command("AUTH PLAIN \(token)", expecting: [235], at: .authentication)
@@ -85,7 +88,9 @@ public actor SMTPSession {
       if Task.isCancelled { throw .cancelled }
       let end = min(offset + chunk, data.count)
       let part = data.subdata(in: offset..<end)
-      try await run(.message) { () throws(SMTPTransportError) in
+      // The last chunk carries the end marker, so a failure after it may still have delivered.
+      let stage: SMTPStage = end == data.count ? .endOfMessage : .message
+      try await run(stage) { () throws(SMTPTransportError) in
         try await transport.write(part, timeout: timeouts.step)
       }
       offset = end
@@ -119,7 +124,7 @@ public actor SMTPSession {
     expecting codes: Set<Int>,
     at stage: SMTPStage
   ) async throws(SMTPError) -> SMTPReply {
-    if Task.isCancelled { throw .cancelled }
+    if Task.isCancelled { throw Self.cancellation(at: stage) }
     try await run(stage) { () throws(SMTPTransportError) in
       try await transport.write(Data((line + "\r\n").utf8), timeout: timeouts.step)
     }
@@ -132,7 +137,7 @@ public actor SMTPSession {
     at stage: SMTPStage,
     timeout: Duration? = nil
   ) async throws(SMTPError) -> SMTPReply {
-    if Task.isCancelled { throw .cancelled }
+    if Task.isCancelled { throw Self.cancellation(at: stage) }
     let reply = try await run(stage) { () throws(SMTPTransportError) in
       try await transport.readReply(timeout: timeout ?? timeouts.step)
     }
@@ -147,8 +152,14 @@ public actor SMTPSession {
     do {
       return try await operation()
     } catch {
-      throw Task.isCancelled ? .cancelled : SMTPError(error, at: stage)
+      throw Task.isCancelled ? Self.cancellation(at: stage) : SMTPError(error, at: stage)
     }
+  }
+
+  /// Once the end marker may have reached the server, a cancel must not claim nothing was sent.
+  private static func cancellation(at stage: SMTPStage) -> SMTPError {
+    stage == .endOfMessage
+      ? .connection("Cancelled before the server answered", stage: .endOfMessage) : .cancelled
   }
 
   private static func isSafe(_ address: String) -> Bool {

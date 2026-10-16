@@ -174,12 +174,62 @@ struct SMTPSessionTests {
       greeting, ehlo, .code(235, "OK"), .code(250, "OK"), .code(250, "OK"), .code(354, "Go"),
     ]
     let transport = ScriptedSMTPTransport(reads, failingWrite: (index: 5, error: .failed("reset")))
+    let session = session(transport)
+
+    var thrown: SMTPError?
+    do {
+      try await session.connect()
+      try await session.authenticate(username: "me@gmail.com", password: "secret")
+      try await session.send(Data(count: 40_000), from: "me@gmail.com", to: ["reader@kindle.com"]) {
+        _ in
+      }
+    } catch {
+      thrown = error
+    }
+
+    #expect(thrown == .connection("reset", stage: .message))
+    #expect(thrown?.mayHaveDeliveredMessage == false)
+  }
+
+  @Test func aBreakWhileWritingTheLastChunkMayHaveDeliveredIt() async {
+    let reads = [
+      greeting, ehlo, .code(235, "OK"), .code(250, "OK"), .code(250, "OK"), .code(354, "Go"),
+    ]
+    let transport = ScriptedSMTPTransport(reads, failingWrite: (index: 5, error: .failed("reset")))
 
     var thrown: SMTPError?
     do { try await sendAll(session(transport)) } catch { thrown = error }
 
-    #expect(thrown == .connection("reset", stage: .message))
-    #expect(thrown?.mayHaveDeliveredMessage == false)
+    #expect(thrown == .connection("reset", stage: .endOfMessage))
+    #expect(thrown?.mayHaveDeliveredMessage == true)
+  }
+
+  @Test func aCancelWhileWaitingForTheAnswerMayHaveDeliveredIt() async {
+    let transport = ScriptedSMTPTransport([
+      greeting, ehlo, .code(235, "OK"), .code(250, "OK"), .code(250, "OK"), .code(354, "Go"), .hang,
+    ])
+    let session = session(transport)
+    let task = Task { try await sendAll(session) }
+
+    await transport.waitUntilHanging()
+    task.cancel()
+
+    var thrown: SMTPError?
+    do { try await task.value } catch { thrown = error as? SMTPError }
+
+    #expect(thrown == .connection("Cancelled before the server answered", stage: .endOfMessage))
+    #expect(thrown?.mayHaveDeliveredMessage == true)
+  }
+
+  @Test func refusesToSignInUntilTLSIsUp() async {
+    let transport = ScriptedSMTPTransport([greeting, .code(250, "smtp.example.com", "AUTH PLAIN")])
+    let session = session(transport, startTLS: true)
+
+    await #expect(throws: SMTPError.tlsUnavailable) { try await session.connect() }
+    await #expect(throws: SMTPError.tlsUnavailable) {
+      try await session.authenticate(username: "me@gmail.com", password: "secret")
+    }
+    #expect(transport.written == ["EHLO [127.0.0.1]\r\n"])
   }
 
   @Test func aBreakAfterTheWholeMessageMayHaveDeliveredIt() async {
