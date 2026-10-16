@@ -214,7 +214,10 @@ struct NoticeView: View {
           .foregroundStyle(Color(hex: 0x9cc2ff))
       }
       Button(action: onDismiss) {
-        Image(systemName: "xmark").font(.system(size: 9, weight: .bold))
+        Image(systemName: "xmark")
+          .font(.system(size: 9, weight: .bold))
+          .frame(width: 20, height: 20)
+          .contentShape(Rectangle())
       }
       .buttonStyle(.plain)
       .foregroundStyle(Theme.faint)

@@ -190,6 +190,7 @@ struct LayoutSwitcher: View {
               isOn ? Color.white.opacity(0.14) : .clear,
               in: RoundedRectangle(cornerRadius: 7, style: .continuous)
             )
+            .contentShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
             .shadow(color: .black.opacity(isOn ? 0.4 : 0), radius: 1.5, y: 1)
         }
         .buttonStyle(.plain)
