@@ -127,6 +127,7 @@ public final class LibraryViewModel {
 
   package func refreshHistory() async {
     sends = LibraryItems.latestSends(in: await history.records())
+    selection.keep(in: items)
   }
 
   /// A new Kindle email shows at once; the destination stream only re-reads it when a Kindle moves.

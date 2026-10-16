@@ -94,7 +94,7 @@ struct LibraryViewModelTests {
     #expect(reported.isEmpty)
   }
 
-  @Test func runsOneReloadAtATimeSoTheLatestWins() async throws {
+  @Test func runsOneReloadAtATimeSoTheLatestWins() async {
     let (model, _) = makeModel()
     let gate = Signal()
     library.gate = gate
@@ -104,8 +104,6 @@ struct LibraryViewModelTests {
     library.result = .success(books(["new"]))
     library.gate = nil
     let second = Task { await model.reload() }
-    try await Task.sleep(for: .milliseconds(50))
-    #expect(library.loads == 1)
 
     await gate.fire()
     await first.value
@@ -113,6 +111,7 @@ struct LibraryViewModelTests {
 
     #expect(model.items.map(\.id.rawValue) == ["new"])
     #expect(library.loads == 2)
+    #expect(library.maxConcurrentLoads == 1)
   }
 
   @Test func readsNewSendsWithoutReadingBooksAgain() async throws {
@@ -126,6 +125,20 @@ struct LibraryViewModelTests {
 
     #expect(model.items.last?.tone == .sent)
     #expect(library.loads == loads)
+  }
+
+  @Test func aNewSendDropsTheBookFromTheSelectionUnderNotSent() async throws {
+    let (model, _) = makeModel()
+    await model.appear()
+    model.filter = .notSent
+    model.click(BookID(rawValue: "b"), .plain)
+    #expect(model.selection.ids == [BookID(rawValue: "b")])
+
+    try await history.append(
+      SendRecord(bookID: BookID(rawValue: "b"), destination: .email, date: .now, outcome: .sent))
+    await model.refreshHistory()
+
+    #expect(model.selection.isEmpty)
   }
 
   // MARK: Watching Books

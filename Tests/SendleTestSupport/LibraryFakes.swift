@@ -7,6 +7,8 @@ public final class FakeBooksLibrary: BooksLibrary {
     var result: Result<[Book], LibraryError>
     var canWatch = true
     var loads = 0
+    var inFlight = 0
+    var maxConcurrentLoads = 0
     var gate: Signal?
   }
 
@@ -36,14 +38,19 @@ public final class FakeBooksLibrary: BooksLibrary {
   }
 
   public var loads: Int { state.withLock { $0.loads } }
+  /// The most `books()` calls that were in flight at the same time.
+  public var maxConcurrentLoads: Int { state.withLock { $0.maxConcurrentLoads } }
   public var changeSubscribers: Int { changeFeed.subscriberCount }
 
   public func books() async throws(LibraryError) -> [Book] {
     let (result, gate) = state.withLock { state in
       state.loads += 1
+      state.inFlight += 1
+      state.maxConcurrentLoads = max(state.maxConcurrentLoads, state.inFlight)
       return (state.result, state.gate)
     }
     if let gate { await gate.wait() }
+    state.withLock { $0.inFlight -= 1 }
     return try result.get()
   }
 
