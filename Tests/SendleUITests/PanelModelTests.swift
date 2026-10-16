@@ -289,6 +289,19 @@ struct PanelModelTests {
     #expect(panel.library.selection.ids == [BookID(rawValue: "a")])
   }
 
+  @Test func commandCommaLeavesAnOpenSheetAsItIs() async {
+    let (panel, _) = makePanel()
+    await panel.launch()
+    await panel.openSettings(.sender)
+    panel.settings.form.password = "typed"
+
+    #expect(panel.handle(KeyInput(.character(","), command: true)))
+    try? await Task.sleep(for: .milliseconds(100))
+
+    #expect(panel.settings.section == .sender)
+    #expect(panel.settings.form.password == "typed")
+  }
+
   // MARK: Settings sheet
 
   @Test func savingSettingsUpdatesTheDestinations() async {

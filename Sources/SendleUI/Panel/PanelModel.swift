@@ -173,7 +173,7 @@ public final class PanelModel {
     case .escape:
       escape()
     case .openSettings:
-      Task { await openSettings() }
+      if !isShowingSettings { Task { await openSettings() } }
     case .move, .selectAll, .layout, .focusSearch:
       guard route == .library, !isShowingSettings else { return false }
       runLibraryCommand(command)
