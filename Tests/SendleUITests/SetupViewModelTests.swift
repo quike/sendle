@@ -17,6 +17,8 @@ struct SetupViewModelTests {
     let sleeps = sleeps
     return SetupViewModel(
       configure: ConfigureEmail(settings: settings, secrets: MemorySecretStore()),
+      sendTest: SendTestEmail(
+        settings: settings, channels: FakeDeliveryChannelFactory(), staging: FakeStagingArea()),
       checkAccess: checkAccess,
       sleep: sleep ?? { await sleeps.record($0) })
   }

@@ -21,7 +21,7 @@ let package = Package(
       name: "Sendle",
       dependencies: [
         "SendleDomain", "SendleUI", "SendlePersistence", "SendleAppleBooks", "SendleEPUB",
-        "SendleCovers",
+        "SendleCovers", "SendleMail",
       ]
     ),
     .target(

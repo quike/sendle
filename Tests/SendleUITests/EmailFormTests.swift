@@ -8,9 +8,17 @@ import Testing
 struct EmailFormTests {
   let settings = InMemorySettingsStore()
   let secrets = MemorySecretStore()
+  let channels = FakeDeliveryChannelFactory()
 
-  func makeForm(settings: InMemorySettingsStore? = nil) -> EmailForm {
-    EmailForm(configure: ConfigureEmail(settings: settings ?? self.settings, secrets: secrets))
+  func makeForm(
+    settings: InMemorySettingsStore? = nil,
+    channels: FakeDeliveryChannelFactory? = nil
+  ) -> EmailForm {
+    let settings = settings ?? self.settings
+    return EmailForm(
+      configure: ConfigureEmail(settings: settings, secrets: secrets),
+      sendTest: SendTestEmail(
+        settings: settings, channels: channels ?? self.channels, staging: FakeStagingArea()))
   }
 
   func filled(_ form: EmailForm) -> EmailForm {
@@ -153,5 +161,80 @@ struct EmailFormTests {
         form.provider = provider
         return !form.appPasswordHelp.isEmpty
       })
+  }
+
+  // MARK: Saved password
+
+  @Test func aSavedPasswordBelongsToItsSender() {
+    let form = makeForm()
+    form.fill(from: .fixture)
+    #expect(form.passwordPrompt == "Saved in Keychain. Type to replace it.")
+
+    form.senderAddress = "other@gmail.com"
+    #expect(form.passwordPrompt == "App password")
+
+    form.senderAddress = "me@gmail.com\n"
+    #expect(form.passwordPrompt == "Saved in Keychain. Type to replace it.")
+  }
+
+  @Test func aStorageFailureClearsTheEarlierIssues() async {
+    let form = filled(makeForm(settings: InMemorySettingsStore(failure: .writeFailed("disk full"))))
+    form.kindleAddress = "nope"
+    #expect(!(await form.save()))
+    #expect(form.issues == [.invalidKindleAddress])
+
+    form.kindleAddress = "reader@kindle.com"
+    #expect(!(await form.save()))
+
+    #expect(form.issues.isEmpty)
+    #expect(form.saveError == "Couldn't save the settings: disk full")
+  }
+
+  // MARK: Send test
+
+  @Test func savesThenSendsATestDocument() async {
+    let form = filled(makeForm())
+
+    await form.sendTest()
+
+    #expect(await settings.settings.email == .fixture)
+    #expect(channels.deliveryChannel.deliveries.map(\.name) == ["Sendle test"])
+    #expect(channels.deliveryChannel.deliveries.first?.file.format == .txt)
+    #expect(
+      form.testStatus
+        == .sent(
+          "Sent through Gmail. It shows up on your Kindle in a few minutes; "
+            + "if it doesn't, check Amazon's approved senders."))
+  }
+
+  @Test func explainsATestThatFailed() async {
+    let refusing = FakeDeliveryChannelFactory(
+      channel: FakeDeliveryChannel(.fail(.authenticationFailed(.gmail))))
+    let form = filled(makeForm(channels: refusing))
+
+    await form.sendTest()
+
+    #expect(
+      form.testStatus == .failed(ProblemPresenter.problem(for: .authenticationFailed(.gmail))))
+  }
+
+  @Test func sendsNoTestOfASetupThatCannotBeSaved() async {
+    let form = filled(makeForm())
+    form.senderAddress = ""
+
+    await form.sendTest()
+
+    #expect(channels.requestedDestinations.isEmpty)
+    #expect(form.testStatus == .idle)
+    #expect(form.issues == [.invalidSenderAddress])
+  }
+
+  @Test func forgetsTheLastTestWhenRefilled() async {
+    let form = filled(makeForm())
+    await form.sendTest()
+
+    form.fill(from: .fixture)
+
+    #expect(form.testStatus == .idle)
   }
 }

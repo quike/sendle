@@ -9,13 +9,17 @@ public final class SettingsViewModel {
   package let form: EmailForm
   package private(set) var launchAtLogin = LoginItemStatus.disabled
   package private(set) var launchAtLoginError: String?
-  package let sendTestHint = "Test emails arrive with email support."
 
   private let settings: any SettingsStore
   private let loginItem: any LoginItem
 
-  public init(configure: ConfigureEmail, settings: any SettingsStore, loginItem: any LoginItem) {
-    form = EmailForm(configure: configure)
+  public init(
+    configure: ConfigureEmail,
+    sendTest: SendTestEmail,
+    settings: any SettingsStore,
+    loginItem: any LoginItem
+  ) {
+    form = EmailForm(configure: configure, sendTest: sendTest)
     self.settings = settings
     self.loginItem = loginItem
   }

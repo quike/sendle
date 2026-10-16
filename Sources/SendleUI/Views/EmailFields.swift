@@ -134,16 +134,33 @@ struct SenderFields: View {
   }
 }
 
-/// "Send test" proves the whole path once email sending exists.
+/// "Send test" proves the login, the server and Amazon's approved senders in one go.
 struct SendTestRow: View {
-  let hint: String
+  let form: EmailForm
+  let send: () -> Void
 
   var body: some View {
-    HStack(spacing: 8) {
-      Button("Send test") {}
-        .buttonStyle(SecondaryButtonStyle())
-        .disabled(true)
-      FieldNote(text: hint, color: Theme.faint)
+    VStack(alignment: .leading, spacing: 6) {
+      HStack(spacing: 8) {
+        Button("Send test", action: send)
+          .buttonStyle(SecondaryButtonStyle())
+          .disabled(form.isSaving || form.testStatus == .sending)
+        if form.testStatus == .sending {
+          ProgressView().controlSize(.small)
+        } else {
+          FieldNote(text: form.testHint, color: Theme.faint)
+        }
+      }
+      switch form.testStatus {
+      case .sent(let text):
+        FieldNote(text: text, color: Theme.live)
+      case .failed(let problem):
+        FieldNote(
+          text: [problem.title, problem.message].compactMap { $0 }.joined(separator: ". "),
+          color: Theme.danger)
+      case .idle, .sending:
+        EmptyView()
+      }
     }
   }
 }

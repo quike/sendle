@@ -28,16 +28,20 @@ struct SettingsViewModelTests {
 
   func makeModel() -> SettingsViewModel {
     SettingsViewModel(
-      configure: ConfigureEmail(settings: settings, secrets: secrets), settings: settings,
-      loginItem: loginItem)
+      configure: ConfigureEmail(settings: settings, secrets: secrets),
+      sendTest: SendTestEmail(
+        settings: settings, channels: FakeDeliveryChannelFactory(), staging: FakeStagingArea()),
+      settings: settings, loginItem: loginItem)
   }
 
   /// A model with nothing saved yet, as before the first setup.
   func makeUnconfiguredModel() -> SettingsViewModel {
     let empty = InMemorySettingsStore()
     return SettingsViewModel(
-      configure: ConfigureEmail(settings: empty, secrets: MemorySecretStore()), settings: empty,
-      loginItem: loginItem)
+      configure: ConfigureEmail(settings: empty, secrets: MemorySecretStore()),
+      sendTest: SendTestEmail(
+        settings: empty, channels: FakeDeliveryChannelFactory(), staging: FakeStagingArea()),
+      settings: empty, loginItem: loginItem)
   }
 
   @Test func opensAtASectionWithTheSavedSetup() async {

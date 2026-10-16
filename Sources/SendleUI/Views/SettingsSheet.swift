@@ -37,7 +37,9 @@ struct SettingsSheet: View {
             SenderFields(form: settings.form) { url in
               Task { await panel.perform(.openURL(url)) }
             }
-            SendTestRow(hint: settings.sendTestHint)
+            SendTestRow(form: settings.form) {
+              Task { await panel.sendTest(from: settings.form) }
+            }
           case .general:
             LaunchAtLoginRow(settings: settings)
           }

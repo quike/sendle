@@ -20,10 +20,11 @@ public final class SetupViewModel {
   /// `checkAccess` reloads the library and tells whether Books could be read.
   public init(
     configure: ConfigureEmail,
+    sendTest: SendTestEmail,
     checkAccess: @escaping @MainActor () async -> Bool,
     sleep: @escaping @Sendable (Duration) async -> Void = { try? await Task.sleep(for: $0) }
   ) {
-    form = EmailForm(configure: configure)
+    form = EmailForm(configure: configure, sendTest: sendTest)
     self.checkAccess = checkAccess
     self.sleep = sleep
   }

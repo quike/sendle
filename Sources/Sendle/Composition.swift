@@ -3,6 +3,7 @@ import SendleAppleBooks
 import SendleCovers
 import SendleDomain
 import SendleEPUB
+import SendleMail
 import SendlePersistence
 import SendleUI
 
@@ -15,7 +16,12 @@ struct Composition {
   init(loginItem: any LoginItem) {
     let data = DataDirectory.url()
     let settings = JSONSettingsStore(directory: data)
-    let configure = ConfigureEmail(settings: settings, secrets: KeychainSecretStore())
+    let secrets = KeychainSecretStore()
+    let staging = FileSystemStagingArea()
+    let channels = DeliveryChannels(
+      email: EmailChannelFactory(settings: settings, secrets: secrets))
+    let configure = ConfigureEmail(settings: settings, secrets: secrets)
+    let sendTest = SendTestEmail(settings: settings, channels: channels, staging: staging)
     let library = LibraryViewModel(
       loadLibrary: LoadLibrary(
         library: AppleBooksLibrary(location: .standard()), inspector: EPUBProtectionInspector()),
@@ -23,18 +29,19 @@ struct Composition {
       settings: settings,
       history: JSONSendHistoryStore(directory: data))
     let setup = SetupViewModel(
-      configure: configure,
+      configure: configure, sendTest: sendTest,
       checkAccess: {
         await library.reload()
         return !library.needsAccess
       })
     panel = PanelModel(
       library: library, setup: setup,
-      settings: SettingsViewModel(configure: configure, settings: settings, loginItem: loginItem),
+      settings: SettingsViewModel(
+        configure: configure, sendTest: sendTest, settings: settings, loginItem: loginItem),
       covers: CoverStore(provider: CachedCoverProvider()))
     self.settings = settings
     // Clears folders an interrupted send left behind.
-    FileSystemStagingArea().purge()
+    staging.purge()
   }
 
   /// Loads the library and settings, and says so if the settings file had to be set aside.
@@ -42,6 +49,18 @@ struct Composition {
     await panel.launch()
     if let moved = await settings.takeQuarantinedFile() {
       panel.show(notice: ProblemPresenter.settingsSetAside(moved))
+    }
+  }
+}
+
+/// Email goes through SendleMail. USB arrives with Plan 5; until then no Kindle is ever offered.
+struct DeliveryChannels: DeliveryChannelFactory {
+  let email: EmailChannelFactory
+
+  func channel(for destination: Destination) async throws(SendFailure) -> any DeliveryChannel {
+    switch destination {
+    case .email(let kindle): try await email.channel(to: kindle)
+    case .usb: throw .deviceDisconnected
     }
   }
 }

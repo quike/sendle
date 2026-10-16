@@ -2,6 +2,13 @@ import Foundation
 import Observation
 import SendleDomain
 
+package enum TestStatus: Equatable, Sendable {
+  case idle
+  case sending
+  case sent(String)
+  case failed(Problem)
+}
+
 /// The Kindle and sender fields, shared by the setup steps and the settings sheet.
 @Observable @MainActor
 package final class EmailForm {
@@ -17,12 +24,21 @@ package final class EmailForm {
   package private(set) var warnings: [EmailSetupWarning] = []
   package private(set) var saveError: String?
   package private(set) var isSaving = false
-  package private(set) var hasSavedPassword = false
+  package private(set) var testStatus = TestStatus.idle
+  package let testHint = "Saves the setup, then emails your Kindle a short document."
+  /// The sender whose password is in the Keychain.
+  private var savedSender: String?
 
   private let configure: ConfigureEmail
+  private let sendTestEmail: SendTestEmail
 
-  package init(configure: ConfigureEmail) {
+  package init(configure: ConfigureEmail, sendTest: SendTestEmail) {
     self.configure = configure
+    sendTestEmail = sendTest
+  }
+
+  package var hasSavedPassword: Bool {
+    savedSender != nil && savedSender == trimmed(senderAddress)
   }
 
   /// Shows the saved setup, or a blank form. The password stays empty, which keeps the saved one.
@@ -38,7 +54,8 @@ package final class EmailForm {
     issues = []
     warnings = []
     saveError = nil
-    hasSavedPassword = email != nil
+    savedSender = email?.senderAddress
+    testStatus = .idle
   }
 
   /// The first setup step after library access checks only this field.
@@ -60,7 +77,7 @@ package final class EmailForm {
       issues = []
       saveError = nil
       password = ""
-      hasSavedPassword = true
+      savedSender = trimmed(senderAddress)
       return true
     } catch {
       switch error {
@@ -68,9 +85,24 @@ package final class EmailForm {
         issues = Set(found)
         saveError = nil
       case .storage(let failure):
+        issues = []
         saveError = "Couldn't save the settings: \(Self.detail(of: failure))"
       }
       return false
+    }
+  }
+
+  /// Saves first, so the test checks the setup the form shows.
+  package func sendTest() async {
+    guard await save() else { return }
+    testStatus = .sending
+    do {
+      try await sendTestEmail()
+      testStatus = .sent(
+        "Sent through \(provider.inlineName). It shows up on your Kindle in a few minutes; "
+          + "if it doesn't, check Amazon's approved senders.")
+    } catch {
+      testStatus = .failed(ProblemPresenter.problem(for: error))
     }
   }
 

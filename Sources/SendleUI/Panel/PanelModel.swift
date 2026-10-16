@@ -144,6 +144,12 @@ public final class PanelModel {
     isShowingSettings = true
   }
 
+  /// A test saves the setup first, so the library shows the Kindle email it may have added.
+  package func sendTest(from form: EmailForm) async {
+    await form.sendTest()
+    await library.refreshSettings()
+  }
+
   package func closeSettings() {
     isShowingSettings = false
   }

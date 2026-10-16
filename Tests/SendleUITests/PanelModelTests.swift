@@ -23,6 +23,7 @@ struct PanelModelTests {
   let library = FakeBooksLibrary(.success([.fixture(id: "a"), .fixture(id: "b")]))
   let monitor = FakeDestinationMonitor()
   let system = FakeSystemActions()
+  let channels = FakeDeliveryChannelFactory()
 
   /// `onSleep` runs each time setup waits between access checks.
   func makePanel(
@@ -31,12 +32,13 @@ struct PanelModelTests {
   ) -> (PanelModel, InMemorySettingsStore) {
     let settings = InMemorySettingsStore(saved)
     let configure = ConfigureEmail(settings: settings, secrets: MemorySecretStore())
+    let sendTest = SendTestEmail(settings: settings, channels: channels, staging: FakeStagingArea())
     let libraryModel = LibraryViewModel(
       loadLibrary: LoadLibrary(library: library, inspector: StubProtectionInspector()),
       observeDestinations: ObserveDestinations(monitor: monitor, settings: settings),
       settings: settings, history: InMemorySendHistoryStore())
     let setup = SetupViewModel(
-      configure: configure,
+      configure: configure, sendTest: sendTest,
       checkAccess: {
         await libraryModel.reload()
         return !libraryModel.needsAccess
@@ -45,7 +47,7 @@ struct PanelModelTests {
     let panel = PanelModel(
       library: libraryModel, setup: setup,
       settings: SettingsViewModel(
-        configure: configure, settings: settings, loginItem: FakeLoginItem()),
+        configure: configure, sendTest: sendTest, settings: settings, loginItem: FakeLoginItem()),
       covers: CoverStore(provider: FakeCoverProvider()))
     panel.attach(system)
     return (panel, settings)
@@ -317,6 +319,21 @@ struct PanelModelTests {
   }
 
   // MARK: Settings sheet
+
+  @Test func aTestEmailThatSavedANewSetupShowsItsChip() async {
+    let (panel, _) = makePanel(AppSettings())
+    await panel.launch()
+    await panel.openSettings(.sender)
+    let form = panel.settings.form
+    form.kindleAddress = "reader@kindle.com"
+    form.senderAddress = "me@gmail.com"
+    form.password = "abcdefghijklmnop"
+
+    await panel.sendTest(from: form)
+
+    #expect(panel.library.hasKindleEmail)
+    #expect(panel.library.destinations == [.email(.fixture)])
+  }
 
   @Test func savingSettingsUpdatesTheDestinations() async {
     let (panel, _) = makePanel(AppSettings())

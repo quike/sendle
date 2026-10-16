@@ -162,7 +162,7 @@ private struct SenderStep: View {
           .disabled(form.isSaving)
       }
       .padding(.top, 2)
-      SendTestRow(hint: panel.settings.sendTestHint)
+      SendTestRow(form: form) { Task { await panel.sendTest(from: form) } }
       Button("Set up later") { panel.skipSetup() }
         .buttonStyle(QuietButtonStyle())
         .frame(maxWidth: .infinity)
