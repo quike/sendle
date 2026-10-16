@@ -42,6 +42,8 @@ package struct QueueRow: Identifiable, Hashable, Sendable {
     switch status {
     case .waiting: "Waiting"
     case .preparing: book.format == .epub ? "Preparing the EPUB" : "Preparing"
+    // Servers scan a message before they answer, for up to two minutes.
+    case .uploading(let fraction) where fraction >= 1: "Waiting for the mail server to confirm"
     case .uploading(let fraction): "Uploading · \(Int((fraction * 100).rounded()))%"
     case .sent: "Sent to Amazon · arrives in a few minutes"
     case .failed(let failure): ProblemPresenter.problem(for: failure).title

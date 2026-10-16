@@ -53,6 +53,7 @@ public final class SendQueueViewModel {
     if isRunning { return "Sending \(Self.books(rows.count))" }
     if sent == rows.count { return "Sent \(Self.books(sent))" }
     if sent > 0 { return "Sent \(sent) of \(rows.count) books" }
+    if failed > 0, retryable.isEmpty { return "\(Self.books(failed)) may have been sent" }
     if failed > 0 { return "Couldn't send \(Self.books(failed))" }
     return "Sending cancelled"
   }
@@ -156,7 +157,7 @@ public final class SendQueueViewModel {
   }
 
   private func makeSummary() -> Toast? {
-    if let failed = failures.first, case .failed(let failure) = failed.status {
+    if let failed = retryable.first ?? failures.first, case .failed(let failure) = failed.status {
       return Toast(tone: .failure, ProblemPresenter.problem(for: failure))
     }
     let sent = rows.filter { $0.status == .sent }

@@ -237,6 +237,31 @@ struct SendQueueViewModelTests {
     #expect(statuses(queue) == [.sent])
   }
 
+  @Test(arguments: [(1, "1 book may have been sent"), (2, "2 books may have been sent")])
+  func saysUnconfirmedBooksMayHaveBeenSent(count: Int, title: String) async {
+    let unconfirmed = SendFailure.unconfirmed(host: "smtp.gmail.com")
+    let queue = makeQueue(FakeDeliveryChannel(.fail(unconfirmed)))
+
+    queue.send(Array([moby, dracula].prefix(count)), to: email)
+    await queue.waitUntilFinished()
+
+    #expect(queue.title == title)
+    #expect(queue.summary == Toast(tone: .failure, ProblemPresenter.problem(for: unconfirmed)))
+  }
+
+  @Test func leadsWithAFailureThatCanBeRetried() async {
+    let unreachable = SendFailure.connectionFailed(host: "smtp.gmail.com")
+    let queue = makeQueue(
+      FakeDeliveryChannel(.fail(.unconfirmed(host: "smtp.gmail.com")), .fail(unreachable)))
+
+    queue.send([moby, dracula], to: email)
+    await queue.waitUntilFinished()
+
+    #expect(queue.title == "Couldn't send 2 books")
+    #expect(queue.summary == Toast(tone: .failure, ProblemPresenter.problem(for: unreachable)))
+    #expect(queue.summary?.fix?.action == .retry)
+  }
+
   @Test func clearsOnlyAFinishedQueue() async {
     let channel = FakeDeliveryChannel(.hangUntilCancelled)
     let queue = makeQueue(channel)
@@ -255,7 +280,7 @@ struct SendQueueViewModelTests {
 
   @Test(arguments: [
     (QueueStatus.waiting, "Waiting"), (.preparing, "Preparing"),
-    (.uploading(0.5), "Uploading · 50%"),
+    (.uploading(0.5), "Uploading · 50%"), (.uploading(1), "Waiting for the mail server to confirm"),
     (.cancelled, "Cancelled"),
   ])
   func describesEachStatusOfAPDF(status: QueueStatus, detail: String) {
