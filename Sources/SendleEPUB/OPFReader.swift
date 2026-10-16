@@ -36,9 +36,11 @@ public enum OPFReader {
   public static func coverImage(inEPUBAt root: URL) -> URL? {
     guard let cover = package(inEPUBAt: root)?.coverPath else { return nil }
     let url = root.appending(path: cover)
-    guard (try? url.resourceValues(forKeys: [.isRegularFileKey]))?.isRegularFile == true else {
-      return nil
-    }
+    let resolved = url.resolvingSymlinksInPath().pathComponents
+    let book = root.resolvingSymlinksInPath().pathComponents
+    guard (try? url.resourceValues(forKeys: [.isRegularFileKey]))?.isRegularFile == true,
+      resolved.count > book.count, resolved.starts(with: book)
+    else { return nil }
     return url
   }
 
@@ -81,6 +83,7 @@ public enum OPFReader {
   private static func parse(_ data: Data, with delegate: some XMLParserDelegate) -> Bool {
     let parser = XMLParser(data: data)
     parser.shouldProcessNamespaces = true
+    parser.shouldResolveExternalEntities = false
     parser.delegate = delegate
     return parser.parse()
   }

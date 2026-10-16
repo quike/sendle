@@ -82,6 +82,20 @@ struct OPFReaderTests {
     #expect(OPFReader.coverImage(inEPUBAt: root) == nil)
   }
 
+  @Test func neverFollowsALinkedFolderOutOfTheBook() throws {
+    let pictures = folder.appending(path: "Pictures", directoryHint: .isDirectory)
+    try FileManager.default.createDirectory(at: pictures, withIntermediateDirectories: true)
+    try Data("photo".utf8).write(to: pictures.appending(path: "photo.png"))
+    try EPUBFixture.book(
+      manifest:
+        #"<item id="art" href="art/photo.png" media-type="image/png" properties="cover-image"/>"#
+    ).write(to: root)
+    try FileManager.default.createSymbolicLink(
+      at: root.appending(path: "OEBPS/art"), withDestinationURL: pictures)
+
+    #expect(OPFReader.coverImage(inEPUBAt: root) == nil)
+  }
+
   @Test func followsTheContainerToThePackage() throws {
     var book = EPUBFixture.book()
     book[text: "META-INF/container.xml"] = EPUBFixture.container.replacingOccurrences(
@@ -151,7 +165,7 @@ struct ArchivePathTests {
 
   @Test(arguments: [
     "../../outside.jpg", "/etc/passwd", "https://example.com/a.jpg", "mailto:me@example.com",
-    "#top", "",
+    "#top", "", "%2e%2e/%2e%2e/x.jpg", "..%2F..%2Fx.jpg",
   ])
   func rejectsReferencesThatLeaveTheBook(reference: String) {
     #expect(ArchivePath.resolve(reference, from: "OEBPS") == nil)
