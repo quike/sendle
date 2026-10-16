@@ -190,6 +190,7 @@ struct EmailDeliveryChannelTests {
         .connectionFailed(host: "smtp.gmail.com")
       ),
       (4, .code(550, "5.1.1 No such user"), .rejected("550 5.1.1 No such user")),
+      (2, .code(504, "5.5.4 Unknown"), .rejected("The server refused the sign-in (504).")),
       (0, .fail(.failed("refused")), .connectionFailed(host: "smtp.gmail.com")),
       (5, .fail(.timedOut), .connectionFailed(host: "smtp.gmail.com")),
       (6, .fail(.closed), .unconfirmed(host: "smtp.gmail.com")),
@@ -200,6 +201,20 @@ struct EmailDeliveryChannelTests {
     reads[position] = read
 
     #expect(await deliver(try file(), with: ScriptedSMTPTransport(reads)) == failure)
+  }
+
+  @Test func keepsOnlyTheCodeOfARefusedSignIn() async throws {
+    var reads = accepting()
+    reads[2] = .code(501, "5.5.2 Cannot decode AUTH PLAIN \(plainToken)")
+    let echo = SMTPError.reply(
+      SMTPReply(code: 535, lines: ["AUTH PLAIN \(plainToken)"]), stage: .authentication)
+    let other = SMTPError.reply(SMTPReply(code: 550, lines: ["No"]), stage: .recipient)
+
+    let failure = await deliver(try file(), with: ScriptedSMTPTransport(reads))
+
+    #expect(failure == .rejected("The server refused the sign-in (501)."))
+    #expect(echo.logDescription == "reply 535 at authentication")
+    #expect(other.logDescription == String(describing: other))
   }
 
   @Test func neverSendsThePasswordWithoutTLS() async throws {

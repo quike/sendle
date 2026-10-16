@@ -90,7 +90,7 @@ public struct EmailDeliveryChannel: DeliveryChannel {
     do {
       try await step()
     } catch {
-      logger.error("SMTP failed: \(String(describing: error), privacy: .private)")
+      logger.error("SMTP failed: \(error.logDescription, privacy: .private)")
       throw SendFailure(error, provider: email.provider, host: email.server.host)
     }
   }
