@@ -43,6 +43,14 @@ struct BodyIDLinkFixTests {
         to: #"<a href="b.xhtml#p1">x</a>"#, at: "a.xhtml", bodyIDs: ["b.xhtml": "b"])
         == nil)
   }
+
+  @Test func escapesTheDocumentsOwnNameInASameDocumentLink() {
+    #expect(
+      BodyIDLinkFix.apply(
+        to: ##"<a href="#top">Top</a>"##, at: "OEBPS/Chapter 1 & 2.xhtml",
+        bodyIDs: ["OEBPS/Chapter 1 & 2.xhtml": "top"])
+        == #"<a href="Chapter%201%20%26%202.xhtml">Top</a>"#)
+  }
 }
 
 struct EmptyImageFixTests {
@@ -58,7 +66,11 @@ struct EmptyImageFixTests {
   }
 
   @Test func leavesImagesWithASourceAlone() {
-    #expect(EmptyImageFix.apply(to: #"<img alt="x" src='a.png'/><image href="b.png"/>"#) == nil)
+    #expect(
+      EmptyImageFix.apply(
+        to:
+          #"<img alt="x" src='a.png'/><img src=b.png><img src="d.png"></img><image href="c.png"/>"#)
+        == nil)
   }
 }
 

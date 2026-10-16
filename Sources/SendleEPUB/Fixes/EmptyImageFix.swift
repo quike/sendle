@@ -8,10 +8,10 @@ package enum EmptyImageFix {
       #/<img\b(?:[^>"']|"[^"]*"|'[^']*')*>(?:\s*<\/img\s*>)?/#.ignoresCase()
     ) { match in
       let tag = match.output
-      let source = tag.firstMatch(of: #/\ssrc\s*=\s*(["'])(.*?)\1/#.ignoresCase())
-      if let source, !source.output.2.trimmingCharacters(in: .whitespaces).isEmpty {
-        return String(tag)
-      }
+      let source = tag.firstMatch(
+        of: #/\ssrc\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'>]+))/#.ignoresCase())
+      let value = source.flatMap { $0.output.1 ?? $0.output.2 ?? $0.output.3 } ?? ""
+      if !value.trimmingCharacters(in: .whitespaces).isEmpty { return String(tag) }
       changed = true
       return ""
     }

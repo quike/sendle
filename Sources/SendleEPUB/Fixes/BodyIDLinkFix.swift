@@ -14,13 +14,14 @@ package enum BodyIDLinkFix {
     -> String?
   {
     let directory = ArchivePath.directory(of: path)
-    let name = path.split(separator: "/").last.map(String.init) ?? path
+    let file = path.split(separator: "/").last.map(String.init) ?? path
+    let name = file.addingPercentEncoding(withAllowedCharacters: unreserved) ?? file
     var changed = false
     let fixed = text.replacing(
-      #/(?<lead>\b(?:href|src)\s*=\s*)(?<quote>["'])(?<target>[^"'#]*)#(?<fragment>[^"']*)\k<quote>/#
+      #/(?<lead>\b(?:href|src)\s*=\s*)(?<quote>["'])(?<target>[^"'#]*)#(?<id>[^"']*)\k<quote>/#
     ) { match in
       let target = String(match.target)
-      let fragment = String(match.fragment)
+      let fragment = String(match.id)
       let resolved = target.isEmpty ? path : ArchivePath.resolve(target, from: directory)
       guard let resolved, let bodyID = bodyIDs[resolved],
         bodyID == fragment || bodyID == fragment.removingPercentEncoding
@@ -31,3 +32,6 @@ package enum BodyIDLinkFix {
     return changed ? fixed : nil
   }
 }
+
+private let unreserved = CharacterSet(
+  charactersIn: "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~")
