@@ -313,13 +313,20 @@ struct LibraryViewModelTests {
     #expect(model.selection.ids == [BookID(rawValue: "f")])
   }
 
-  @Test func sendingWaitsForEmailSupport() async {
+  @Test func sendsTheSelectedBooksInLibraryOrder() async {
+    library.result = .success(books(["a", "b", "c"]))
     let (model, _) = makeModel()
+    await model.start()
     await model.appear()
-    model.selectAll()
+    #expect(await eventually { model.activeDestination == .email(.fixture) })
 
-    #expect(!model.canSend)
-    #expect(model.sendHint == "Sending arrives with email support")
+    model.click(BookID(rawValue: "c"), .plain)
+    model.click(BookID(rawValue: "a"), .toggle)
+
+    #expect(model.canSend)
+    #expect(model.sendHint == "Return to send")
+    #expect(model.quickSendHelp == "Send to Kindle email")
+    #expect(model.selectedBooks.map(\.id.rawValue) == ["a", "c"])
   }
 
   @Test func theShelfShowsTheEightNewestBooks() async {

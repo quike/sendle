@@ -55,15 +55,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
       .withSymbolConfiguration(NSImage.SymbolConfiguration(pointSize: 14, weight: .medium))
     image?.isTemplate = true
     button.image = image
-    button.attributedTitle =
-      state.needsAttention
-      ? NSAttributedString(
-        string: "●",
-        attributes: [
-          .foregroundColor: NSColor.systemRed, .font: NSFont.systemFont(ofSize: 7),
-          .baselineOffset: 5,
-        ])
-      : NSAttributedString()
+    let title = NSMutableAttributedString()
+    if let progress = state.progress {
+      title.append(
+        NSAttributedString(
+          string: " \(progress)",
+          attributes: [.font: NSFont.monospacedDigitSystemFont(ofSize: 12, weight: .medium)]))
+    }
+    if state.needsAttention {
+      title.append(
+        NSAttributedString(
+          string: "●",
+          attributes: [
+            .foregroundColor: NSColor.systemRed, .font: NSFont.systemFont(ofSize: 7),
+            .baselineOffset: 5,
+          ]))
+    }
+    button.attributedTitle = title
     button.toolTip = state.needsAttention ? "Sendle needs you" : "Sendle"
   }
 

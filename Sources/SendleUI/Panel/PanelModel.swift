@@ -6,6 +6,7 @@ import SendleDomain
 package enum PanelRoute: Equatable, Sendable {
   case library
   case setup
+  case queue
 }
 
 /// The panel's state above its screens: which one shows, the settings sheet, keys, fixes and the
@@ -19,6 +20,7 @@ public final class PanelModel {
   package let setup: SetupViewModel
   package let settings: SettingsViewModel
   package let covers: CoverStore
+  package let queue: SendQueueViewModel
   package private(set) var route = PanelRoute.library
   package private(set) var isShowingSettings = false
   package private(set) var notice: Problem?
@@ -36,13 +38,16 @@ public final class PanelModel {
     library: LibraryViewModel,
     setup: SetupViewModel,
     settings: SettingsViewModel,
-    covers: CoverStore
+    covers: CoverStore,
+    queue: SendQueueViewModel
   ) {
     self.library = library
     self.setup = setup
     self.settings = settings
     self.covers = covers
+    self.queue = queue
     library.reportProblem = { [weak self] problem in self?.show(notice: problem) }
+    queue.onFinish = { [weak library] in await library?.refreshHistory() }
   }
 
   /// The shell owns the panel, so it's attached after both exist.
@@ -55,7 +60,8 @@ public final class PanelModel {
     let libraryFailed = if case .failed = library.state { true } else { false }
     return StatusItemState(
       symbolName: kindlePluggedIn ? "books.vertical.fill" : "books.vertical",
-      needsAttention: notice != nil || libraryFailed)
+      needsAttention: notice != nil || libraryFailed || queue.needsAttention,
+      progress: queue.progressLabel)
   }
 
   package var isWaitingForAccess: Bool { accessWatch != nil }
@@ -76,7 +82,7 @@ public final class PanelModel {
     await library.appear()
     guard opened == session else { return }
     guard !Task.isCancelled else { return panelDidClose() }
-    if library.needsAccess {
+    if library.needsAccess, route != .queue {
       showSetup(at: .libraryAccess)
     } else if route == .setup, setup.step == .libraryAccess {
       await libraryAccessArrived()
@@ -137,6 +143,48 @@ public final class PanelModel {
     if setup.accessGranted(emailConfigured: library.hasKindleEmail) { route = .library }
   }
 
+  // MARK: Sending
+
+  package func sendSelection() {
+    send(library.selectedBooks)
+  }
+
+  package func quickSend(_ id: BookID) {
+    guard let item = library.items.first(where: { $0.id == id && $0.canSend }) else { return }
+    send([item.book])
+  }
+
+  /// Back to the library from a finished queue, which is then cleared.
+  package func finishQueue() {
+    guard !queue.isRunning else { return }
+    queue.dismiss()
+    route = .library
+  }
+
+  /// Retry sends the failed books again; using another destination goes back to the library.
+  package func performQueueFix() async {
+    guard let action = queue.summary?.fix?.action else { return }
+    switch action {
+    case .retry:
+      queue.retryFailed()
+    case .useDestination:
+      finishQueue()
+      await perform(action)
+    case .openPrivacySettings, .openSettings, .openURL:
+      await perform(action)
+    }
+  }
+
+  private func send(_ books: [Book]) {
+    guard let destination = library.activeDestination, !books.isEmpty, !queue.isRunning else {
+      return
+    }
+    system?.endEditing()
+    queue.send(books, to: destination)
+    _ = library.clearSelection()
+    route = .queue
+  }
+
   // MARK: Settings sheet
 
   package func openSettings(_ section: SettingsSection = .kindle) async {
@@ -162,10 +210,17 @@ public final class PanelModel {
 
   // MARK: Keys
 
-  /// Esc closes the innermost thing: the sheet, then the selection, then the panel.
+  /// Esc closes the innermost thing: the sheet, a finished queue or a setup that can wait, the
+  /// search, the selection, then the panel. A running queue keeps going behind a closed panel.
   package func escape() {
     if isShowingSettings {
       isShowingSettings = false
+    } else if route == .queue, !queue.isRunning {
+      finishQueue()
+    } else if route == .setup, !library.needsAccess {
+      skipSetup()
+    } else if route == .library, !library.query.isEmpty {
+      library.query = ""
     } else if route == .library, library.clearSelection() {
       return
     } else {
@@ -179,23 +234,50 @@ public final class PanelModel {
     switch command {
     case .escape:
       escape()
+    case .confirm:
+      return confirm()
     case .openSettings:
       if !isShowingSettings { Task { await openSettings() } }
-    case .move, .selectAll, .layout, .focusSearch:
-      guard route == .library, !isShowingSettings else { return false }
-      runLibraryCommand(command)
+    case .move(let direction):
+      guard isOnLibrary else { return false }
+      system?.endEditing()
+      library.move(direction)
+    case .selectAll:
+      guard isOnLibrary else { return false }
+      library.selectAll()
+    case .layout(let layout):
+      guard isOnLibrary else { return false }
+      Task { await library.setLayout(layout) }
+    case .focusSearch:
+      guard isOnLibrary else { return false }
+      searchFocusRequests += 1
     }
     return true
   }
 
-  private func runLibraryCommand(_ command: PanelCommand) {
-    switch command {
-    case .move(let direction): library.move(direction)
-    case .selectAll: library.selectAll()
-    case .layout(let layout): Task { await library.setLayout(layout) }
-    case .focusSearch: searchFocusRequests += 1
-    case .escape, .openSettings: break
+  private var isOnLibrary: Bool { route == .library && !isShowingSettings }
+
+  /// Return saves the sheet, moves the setup on, sends the selection or leaves a finished queue.
+  private func confirm() -> Bool {
+    if isShowingSettings {
+      Task { await saveSettings() }
+      return true
     }
+    switch route {
+    case .setup:
+      switch setup.step {
+      case .libraryAccess: return false
+      case .kindleEmail: setup.continueToSender()
+      case .sender: Task { await finishSetup() }
+      }
+    case .library:
+      guard !library.selection.isEmpty, library.canSend else { return false }
+      sendSelection()
+    case .queue:
+      guard !queue.isRunning else { return false }
+      finishQueue()
+    }
+    return true
   }
 
   // MARK: Fixes

@@ -23,7 +23,7 @@ struct LibraryScreen: View {
       FilterBar(library: library).padding(.top, 9)
       if let notice = panel.notice {
         NoticeView(
-          problem: notice, onFix: { Task { await panel.performNoticeFix() } },
+          toast: Toast(tone: .failure, notice), onFix: { Task { await panel.performNoticeFix() } },
           onDismiss: { panel.dismissNotice() }
         )
         .padding(.top, 10)

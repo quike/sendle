@@ -190,42 +190,45 @@ struct FieldNote: View {
   }
 }
 
-/// What failed and its one-click fix, in the error toast's colours.
+/// A success or a failure with its one-click fix, in the toast colours of the mockups.
 struct NoticeView: View {
-  let problem: Problem
+  let toast: Toast
   let onFix: () -> Void
-  let onDismiss: () -> Void
+  var onDismiss: (() -> Void)?
 
   var body: some View {
     let shape = RoundedRectangle(cornerRadius: 16, style: .continuous)
+    let color = toast.tone == .success ? Theme.live : Theme.danger
     HStack(alignment: .top, spacing: 10) {
       VStack(alignment: .leading, spacing: 2) {
-        Text(problem.title).font(.system(size: 12, weight: .semibold))
-        if let message = problem.message {
+        Text(toast.title).font(.system(size: 12, weight: .semibold))
+        if let message = toast.message {
           Text(message).font(.system(size: 11)).foregroundStyle(Theme.muted)
             .fixedSize(horizontal: false, vertical: true)
         }
       }
       Spacer(minLength: 4)
-      if let fix = problem.fix {
+      if let fix = toast.fix {
         Button("\(fix.label) →", action: onFix)
           .buttonStyle(.plain)
           .font(.system(size: 11.5, weight: .semibold))
           .foregroundStyle(Color(hex: 0x9cc2ff))
       }
-      Button(action: onDismiss) {
-        Image(systemName: "xmark")
-          .font(.system(size: 9, weight: .bold))
-          .frame(width: 20, height: 20)
-          .contentShape(Rectangle())
+      if let onDismiss {
+        Button(action: onDismiss) {
+          Image(systemName: "xmark")
+            .font(.system(size: 9, weight: .bold))
+            .frame(width: 20, height: 20)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .foregroundStyle(Theme.faint)
+        .accessibilityLabel("Dismiss")
       }
-      .buttonStyle(.plain)
-      .foregroundStyle(Theme.faint)
-      .accessibilityLabel("Dismiss")
     }
     .padding(.horizontal, 12)
     .padding(.vertical, 10)
-    .background(Theme.danger.opacity(0.12), in: shape)
-    .overlay(shape.strokeBorder(Theme.danger.opacity(0.35)))
+    .background(color.opacity(toast.tone == .success ? 0.1 : 0.12), in: shape)
+    .overlay(shape.strokeBorder(color.opacity(toast.tone == .success ? 0.3 : 0.35)))
   }
 }

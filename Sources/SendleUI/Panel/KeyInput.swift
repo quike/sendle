@@ -1,3 +1,4 @@
+import AppKit
 import SendleDomain
 
 /// A key press in the panel, as the app shell reads it from AppKit.
@@ -8,6 +9,7 @@ public struct KeyInput: Equatable, Sendable {
     case down
     case left
     case right
+    case returnKey
     case character(String)
   }
 
@@ -22,10 +24,63 @@ public struct KeyInput: Equatable, Sendable {
     self.command = command
     self.isEditingText = isEditingText
   }
+
+  /// A key as AppKit reports it. Only ⌘⇧⌥⌃ count as modifiers, so Caps Lock changes nothing.
+  public init?(
+    keyCode: UInt16,
+    characters: String?,
+    modifierFlags: NSEvent.ModifierFlags,
+    isEditingText: Bool
+  ) {
+    let key: Key
+    switch keyCode {
+    case 53: key = .escape
+    case 123: key = .left
+    case 124: key = .right
+    case 125: key = .down
+    case 126: key = .up
+    case 36, 76: key = .returnKey
+    default:
+      guard let characters, !characters.isEmpty else { return nil }
+      key = .character(characters)
+    }
+    self.init(
+      key, command: modifierFlags.intersection(.typing) == .command, isEditingText: isEditingText)
+  }
+}
+
+/// The editing shortcuts a menu bar app has no Edit menu for.
+public enum TextEditingCommand: Equatable, Sendable {
+  case cut
+  case copy
+  case paste
+  case selectAll
+  case undo
+  case redo
+
+  public init?(characters: String?, modifierFlags: NSEvent.ModifierFlags) {
+    let flags = modifierFlags.intersection(.typing)
+    guard flags.contains(.command), flags.isSubset(of: [.command, .shift]) else { return nil }
+    switch (characters?.lowercased(), flags.contains(.shift)) {
+    case ("x", false): self = .cut
+    case ("c", false): self = .copy
+    case ("v", false): self = .paste
+    case ("a", false): self = .selectAll
+    case ("z", false): self = .undo
+    case ("z", true): self = .redo
+    default: return nil
+    }
+  }
+}
+
+extension NSEvent.ModifierFlags {
+  fileprivate static let typing: NSEvent.ModifierFlags = [.command, .shift, .option, .control]
 }
 
 package enum PanelCommand: Equatable, Sendable {
   case escape
+  /// Return: the screen's main action.
+  case confirm
   case move(MoveDirection)
   case selectAll
   case layout(LibraryLayout)
@@ -39,6 +94,8 @@ extension KeyInput {
     switch key {
     case .escape:
       return .escape
+    case .returnKey:
+      return command ? nil : .confirm
     // Up and down leave a text field, as in Spotlight; PanelModel only takes them on the library.
     case .up: return command ? nil : .move(.up)
     case .down: return command ? nil : .move(.down)

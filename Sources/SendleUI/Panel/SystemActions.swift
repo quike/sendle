@@ -16,4 +16,6 @@ public struct StatusItemState: Equatable, Sendable {
   public let symbolName: String
   /// Shows the red dot.
   public let needsAttention: Bool
+  /// "↑ 2/3" while books are being sent.
+  public let progress: String?
 }

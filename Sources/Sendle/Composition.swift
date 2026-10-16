@@ -22,12 +22,13 @@ struct Composition {
       email: EmailChannelFactory(settings: settings, secrets: secrets))
     let configure = ConfigureEmail(settings: settings, secrets: secrets)
     let sendTest = SendTestEmail(settings: settings, channels: channels, staging: staging)
+    let history = JSONSendHistoryStore(directory: data)
     let library = LibraryViewModel(
       loadLibrary: LoadLibrary(
         library: AppleBooksLibrary(location: .standard()), inspector: EPUBProtectionInspector()),
       observeDestinations: ObserveDestinations(monitor: NoKindleMonitor(), settings: settings),
       settings: settings,
-      history: JSONSendHistoryStore(directory: data))
+      history: history)
     let setup = SetupViewModel(
       configure: configure, sendTest: sendTest,
       checkAccess: {
@@ -38,7 +39,11 @@ struct Composition {
       library: library, setup: setup,
       settings: SettingsViewModel(
         configure: configure, sendTest: sendTest, settings: settings, loginItem: loginItem),
-      covers: CoverStore(provider: CachedCoverProvider()))
+      covers: CoverStore(provider: CachedCoverProvider()),
+      queue: SendQueueViewModel(
+        sendBooks: SendBooks(
+          channels: channels, preparer: KindleEPUBPreparer(), converter: NoConverter(),
+          staging: staging, history: history)))
     self.settings = settings
     // Clears folders an interrupted send left behind.
     staging.purge()
@@ -62,6 +67,19 @@ struct DeliveryChannels: DeliveryChannelFactory {
     case .email(let kindle): try await email.channel(to: kindle)
     case .usb: throw .deviceDisconnected
     }
+  }
+}
+
+/// Calibre support arrives with USB, so EPUBs only go by email for now.
+struct NoConverter: FormatConverter {
+  let isAvailable = false
+
+  func convert(
+    _ file: PreparedFile,
+    to format: FileFormat,
+    in staging: URL
+  ) async throws(SendFailure) -> PreparedFile {
+    throw .conversionUnavailable
   }
 }
 

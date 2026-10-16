@@ -112,37 +112,31 @@ final class PanelController: NSObject, NSWindowDelegate {
 
   /// Text fields keep their editing keys; everything else goes to the panel's shortcuts.
   private func handle(_ event: NSEvent) -> Bool {
-    let flags = event.modifierFlags.intersection([.command, .shift, .option, .control])
     let isEditingText = window.firstResponder is NSText
-    if isEditingText, flags.contains(.command), let action = Self.editingAction(for: event, flags) {
-      return window.firstResponder?.tryToPerform(action, with: nil) ?? false
+    if isEditingText,
+      let command = TextEditingCommand(
+        characters: event.charactersIgnoringModifiers, modifierFlags: event.modifierFlags)
+    {
+      return window.firstResponder?.tryToPerform(command.selector, with: nil) ?? false
     }
-    guard let key = Self.key(of: event) else { return false }
-    return model.handle(KeyInput(key, command: flags == .command, isEditingText: isEditingText))
+    guard
+      let key = KeyInput(
+        keyCode: event.keyCode, characters: event.charactersIgnoringModifiers,
+        modifierFlags: event.modifierFlags, isEditingText: isEditingText)
+    else { return false }
+    return model.handle(key)
   }
+}
 
-  private static func key(of event: NSEvent) -> KeyInput.Key? {
-    switch event.keyCode {
-    case 53: .escape
-    case 123: .left
-    case 124: .right
-    case 125: .down
-    case 126: .up
-    default: event.charactersIgnoringModifiers.map { .character($0) }
-    }
-  }
-
-  /// A menu bar app has no Edit menu, so ⌘X, ⌘C, ⌘V, ⌘A and ⌘Z reach text fields from here.
-  private static func editingAction(for event: NSEvent, _ flags: NSEvent.ModifierFlags) -> Selector?
-  {
-    switch (event.charactersIgnoringModifiers?.lowercased(), flags.contains(.shift)) {
-    case ("x", false): #selector(NSText.cut(_:))
-    case ("c", false): #selector(NSText.copy(_:))
-    case ("v", false): #selector(NSText.paste(_:))
-    case ("a", false): #selector(NSText.selectAll(_:))
-    case ("z", false): Selector(("undo:"))
-    case ("z", true): Selector(("redo:"))
-    default: nil
+extension TextEditingCommand {
+  fileprivate var selector: Selector {
+    switch self {
+    case .cut: #selector(NSText.cut(_:))
+    case .copy: #selector(NSText.copy(_:))
+    case .paste: #selector(NSText.paste(_:))
+    case .selectAll: #selector(NSText.selectAll(_:))
+    case .undo: Selector(("undo:"))
+    case .redo: Selector(("redo:"))
     }
   }
 }

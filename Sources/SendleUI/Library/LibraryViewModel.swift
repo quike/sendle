@@ -29,7 +29,6 @@ public final class LibraryViewModel {
   package private(set) var preferredDestination = DestinationKind.email
   package private(set) var selection = Selection()
   package var hovered: BookID?
-  package let sendHint = "Sending arrives with email support"
   /// Told when a reload fails but the books from the last good one stay on screen.
   @ObservationIgnored package var reportProblem: (@MainActor (Problem) -> Void)?
 
@@ -83,7 +82,20 @@ public final class LibraryViewModel {
     destinations.first { $0.kind == preferredDestination } ?? destinations.first
   }
 
-  package var canSend: Bool { false }
+  /// Something to send to; the selection itself only ever holds books that can go there.
+  package var canSend: Bool { activeDestination != nil }
+
+  package var sendHint: String {
+    canSend ? "Return to send" : "Set up your Kindle email first"
+  }
+
+  package var quickSendHelp: String {
+    activeDestination.map { "Send to \($0.chipTitle)" } ?? "Set up your Kindle email first"
+  }
+
+  package var selectedBooks: [Book] {
+    items.filter { selection.contains($0.id) }.map(\.book)
+  }
 
   // MARK: Lifecycle
 

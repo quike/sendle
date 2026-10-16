@@ -27,6 +27,7 @@ public struct PanelView: View {
           switch panel.route {
           case .library: LibraryScreen(panel: panel)
           case .setup: SetupScreen(panel: panel)
+          case .queue: QueueScreen(panel: panel)
           }
         }
         .disabled(panel.isShowingSettings)

@@ -23,20 +23,24 @@ struct PanelModelTests {
   let library = FakeBooksLibrary(.success([.fixture(id: "a"), .fixture(id: "b")]))
   let monitor = FakeDestinationMonitor()
   let system = FakeSystemActions()
-  let channels = FakeDeliveryChannelFactory()
+  let history = InMemorySendHistoryStore()
 
   /// `onSleep` runs each time setup waits between access checks.
+  /// `channel` delivers every send and test email.
   func makePanel(
     _ saved: AppSettings = AppSettings(email: .fixture),
+    channel: FakeDeliveryChannel = FakeDeliveryChannel(),
     onSleep: @escaping @Sendable () async -> Void = { try? await Task.sleep(for: .seconds(60)) }
   ) -> (PanelModel, InMemorySettingsStore) {
     let settings = InMemorySettingsStore(saved)
     let configure = ConfigureEmail(settings: settings, secrets: MemorySecretStore())
-    let sendTest = SendTestEmail(settings: settings, channels: channels, staging: FakeStagingArea())
+    let channels = FakeDeliveryChannelFactory(channel: channel)
+    let staging = FakeStagingArea()
+    let sendTest = SendTestEmail(settings: settings, channels: channels, staging: staging)
     let libraryModel = LibraryViewModel(
       loadLibrary: LoadLibrary(library: library, inspector: StubProtectionInspector()),
       observeDestinations: ObserveDestinations(monitor: monitor, settings: settings),
-      settings: settings, history: InMemorySendHistoryStore())
+      settings: settings, history: history)
     let setup = SetupViewModel(
       configure: configure, sendTest: sendTest,
       checkAccess: {
@@ -48,7 +52,12 @@ struct PanelModelTests {
       library: libraryModel, setup: setup,
       settings: SettingsViewModel(
         configure: configure, sendTest: sendTest, settings: settings, loginItem: FakeLoginItem()),
-      covers: CoverStore(provider: FakeCoverProvider()))
+      covers: CoverStore(provider: FakeCoverProvider()),
+      queue: SendQueueViewModel(
+        sendBooks: SendBooks(
+          channels: channels, preparer: FakeEPUBPreparer(),
+          converter: FakeFormatConverter(isAvailable: false), staging: staging, history: history,
+          retryDelay: .zero, sleep: { _ in })))
     panel.attach(system)
     return (panel, settings)
   }
@@ -287,6 +296,7 @@ struct PanelModelTests {
 
     #expect(panel.handle(KeyInput(.down, isEditingText: true)))
     #expect(panel.library.selection.ids == [BookID(rawValue: "a")])
+    #expect(system.endedEditing == 1)
     #expect(!panel.handle(KeyInput(.left, isEditingText: true)))
     #expect(!panel.handle(KeyInput(.character("a"), command: true, isEditingText: true)))
 
@@ -316,6 +326,214 @@ struct PanelModelTests {
 
     #expect(panel.settings.section == .sender)
     #expect(panel.settings.form.password == "typed")
+  }
+
+  @Test func escapeClearsTheSearchBeforeTheSelection() async {
+    let (panel, _) = makePanel()
+    await panel.launch()
+    await panel.panelDidOpen()
+    panel.library.selectAll()
+    panel.library.query = "moby"
+
+    panel.escape()
+
+    #expect(panel.library.query.isEmpty)
+    #expect(!panel.library.selection.isEmpty)
+  }
+
+  @Test func escapeLeavesASetupThatCanWait() async {
+    let (panel, _) = makePanel(AppSettings())
+    await panel.launch()
+    await panel.panelDidOpen()
+    panel.showSetup(at: .kindleEmail)
+
+    panel.escape()
+
+    #expect(panel.route == .library)
+    #expect(system.closedPanel == 0)
+  }
+
+  @Test func escapeOnTheAccessStepClosesThePanel() async {
+    denyAccess()
+    let (panel, _) = makePanel()
+    await panel.launch()
+    await panel.panelDidOpen()
+
+    panel.escape()
+
+    #expect(panel.route == .setup)
+    #expect(system.closedPanel == 1)
+  }
+
+  @Test func returnDoesWhatTheScreenIsFor() async {
+    let (panel, settings) = makePanel(AppSettings())
+    await panel.launch()
+    await panel.panelDidOpen()
+    panel.showSetup(at: .kindleEmail)
+    panel.setup.form.kindleAddress = "reader@kindle.com"
+
+    #expect(panel.handle(KeyInput(.returnKey, isEditingText: true)))
+    #expect(panel.setup.step == .sender)
+
+    panel.setup.form.senderAddress = "me@gmail.com"
+    panel.setup.form.password = "abcdefghijklmnop"
+    #expect(panel.handle(KeyInput(.returnKey, isEditingText: true)))
+    #expect(await eventually { panel.route == .library })
+    #expect(await settings.settings.email == .fixture)
+
+    await panel.openSettings(.kindle)
+    panel.settings.form.kindleAddress = "other@kindle.com"
+    #expect(panel.handle(KeyInput(.returnKey, isEditingText: true)))
+    #expect(await eventually { !panel.isShowingSettings })
+    #expect(await settings.settings.email?.kindleAddress.rawValue == "other@kindle.com")
+  }
+
+  @Test func returnLeavesTheKeyAloneWithNothingToSend() async {
+    let (panel, _) = makePanel()
+    await panel.launch()
+    await panel.panelDidOpen()
+
+    #expect(!panel.handle(KeyInput(.returnKey, isEditingText: true)))
+    #expect(panel.route == .library)
+  }
+
+  // MARK: Sending
+
+  @Test func sendsTheSelectionToTheActiveDestination() async {
+    let channel = FakeDeliveryChannel()
+    let (panel, _) = makePanel(channel: channel)
+    await panel.launch()
+    await panel.panelDidOpen()
+    panel.library.selectAll()
+
+    #expect(panel.handle(KeyInput(.returnKey)))
+
+    #expect(panel.route == .queue)
+    #expect(panel.queue.rows.map(\.id.rawValue) == ["a", "b"])
+    #expect(panel.queue.destination == .email(.fixture))
+    #expect(panel.library.selection.isEmpty)
+    await panel.queue.waitUntilFinished()
+    #expect(channel.deliveries.count == 2)
+    #expect(panel.library.items.map(\.tone) == [.sent, .sent])
+  }
+
+  @Test func quickSendSendsOneBook() async {
+    let (panel, _) = makePanel()
+    await panel.launch()
+    await panel.panelDidOpen()
+
+    panel.quickSend(BookID(rawValue: "b"))
+
+    #expect(panel.route == .queue)
+    #expect(panel.queue.rows.map(\.id.rawValue) == ["b"])
+  }
+
+  @Test func sendsNothingUntilThereIsADestination() async {
+    let (panel, _) = makePanel(AppSettings())
+    await panel.launch()
+    await panel.panelDidOpen()
+    panel.library.selectAll()
+
+    #expect(!panel.library.canSend)
+    #expect(panel.library.sendHint == "Set up your Kindle email first")
+    #expect(!panel.handle(KeyInput(.returnKey)))
+    panel.quickSend(BookID(rawValue: "a"))
+
+    #expect(panel.route == .library)
+    #expect(panel.queue.isEmpty)
+  }
+
+  @Test func theMenuBarShowsTheBookBeingSent() async {
+    let channel = FakeDeliveryChannel(.hangUntilCancelled)
+    let (panel, _) = makePanel(channel: channel)
+    await panel.launch()
+    await panel.panelDidOpen()
+    panel.library.selectAll()
+
+    panel.sendSelection()
+    await channel.waitUntilDeliveryStarts()
+
+    #expect(panel.statusItem.progress == "↑ 1/2")
+    panel.queue.cancel()
+    await panel.queue.waitUntilFinished()
+    #expect(panel.statusItem.progress == nil)
+  }
+
+  @Test func aRunningQueueStaysWhenEscapeClosesThePanel() async {
+    let channel = FakeDeliveryChannel(.hangUntilCancelled)
+    let (panel, _) = makePanel(channel: channel)
+    await panel.launch()
+    await panel.panelDidOpen()
+    panel.quickSend(BookID(rawValue: "a"))
+    await channel.waitUntilDeliveryStarts()
+
+    panel.escape()
+    panel.panelDidClose()
+    await panel.panelDidOpen()
+
+    #expect(system.closedPanel == 1)
+    #expect(panel.route == .queue)
+    #expect(panel.queue.isRunning)
+    panel.queue.cancel()
+    await panel.queue.waitUntilFinished()
+  }
+
+  @Test func aFinishedQueueGoesBackToTheLibrary() async {
+    let (panel, _) = makePanel()
+    await panel.launch()
+    await panel.panelDidOpen()
+    panel.quickSend(BookID(rawValue: "a"))
+    await panel.queue.waitUntilFinished()
+
+    panel.escape()
+
+    #expect(panel.route == .library)
+    #expect(panel.queue.isEmpty)
+  }
+
+  @Test func aFailedSendNeedsAttentionUntilTheQueueIsCleared() async {
+    let (panel, _) = makePanel(channel: FakeDeliveryChannel(.fail(.authenticationFailed(.gmail))))
+    await panel.launch()
+    await panel.panelDidOpen()
+    panel.quickSend(BookID(rawValue: "a"))
+    await panel.queue.waitUntilFinished()
+    #expect(panel.statusItem.needsAttention)
+
+    #expect(panel.handle(KeyInput(.returnKey)))
+
+    #expect(panel.route == .library)
+    #expect(!panel.statusItem.needsAttention)
+  }
+
+  @Test func theToastsRetrySendsTheFailedBooksAgain() async {
+    let unreachable = SendFailure.connectionFailed(host: "smtp.gmail.com")
+    let (panel, _) = makePanel(
+      channel: FakeDeliveryChannel(.fail(unreachable), .fail(unreachable), .succeed))
+    await panel.launch()
+    await panel.panelDidOpen()
+    panel.quickSend(BookID(rawValue: "a"))
+    await panel.queue.waitUntilFinished()
+    #expect(panel.queue.summary?.fix?.action == .retry)
+
+    await panel.performQueueFix()
+    await panel.queue.waitUntilFinished()
+
+    #expect(panel.queue.rows.map(\.status) == [.sent])
+    #expect(panel.route == .queue)
+  }
+
+  @Test func theToastsSettingsFixOpensOverTheQueue() async {
+    let (panel, _) = makePanel(channel: FakeDeliveryChannel(.fail(.authenticationFailed(.gmail))))
+    await panel.launch()
+    await panel.panelDidOpen()
+    panel.quickSend(BookID(rawValue: "a"))
+    await panel.queue.waitUntilFinished()
+
+    await panel.performQueueFix()
+
+    #expect(panel.isShowingSettings)
+    #expect(panel.settings.section == .sender)
+    #expect(panel.route == .queue)
   }
 
   // MARK: Settings sheet
