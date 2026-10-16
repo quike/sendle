@@ -1,7 +1,7 @@
 import Foundation
 
 package enum ZipError: Error, Hashable, Sendable {
-  /// Past a limit of the classic ZIP format (4 GB, 65,535 entries). EPUBs never get there.
+  /// Past a limit of the classic ZIP format (4 GB, 65,534 entries). EPUBs never get there.
   case tooLarge
   case cannotWrite(String)
 }
@@ -24,7 +24,7 @@ package final class ZipWriter {
   package init(creatingFileAt url: URL, modified: Date = Date()) throws(ZipError) {
     guard FileManager.default.createFile(atPath: url.path(percentEncoded: false), contents: nil),
       let handle = try? FileHandle(forWritingTo: url)
-    else { throw .cannotWrite(url.lastPathComponent) }
+    else { throw .cannotWrite("Couldn't create the archive file") }
     self.handle = handle
     (time, date) = Self.dosTimestamp(modified)
   }
@@ -33,6 +33,7 @@ package final class ZipWriter {
   package func add(_ name: String, data: Data, method requested: Method = .deflated)
     throws(ZipError)
   {
+    guard count < 0xFFFE, name.utf8.count <= 0xFFFF else { throw .tooLarge }
     var method = Method.stored
     var payload = data
     if requested == .deflated, let deflated = try? (data as NSData).compressed(using: .zlib),
@@ -42,7 +43,6 @@ package final class ZipWriter {
       payload = deflated as Data
     }
     let nameBytes = Data(name.utf8)
-    guard count < 0xFFFF, nameBytes.count <= 0xFFFF else { throw .tooLarge }
     let fields = EntryFields(
       version: method == .deflated ? 20 : 10,
       flags: name.utf8.allSatisfy { $0 < 0x80 } ? 0 : 0x0800,  // bit 11: the name is UTF-8
@@ -135,7 +135,7 @@ package final class ZipWriter {
   }
 
   private static func dosTimestamp(_ date: Date) -> (time: UInt16, date: UInt16) {
-    let parts = Calendar.current.dateComponents(
+    let parts = Calendar(identifier: .gregorian).dateComponents(
       [.year, .month, .day, .hour, .minute, .second], from: date)
     let year = min(max((parts.year ?? 1980) - 1980, 0), 127)
     let time = (parts.hour ?? 0) << 11 | (parts.minute ?? 0) << 5 | (parts.second ?? 0) / 2

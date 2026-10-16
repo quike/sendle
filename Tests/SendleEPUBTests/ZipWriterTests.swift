@@ -60,6 +60,21 @@ struct ZipWriterTests {
     #expect(header.size == text.count)
   }
 
+  @Test func stampsEntriesWithTheGregorianDateAndTime() throws {
+    let calendar = Calendar(identifier: .gregorian)
+    let modified = try #require(
+      calendar.date(
+        from: DateComponents(year: 2027, month: 1, day: 15, hour: 13, minute: 45, second: 30)))
+    let writer = try ZipWriter(creatingFileAt: archive, modified: modified)
+    try writer.add("mimetype", data: Data("application/epub+zip".utf8), method: .stored)
+    try writer.finish()
+
+    let bytes = try Data(contentsOf: archive)
+
+    #expect(bytes.uint16(at: 10) == 13 << 11 | 45 << 5 | 30 / 2)
+    #expect(bytes.uint16(at: 12) == (2027 - 1980) << 9 | 1 << 5 | 15)
+  }
+
   @Test func marksNonASCIINamesAsUTF8() throws {
     try writeArchive(
       [("mimetype", Data("application/epub+zip".utf8)), ("Capítulo 1.xhtml", text)], to: archive)
@@ -108,7 +123,7 @@ struct ZipWriterTests {
   }
 
   @Test func reportsAnUnwritableDestination() {
-    #expect(throws: ZipError.self) {
+    #expect(throws: ZipError.cannotWrite("Couldn't create the archive file")) {
       try ZipWriter(creatingFileAt: folder.appending(path: "missing/book.epub"))
     }
   }
