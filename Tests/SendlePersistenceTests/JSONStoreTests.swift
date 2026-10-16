@@ -44,6 +44,19 @@ struct JSONSettingsStoreTests {
     #expect(try String(contentsOf: kept, encoding: .utf8) == "{ not json")
   }
 
+  @Test func tellsOnceWhereAnUnreadableFileWasMoved() async throws {
+    try Data("{ not json".utf8).write(to: directory.appending(path: "settings.json"))
+    let now = now
+    let store = JSONSettingsStore(directory: directory, now: { now })
+    #expect(await store.takeQuarantinedFile() == nil)
+
+    _ = await store.load()
+
+    let kept = await store.takeQuarantinedFile()
+    #expect(kept?.lastPathComponent == "settings.corrupt-1800000000.json")
+    #expect(await store.takeQuarantinedFile() == nil)
+  }
+
   @Test func keepsAnUnreadableFileAsideInsteadOfOverwritingIt() async throws {
     let file = directory.appending(path: "settings.json")
     try Data(#"{"layout": "list"}"#.utf8).write(to: file)

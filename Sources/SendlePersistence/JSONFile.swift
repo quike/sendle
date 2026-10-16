@@ -8,19 +8,22 @@ struct JSONFile<Value: Codable>: Sendable {
   let url: URL
 
   /// The stored value, or nil when there is none. A file that can't be read or decoded is moved
-  /// aside first, so the next save never overwrites the user's data.
-  func read(quarantiningCorruptAt date: Date) -> Value? {
+  /// aside first, so the next save never overwrites the user's data; `onQuarantine` gets its new URL.
+  func read(
+    quarantiningCorruptAt date: Date,
+    onQuarantine: (URL) -> Void = { _ in }
+  ) -> Value? {
     let data: Data
     do {
       data = try Data(contentsOf: url)
     } catch let error as CocoaError where error.code == .fileReadNoSuchFile {
       return nil
     } catch {
-      quarantine(at: date)
+      if let moved = quarantine(at: date) { onQuarantine(moved) }
       return nil
     }
     if let value = try? Self.decoder().decode(Value.self, from: data) { return value }
-    quarantine(at: date)
+    if let moved = quarantine(at: date) { onQuarantine(moved) }
     return nil
   }
 
@@ -36,7 +39,7 @@ struct JSONFile<Value: Codable>: Sendable {
     }
   }
 
-  private func quarantine(at date: Date) {
+  private func quarantine(at date: Date) -> URL? {
     let folder = url.deletingLastPathComponent()
     let base =
       "\(url.deletingPathExtension().lastPathComponent).corrupt-\(Int(date.timeIntervalSince1970))"
@@ -48,10 +51,12 @@ struct JSONFile<Value: Codable>: Sendable {
     do {
       try FileManager.default.moveItem(at: url, to: target)
       logger.warning("Moved unreadable \(name, privacy: .public) to \(target.lastPathComponent)")
+      return target
     } catch {
       // Only an unwritable folder stops the move, and then saving fails too: nothing is overwritten.
       logger.error(
         "Could not move unreadable \(name, privacy: .public): \(error.localizedDescription)")
+      return nil
     }
   }
 

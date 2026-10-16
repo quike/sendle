@@ -1,7 +1,7 @@
 import Foundation
 
 public enum DataDirectory {
-  public static let environmentKey = "SENDLE_DATA_DIR"
+  package static let environmentKey = "SENDLE_DATA_DIR"
 
   /// `~/Library/Application Support/Sendle`, unless `SENDLE_DATA_DIR` points elsewhere.
   public static func url(
