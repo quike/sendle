@@ -5,6 +5,7 @@ import SendleUI
 import Testing
 
 @MainActor
+@Suite(.timeLimit(.minutes(1)))
 struct EmailFormTests {
   let settings = InMemorySettingsStore()
   let secrets = MemorySecretStore()
