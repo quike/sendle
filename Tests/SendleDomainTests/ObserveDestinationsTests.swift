@@ -1,3 +1,4 @@
+import Foundation
 import SendleDomain
 import SendleTestSupport
 import Testing
@@ -11,6 +12,17 @@ struct ObserveDestinationsTests {
     let destinations = ObserveDestinations.destinations(email: .fixture, volumes: [scribe, kindle])
 
     #expect(destinations == [.usb(kindle), .usb(scribe), .email(.fixture)])
+  }
+
+  @Test func ordersKindlesWithTheSameNameByID() {
+    let second = KindleVolume(
+      id: "/Volumes/Kindle 1", name: "Kindle", mountURL: URL(filePath: "/Volumes/Kindle 1"))
+    let first = KindleVolume(
+      id: "/Volumes/Kindle", name: "Kindle", mountURL: URL(filePath: "/Volumes/Kindle"))
+
+    let destinations = ObserveDestinations.destinations(email: nil, volumes: [second, first])
+
+    #expect(destinations == [.usb(first), .usb(second)])
   }
 
   @Test func leavesEmailOutUntilItIsSetUp() {

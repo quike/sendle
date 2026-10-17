@@ -6,12 +6,17 @@ public protocol EPUBPreparer: Sendable {
 }
 
 public protocol FormatConverter: Sendable {
-  var isAvailable: Bool { get }
+  /// The conversion tool, or nil while it isn't installed.
+  var toolURL: URL? { get }
   func convert(
     _ file: PreparedFile,
     to format: FileFormat,
     in staging: URL
   ) async throws(SendFailure) -> PreparedFile
+}
+
+extension FormatConverter {
+  public var isAvailable: Bool { toolURL != nil }
 }
 
 public protocol StagingArea: Sendable {

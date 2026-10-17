@@ -73,7 +73,7 @@ struct DeliveryChannels: DeliveryChannelFactory {
 
 /// Calibre support arrives with USB, so EPUBs only go by email for now.
 struct NoConverter: FormatConverter {
-  let isAvailable = false
+  let toolURL: URL? = nil
 
   func convert(
     _ file: PreparedFile,

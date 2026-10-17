@@ -11,14 +11,17 @@ public final class FakeDestinationMonitor: DestinationMonitor {
 
   public var subscriberCount: Int { feed.subscriberCount }
 
-  /// Each stream starts with the Kindles plugged in now, as the port promises.
+  /// Each stream starts with the Kindles plugged in now, as the port promises. Holding the lock
+  /// while subscribing means an update can't fall between the first value and the next.
   public func volumes() -> AsyncStream<[KindleVolume]> {
-    feed.stream(startingWith: current.withLock { $0 })
+    current.withLock { feed.stream(startingWith: $0) }
   }
 
   public func update(_ volumes: [KindleVolume]) {
-    current.withLock { $0 = volumes }
-    feed.send(volumes)
+    current.withLock {
+      $0 = volumes
+      feed.send(volumes)
+    }
   }
 
   public func finish() {

@@ -73,6 +73,8 @@ public enum ProblemPresenter {
       Problem("The Kindle was unplugged during the copy", fix: Fix("Retry", .retry))
     case .diskFull:
       Problem("Not enough space on the Kindle")
+    case .copyFailed(let detail):
+      Problem("Couldn't copy the book to the Kindle", message: detail, fix: Fix("Retry", .retry))
     case .localStorage(let detail):
       Problem("Couldn't write temporary files on this Mac", message: detail)
     case .cancelled:

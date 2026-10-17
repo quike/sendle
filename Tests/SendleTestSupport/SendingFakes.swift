@@ -23,12 +23,13 @@ public final class FakeEPUBPreparer: EPUBPreparer {
 }
 
 public final class FakeFormatConverter: FormatConverter {
-  public let isAvailable: Bool
+  public let toolURL: URL?
   private let converted = OSAllocatedUnfairLock<[PreparedFile]>(initialState: [])
   private let failure: SendFailure?
 
   public init(isAvailable: Bool = true, failure: SendFailure? = nil) {
-    self.isAvailable = isAvailable
+    toolURL =
+      isAvailable ? URL(filePath: "/Applications/calibre.app/Contents/MacOS/ebook-convert") : nil
     self.failure = failure
   }
 

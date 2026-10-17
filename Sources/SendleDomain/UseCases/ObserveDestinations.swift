@@ -25,7 +25,7 @@ public struct ObserveDestinations: Sendable {
 
   /// Plugged-in Kindles come first: a cable is faster and needs no internet.
   public static func destinations(email: KindleEmail?, volumes: [KindleVolume]) -> [Destination] {
-    let usb = volumes.sorted { $0.name < $1.name }.map(Destination.usb)
+    let usb = volumes.sorted { ($0.name, $0.id) < ($1.name, $1.id) }.map(Destination.usb)
     guard let email else { return usb }
     return usb + [.email(email)]
   }

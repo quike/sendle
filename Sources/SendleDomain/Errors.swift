@@ -24,6 +24,8 @@ public enum SendFailure: Error, Hashable, Sendable {
   case conversionFailed(String)
   case deviceDisconnected
   case diskFull
+  /// Writing to the Kindle failed while it stayed plugged in.
+  case copyFailed(String)
   case localStorage(String)
   case cancelled
 

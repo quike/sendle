@@ -52,6 +52,7 @@ struct ProblemPresenterTests {
       (.conversionFailed("error"), "Calibre couldn't convert this book", .useDestination(.email)),
       (.deviceDisconnected, "The Kindle was unplugged during the copy", .retry),
       (.diskFull, "Not enough space on the Kindle", nil),
+      (.copyFailed("Input/output error"), "Couldn't copy the book to the Kindle", .retry),
       (.localStorage("disk full"), "Couldn't write temporary files on this Mac", nil),
       (.cancelled, "Cancelled", nil),
       (.unconfirmed(host: "smtp.gmail.com"), "smtp.gmail.com didn't confirm the book", nil),
@@ -94,6 +95,12 @@ struct ProblemPresenterTests {
     let problem = ProblemPresenter.problem(for: .unconfirmed(host: "smtp.mail.me.com"))
 
     #expect(problem.message == "It may still arrive. Check your Kindle before you send it again.")
+  }
+
+  @Test func saysWhyACopyToTheKindleFailed() {
+    let problem = ProblemPresenter.problem(for: .copyFailed("The volume is read-only."))
+
+    #expect(problem.message == "The volume is read-only.")
   }
 
   @Test func namesEachProviderMidSentence() {

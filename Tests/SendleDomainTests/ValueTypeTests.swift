@@ -30,6 +30,25 @@ struct EmailAddressTests {
   }
 }
 
+struct FormatConverterTests {
+  private struct Tool: FormatConverter {
+    let toolURL: URL?
+
+    func convert(
+      _ file: PreparedFile, to format: FileFormat, in staging: URL
+    ) async throws(SendFailure) -> PreparedFile {
+      throw .conversionUnavailable
+    }
+  }
+
+  @Test func isAvailableOnlyWhileItsToolIsInstalled() {
+    #expect(
+      Tool(toolURL: URL(filePath: "/Applications/calibre.app/Contents/MacOS/ebook-convert"))
+        .isAvailable)
+    #expect(!Tool(toolURL: nil).isAvailable)
+  }
+}
+
 struct FileFormatTests {
   @Test func mimeTypesMatchWhatAmazonExpects() {
     #expect(FileFormat.epub.mimeType == "application/epub+zip")
