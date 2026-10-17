@@ -18,6 +18,8 @@ public final class SendQueueViewModel {
   package private(set) var summary: Toast?
   /// Runs after each run, for example to show the new sends in the library.
   @ObservationIgnored package var onFinish: (@MainActor () async -> Void)?
+  /// A book too large to email can go over USB while a Kindle is plugged in.
+  @ObservationIgnored package var isKindleConnected: @MainActor () -> Bool = { false }
 
   @ObservationIgnored private var run: Task<Void, Never>?
   @ObservationIgnored private var endActivity: (@MainActor () -> Void)?
@@ -68,7 +70,7 @@ public final class SendQueueViewModel {
   /// Starts a run and replaces the queue. Ignored while a run is in progress.
   package func send(_ books: [Book], to destination: Destination) {
     guard !isRunning, !books.isEmpty else { return }
-    rows = books.map { QueueRow(book: $0) }
+    rows = books.map { QueueRow(book: $0, destination: destination.kind) }
     self.destination = destination
     summary = nil
     isRunning = true
@@ -158,11 +160,20 @@ public final class SendQueueViewModel {
 
   private func makeSummary() -> Toast? {
     if let failed = retryable.first ?? failures.first, case .failed(let failure) = failed.status {
-      return Toast(tone: .failure, ProblemPresenter.problem(for: failure))
+      return Toast(
+        tone: .failure,
+        ProblemPresenter.problem(for: failure, kindleConnected: isKindleConnected()))
     }
     let sent = rows.filter { $0.status == .sent }
     guard let first = sent.first else { return nil }
     let one = sent.count == 1
+    if case .usb(let volume) = destination {
+      return Toast(
+        tone: .success,
+        title: one
+          ? "\(first.book.title) is on your Kindle" : "\(sent.count) books are on your Kindle",
+        message: "Eject it before you unplug the cable.", fix: Fix("Eject", .eject(volume)))
+    }
     return Toast(
       tone: .success,
       title: one ? "\(first.book.title) is on its way" : "\(sent.count) books are on their way",

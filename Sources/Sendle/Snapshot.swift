@@ -61,6 +61,12 @@ enum Snapshot {
     kindles.plugIn()
     await panel.library.activate(.usb)
     await write(window, "library-usb.png", to: folder)
+    panel.library.selectAll()
+    panel.sendSelection()
+    await write(window, "queue-usb-sending.png", to: folder)
+    panel.queue.cancel()
+    await panel.queue.waitUntilFinished()
+    await write(window, "queue-usb-done.png", to: folder)
   }
 
   /// Waits for covers and animations, then draws the window's content.
@@ -104,25 +110,30 @@ final class SnapshotKindles: DestinationMonitor {
   }
 }
 
-/// Snapshot mode sends nothing: the first book goes at once, the next stops at 62%.
-struct SnapshotChannels: DeliveryChannelFactory, DeliveryChannel {
-  private let calls = OSAllocatedUnfairLock(initialState: 0)
+/// Snapshot mode sends nothing: to each destination, the first book goes at once and the next
+/// stops at 62%.
+struct SnapshotChannels: DeliveryChannelFactory {
+  private let calls = OSAllocatedUnfairLock<[DestinationKind: Int]>(initialState: [:])
 
   func channel(for destination: Destination) async throws(SendFailure) -> any DeliveryChannel {
-    self
+    let call = calls.withLock { calls in
+      defer { calls[destination.kind, default: 0] += 1 }
+      return calls[destination.kind, default: 0]
+    }
+    return SnapshotChannel(isFirst: call == 0)
   }
+}
+
+private struct SnapshotChannel: DeliveryChannel {
+  let isFirst: Bool
 
   func deliver(
     _ file: PreparedFile,
     named baseName: String,
     progress: @Sendable (Double) async -> Void
   ) async throws(SendFailure) {
-    let call = calls.withLock { calls in
-      defer { calls += 1 }
-      return calls
-    }
-    await progress(call == 0 ? 1 : 0.62)
-    guard call > 0 else { return }
+    await progress(isFirst ? 1 : 0.62)
+    guard !isFirst else { return }
     try? await Task.sleep(for: .seconds(3_600))
     throw .cancelled
   }

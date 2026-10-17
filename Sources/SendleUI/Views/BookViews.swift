@@ -122,13 +122,21 @@ private struct RowMark: View {
         Image(systemName: "checkmark").foregroundStyle(.white)
           .frame(width: 30, height: 30).background(Theme.accent, in: Circle())
       } else if !item.canSend {
-        Image(systemName: item.book.availability == .inCloudOnly ? "icloud" : "lock")
-          .foregroundStyle(Theme.faint).frame(width: 30, height: 30)
+        Image(systemName: blockedSymbol).foregroundStyle(Theme.faint).frame(width: 30, height: 30)
       } else {
         QuickSendButton(panel: panel, item: item, isProminent: isHovered)
       }
     }
     .font(.system(size: 12, weight: .semibold))
+  }
+
+  /// A lock only for books that are locked; the rest can't go to this destination.
+  private var blockedSymbol: String {
+    switch item.book.availability {
+    case .inCloudOnly: "icloud"
+    case .protected: "lock"
+    case .ready, .missing: "nosign"
+    }
   }
 }
 
@@ -160,16 +168,40 @@ struct QuickSendButton: View {
 
 struct BookCover: View {
   let panel: PanelModel
-  let item: BookItemViewModel
+  let book: Book
+  /// Nil draws the cover alone: no selection, sent mark or quick-send.
+  let item: BookItemViewModel?
   let size: CoverSize
-  var showsMarks = true
   var titleSize: CGFloat = 10
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
+  init(
+    panel: PanelModel,
+    item: BookItemViewModel,
+    size: CoverSize,
+    showsMarks: Bool = true,
+    titleSize: CGFloat = 10
+  ) {
+    self.panel = panel
+    book = item.book
+    self.item = showsMarks ? item : nil
+    self.size = size
+    self.titleSize = titleSize
+  }
+
+  /// A book's cover where no destination applies, as in the queue.
+  init(panel: PanelModel, book: Book, size: CoverSize) {
+    self.panel = panel
+    self.book = book
+    item = nil
+    self.size = size
+  }
+
   var body: some View {
-    let slot = panel.covers.slot(for: item.book, size: size)
-    let isSelected = showsMarks && panel.library.selection.contains(item.id)
-    let isHovered = showsMarks && panel.library.hovered == item.id
+    let slot = panel.covers.slot(for: book, size: size)
+    let isSelected = item.map { panel.library.selection.contains($0.id) } ?? false
+    let isHovered = item.map { panel.library.hovered == $0.id } ?? false
+    let isUnavailable = book.availability != .ready
     let shape = UnevenRoundedRectangle(
       topLeadingRadius: 5, bottomLeadingRadius: 5, bottomTrailingRadius: 7, topTrailingRadius: 7,
       style: .continuous)
@@ -179,22 +211,22 @@ struct BookCover: View {
         if let data = slot.data, let image = NSImage(data: data) {
           Image(nsImage: image).resizable().scaledToFill()
         } else {
-          TitleCardView(item: item, titleSize: size == .large ? titleSize : nil)
+          TitleCardView(book: book, titleSize: size == .large ? titleSize : nil)
         }
       }
       .clipShape(shape)
       .overlay(alignment: .leading) {
         Rectangle().fill(Color.black.opacity(0.18)).frame(width: 3)
       }
-      .saturation(item.tone == .unavailable ? 0.2 : 1)
-      .brightness(item.tone == .unavailable ? -0.3 : 0)
+      .saturation(isUnavailable ? 0.2 : 1)
+      .brightness(isUnavailable ? -0.3 : 0)
       .overlay {
-        if item.book.availability == .protected {
+        if book.availability == .protected {
           Image(systemName: "lock.fill").font(.system(size: 14)).foregroundStyle(.white)
         }
       }
       .overlay(alignment: .topTrailing) {
-        if showsMarks, item.tone == .sent { CoverMark(symbol: "checkmark", color: Theme.live) }
+        if item?.tone == .sent { CoverMark(symbol: "checkmark", color: Theme.live) }
       }
       .overlay(alignment: .topLeading) {
         if isSelected { CoverMark(symbol: "checkmark", color: Theme.accent) }
@@ -207,7 +239,7 @@ struct BookCover: View {
         }
       }
       .overlay(alignment: .bottomTrailing) {
-        if isHovered, item.canSend, size == .large {
+        if isHovered, let item, item.canSend, size == .large {
           QuickSendButton(panel: panel, item: item, isProminent: true).padding(6)
         }
       }
@@ -215,7 +247,7 @@ struct BookCover: View {
       .scaleEffect(isHovered ? 1.03 : 1)
       .offset(y: isHovered ? -3 : 0)
       .animation(reduceMotion ? nil : Theme.press, value: isHovered)
-      .task(id: item.book) { await panel.covers.load(item.book, size: size) }
+      .task(id: book) { await panel.covers.load(book, size: size) }
   }
 }
 
@@ -236,19 +268,19 @@ private struct CoverMark: View {
 
 /// A generated cover for books without one, in colours that stay put across launches.
 struct TitleCardView: View {
-  let item: BookItemViewModel
+  let book: Book
   /// Nil leaves the title off, for covers too small to read it.
   let titleSize: CGFloat?
 
   var body: some View {
     let colors = Theme.coverGradients[
-      TitleCard.paletteIndex(for: item.id, count: Theme.coverGradients.count)]
+      TitleCard.paletteIndex(for: book.id, count: Theme.coverGradients.count)]
     LinearGradient(
       colors: [colors.0, colors.1], startPoint: .topLeading, endPoint: .bottomTrailing
     )
     .overlay(alignment: .bottomLeading) {
       if let titleSize {
-        Text(item.title)
+        Text(book.title)
           .font(.custom("Georgia", size: titleSize))
           .foregroundStyle(Color.white.opacity(0.92))
           .lineLimit(4)

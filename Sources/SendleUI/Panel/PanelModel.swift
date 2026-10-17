@@ -53,6 +53,7 @@ public final class PanelModel {
     self.ejector = ejector
     library.reportProblem = { [weak self] problem in self?.show(notice: problem) }
     queue.onFinish = { [weak library] in await library?.refreshHistory() }
+    queue.isKindleConnected = { [weak library] in library?.isKindlePluggedIn ?? false }
   }
 
   /// The shell owns the panel, so it's attached after both exist.

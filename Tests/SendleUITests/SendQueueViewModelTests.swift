@@ -12,6 +12,7 @@ struct SendQueueViewModelTests {
   let dracula = Book.fixture(id: "b", title: "Dracula")
   let meditations = Book.fixture(id: "c", title: "Meditations", format: .pdf)
   let email = Destination.email(.fixture)
+  let kindle = Destination.usb(.fixture())
   let activity = ActivityLog()
 
   @MainActor final class ActivityLog {
@@ -285,6 +286,55 @@ struct SendQueueViewModelTests {
   ])
   func describesEachStatusOfAPDF(status: QueueStatus, detail: String) {
     #expect(QueueRow(book: meditations, status: status).detail == detail)
+  }
+
+  // MARK: USB
+
+  @Test func saysABookCopiedOverUSBIsOnTheKindle() async {
+    let queue = makeQueue()
+
+    queue.send([meditations], to: kindle)
+    await queue.waitUntilFinished()
+
+    #expect(queue.rows.map(\.detail) == ["On your Kindle"])
+    #expect(queue.subtitle == "to Kindle · USB")
+    #expect(queue.summary?.title == "Meditations is on your Kindle")
+    #expect(queue.summary?.message == "Eject it before you unplug the cable.")
+    #expect(queue.summary?.fix == Fix("Eject", .eject(.fixture())))
+  }
+
+  @Test func countsTheBooksCopiedToTheKindle() async {
+    let queue = makeQueue()
+
+    queue.send([meditations, .fixture(id: "d", title: "Emma", format: .pdf)], to: kindle)
+    await queue.waitUntilFinished()
+
+    #expect(queue.summary?.title == "2 books are on your Kindle")
+  }
+
+  @Test(arguments: [
+    (QueueStatus.preparing, "Converting with Calibre"), (.uploading(0.5), "Copying · 50%"),
+    (.uploading(1), "Copying · 100%"), (.sent, "On your Kindle"),
+  ])
+  func describesEachStatusOfAnEPUBGoingOverUSB(status: QueueStatus, detail: String) {
+    #expect(QueueRow(book: moby, destination: .usb, status: status).detail == detail)
+  }
+
+  @Test func notesTheFixesMadeBeforeConverting() {
+    let row = QueueRow(book: moby, destination: .usb, status: .sent, fixes: [.addedLanguage])
+
+    #expect(row.fixesNote == "Fixed 1 EPUB issue (language)")
+  }
+
+  @Test func offersUSBForABookTooLargeToEmailWhileAKindleIsPluggedIn() async {
+    let tooLarge = SendFailure.tooLarge(bytes: 62_000_000, limit: FormatPolicy.emailSizeLimit)
+    let queue = makeQueue(FakeDeliveryChannel(.fail(tooLarge)))
+    queue.isKindleConnected = { true }
+
+    queue.send([meditations], to: email)
+    await queue.waitUntilFinished()
+
+    #expect(queue.summary?.fix?.action == .useDestination(.usb))
   }
 
   @Test func namesEveryFixAmazonNeeds() {

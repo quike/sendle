@@ -48,14 +48,8 @@ private struct QueueRowView: View {
 
   var body: some View {
     HStack(spacing: 10) {
-      BookCover(
-        panel: panel,
-        item: BookItemViewModel(
-          book: row.book, lastSend: nil, destination: .email, converterAvailable: false,
-          now: Date()),
-        size: .small, showsMarks: false
-      )
-      .frame(width: 34, height: 50)
+      BookCover(panel: panel, book: row.book, size: .small)
+        .frame(width: 34, height: 50)
       VStack(alignment: .leading, spacing: 2) {
         Text(row.book.title).font(.system(size: 12.5, weight: .semibold)).lineLimit(1)
         Text(row.detail).font(.system(size: 10)).foregroundStyle(row.tone.color).lineLimit(2)

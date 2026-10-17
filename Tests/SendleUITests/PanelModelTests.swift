@@ -538,6 +538,39 @@ struct PanelModelTests {
     #expect(panel.route == .queue)
   }
 
+  @Test func theToastsEjectFixEjectsTheKindleFromTheLibrary() async {
+    let kindle = KindleVolume.fixture()
+    library.result = .success([.fixture(id: "a", format: .pdf)])
+    monitor.update([kindle])
+    let (panel, _) = makePanel(AppSettings(email: .fixture, activeDestination: .usb))
+    await panel.launch()
+    await panel.panelDidOpen()
+    #expect(await eventually { panel.library.activeDestination == .usb(kindle) })
+    panel.quickSend(BookID(rawValue: "a"))
+    await panel.queue.waitUntilFinished()
+
+    await panel.performQueueFix()
+
+    #expect(ejector.ejected == [kindle])
+    #expect(panel.route == .library)
+  }
+
+  @Test func aBookTooLargeToEmailCanGoOverUSBInstead() async {
+    let tooLarge = SendFailure.tooLarge(bytes: 62_000_000, limit: FormatPolicy.emailSizeLimit)
+    monitor.update([.fixture()])
+    let (panel, _) = makePanel(channel: FakeDeliveryChannel(.fail(tooLarge)))
+    await panel.launch()
+    await panel.panelDidOpen()
+    #expect(await eventually { panel.library.isKindlePluggedIn })
+    panel.quickSend(BookID(rawValue: "a"))
+    await panel.queue.waitUntilFinished()
+
+    await panel.performQueueFix()
+
+    #expect(panel.route == .library)
+    #expect(panel.library.preferredDestination == .usb)
+  }
+
   // MARK: Settings sheet
 
   @Test func aTestEmailThatSavedANewSetupShowsItsChip() async {
