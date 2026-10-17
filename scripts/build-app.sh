@@ -1,27 +1,38 @@
 #!/bin/bash
-# Builds Sendle.app, a menu bar app with no Dock icon, into build/.
-#   CODESIGN_IDENTITY=…  sign with your own certificate (`security find-identity -v -p codesigning`).
-#                        An ad-hoc signature changes with every build, and macOS may then ask
-#                        for Full Disk Access again.
+# Builds Sendle.app, a menu bar app with no Dock icon, into build/: one binary for Apple silicon
+# and Intel Macs.
+#   SENDLE_VERSION=…     the version About shows (default 0.1.0)
 #   APP_PATH=…           where to put the app (default build/Sendle.app)
-#   VERSION=…            the version About shows (default 0.1.0)
+#   CODESIGN_IDENTITY=…  the certificate to sign with (`security find-identity -p codesigning`).
+#                        The default is "Sendle Local Signing" from scripts/make-signing-identity.sh,
+#                        or an ad-hoc signature without it. macOS forgets Full Disk Access and the
+#                        Keychain item's approval each time an ad-hoc signature changes.
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 APP="${APP_PATH:-$ROOT/build/Sendle.app}"
-VERSION="${VERSION:-0.1.0}"
+[[ "$APP" == /* ]] || APP="$PWD/$APP"
+VERSION="${SENDLE_VERSION:-0.1.0}"
 BUILD="$(git -C "$ROOT" rev-list --count HEAD 2>/dev/null || echo 1)"
+LOCAL_IDENTITY="Sendle Local Signing"
 [[ "$APP" == *.app ]] || { echo "APP_PATH must end in .app"; exit 1; }
 
-echo "▸ Building"
 cd "$ROOT"
-swift build -c release --product Sendle
-BIN="$(swift build -c release --show-bin-path)/Sendle"
-[ -x "$BIN" ] || { echo "Swift build failed"; exit 1; }
+# One build per architecture, each copied out before the next: some SwiftPM versions put every
+# triple's product in the same folder.
+SLICES="$(mktemp -d)"
+trap 'rm -rf "$SLICES"' EXIT
+for ARCH in arm64 x86_64; do
+  echo "▸ Building for $ARCH"
+  swift build -c release --product Sendle --triple "$ARCH-apple-macosx14.0"
+  cp "$(swift build -c release --triple "$ARCH-apple-macosx14.0" --show-bin-path)/Sendle" \
+    "$SLICES/Sendle-$ARCH"
+done
 
 echo "▸ Assembling $APP"
 rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
-cp "$BIN" "$APP/Contents/MacOS/Sendle"
+lipo -create -output "$APP/Contents/MacOS/Sendle" "$SLICES"/Sendle-*
+swift "$ROOT/scripts/make-icon.swift" "$APP/Contents/Resources/AppIcon.icns"
 cat > "$APP/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -31,6 +42,7 @@ cat > "$APP/Contents/Info.plist" <<PLIST
   <key>CFBundleDisplayName</key><string>Sendle</string>
   <key>CFBundleIdentifier</key><string>io.github.quike.Sendle</string>
   <key>CFBundleExecutable</key><string>Sendle</string>
+  <key>CFBundleIconFile</key><string>AppIcon</string>
   <key>CFBundlePackageType</key><string>APPL</string>
   <key>CFBundleShortVersionString</key><string>$VERSION</string>
   <key>CFBundleVersion</key><string>$BUILD</string>
@@ -46,8 +58,12 @@ plutil -lint -s "$APP/Contents/Info.plist"
 echo "▸ Signing"
 if [ -n "${CODESIGN_IDENTITY:-}" ]; then
   codesign --force --options runtime --timestamp --sign "$CODESIGN_IDENTITY" "$APP"
+elif security find-identity -p codesigning | grep -qF "\"$LOCAL_IDENTITY\""; then
+  codesign --force --options runtime --sign "$LOCAL_IDENTITY" "$APP"
 else
+  echo "  Signing ad hoc. Run scripts/make-signing-identity.sh once, so that Full Disk Access"
+  echo "  and the Keychain item outlast rebuilds."
   codesign --force --sign - "$APP"
 fi
 codesign --verify --strict "$APP"
-echo "✓ Done: $APP"
+echo "✓ Done: $APP ($(lipo -archs "$APP/Contents/MacOS/Sendle"))"

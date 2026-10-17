@@ -2,7 +2,9 @@ import Foundation
 import Security
 import SendleDomain
 
-/// Generic passwords in the login keychain, one item per sender address.
+/// Generic passwords in the login keychain, one item per sender address. The item trusts the app
+/// by its signature, so the approval outlasts rebuilds signed by `make-signing-identity.sh`'s
+/// certificate.
 public struct KeychainSecretStore: SecretStore {
   public static let defaultService = "io.github.quike.Sendle.smtp"
 
@@ -38,7 +40,6 @@ public struct KeychainSecretStore: SecretStore {
     if status == errSecItemNotFound {
       var item = baseQuery(for: account)
       item[kSecValueData as String] = data
-      item[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlock
       status = SecItemAdd(item as CFDictionary, nil)
     }
     guard status == errSecSuccess else { throw .keychain(status: status) }
