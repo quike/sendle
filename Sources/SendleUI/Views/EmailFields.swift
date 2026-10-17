@@ -32,6 +32,7 @@ struct GlassTextField: View {
       }
     }
     .labelsHidden()
+    .accessibilityLabel(label)
     .textFieldStyle(.plain)
     .font(.system(size: 12))
     .padding(.horizontal, 11)
