@@ -217,6 +217,7 @@ struct EmailDeliveryChannelTests {
       (5, .fail(.timedOut), .connectionFailed(host: "smtp.gmail.com")),
       (6, .fail(.closed), .unconfirmed(host: "smtp.gmail.com")),
       (6, .fail(.timedOut), .unconfirmed(host: "smtp.gmail.com")),
+      (6, .fail(.untrusted("-9806")), .unconfirmed(host: "smtp.gmail.com")),
     ] as [(Int, Read, SendFailure)])
   func explainsWhatWentWrong(position: Int, read: Read, failure: SendFailure) async throws {
     var reads = accepting()

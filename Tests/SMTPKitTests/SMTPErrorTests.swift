@@ -32,4 +32,18 @@ struct SMTPErrorTests {
   func namesTheStageATransportFailureHappenedIn(failure: SMTPTransportError, error: SMTPError) {
     #expect(SMTPError(failure, at: .hello) == error)
   }
+
+  @Test(arguments: [SMTPStage.greeting, .hello, .startTLS])
+  func aTLSFailureWhileTheHandshakeCompletesBlamesTheServer(stage: SMTPStage) {
+    #expect(SMTPError(.untrusted("x"), at: stage) == .untrustedServer("x"))
+  }
+
+  @Test(arguments: SMTPStage.allCases.filter { ![.greeting, .hello, .startTLS].contains($0) })
+  func aTLSCodedBreakLaterKeepsItsStage(stage: SMTPStage) {
+    #expect(SMTPError(.untrusted("x"), at: stage) == .connection("x", stage: stage))
+  }
+
+  @Test func aTLSCodedBreakAtTheEndOfTheMessageMayHaveDelivered() {
+    #expect(SMTPError(.untrusted("x"), at: .endOfMessage).mayHaveDeliveredMessage)
+  }
 }

@@ -46,7 +46,12 @@ public enum SMTPError: Error, Hashable, Sendable {
     case .timedOut: self = .timedOut(stage)
     case .closed: self = .connection("The server closed the connection", stage: stage)
     case .malformedReply: self = .malformedReply(stage)
-    case .untrusted(let detail): self = .untrustedServer(detail)
+    case .untrusted(let detail):
+      // After the handshake, a TLS-coded error is a dropped connection, not a bad certificate.
+      switch stage {
+      case .greeting, .hello, .startTLS: self = .untrustedServer(detail)
+      default: self = .connection(detail, stage: stage)
+      }
     case .cancelled: self = .cancelled
     }
   }
