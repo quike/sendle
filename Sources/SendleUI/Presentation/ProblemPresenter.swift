@@ -67,11 +67,11 @@ public enum ProblemPresenter {
     case .conversionUnavailable:
       Problem(
         "Your Kindle can't read EPUB over USB",
-        message: "Sendle converts EPUBs with Calibre, which isn't installed.",
+        message: "Sendle converts EPUBs with boko, which isn't installed.",
         fix: Fix("Send by email", .useDestination(.email)))
     case .conversionFailed(let output):
       Problem(
-        "Calibre couldn't convert this book", message: output,
+        "boko couldn't convert this book", message: output,
         fix: Fix("Send by email", .useDestination(.email)))
     case .deviceDisconnected:
       Problem("The Kindle was unplugged during the copy", fix: Fix("Retry", .retry))

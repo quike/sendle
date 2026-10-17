@@ -5,35 +5,33 @@ import SendleTestSupport
 import Testing
 
 @Suite(.timeLimit(.minutes(1)))
-struct CalibreConverterTests {
-  let applications: URL
+struct BokoConverterTests {
+  let bin: URL
   let staging: URL
   let epub: PreparedFile
 
   init() throws {
-    applications = try makeTemporaryDirectory()
+    bin = try makeTemporaryDirectory()
     staging = try makeTemporaryDirectory()
     let url = staging.appending(path: "Moby-Dick - Herman Melville.epub")
     try Data("epub".utf8).write(to: url)
     epub = PreparedFile(url: url, format: .epub, fixes: [.addedLanguage])
   }
 
-  /// Installs a fake `ebook-convert` that runs `script`, in a folder like /Applications.
+  /// Installs a fake `boko` that runs `script`, in a folder like ~/.cargo/bin.
   @discardableResult
-  func installCalibre(_ script: String, in folder: URL? = nil) throws -> URL {
-    let tool = (folder ?? applications).appending(path: "calibre.app/Contents/MacOS/ebook-convert")
-    try FileManager.default.createDirectory(
-      at: tool.deletingLastPathComponent(), withIntermediateDirectories: true)
+  func installBoko(_ script: String, in folder: URL? = nil) throws -> URL {
+    let tool = (folder ?? bin).appending(path: "boko")
     try Data("#!/bin/sh\n\(script)\n".utf8).write(to: tool)
     try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: tool.path)
     return tool
   }
 
-  func converter(timeout: Duration = .seconds(30)) -> CalibreConverter {
-    CalibreConverter(folders: [applications], timeout: timeout)
+  func converter(timeout: Duration = .seconds(30)) -> BokoConverter {
+    BokoConverter(folders: [bin], timeout: timeout)
   }
 
-  func convert(_ converter: CalibreConverter) async -> Result<PreparedFile, SendFailure> {
+  func convert(_ converter: BokoConverter) async -> Result<PreparedFile, SendFailure> {
     do throws(SendFailure) {
       return .success(try await converter.convert(epub, to: .azw3, in: staging))
     } catch {
@@ -41,43 +39,50 @@ struct CalibreConverterTests {
     }
   }
 
-  // MARK: Finding Calibre
+  // MARK: Finding boko
 
-  @Test func findsCalibreInTheFirstFolderThatHasIt() throws {
+  @Test func findsBokoInTheFirstFolderThatHasIt() throws {
     let empty = try makeTemporaryDirectory()
-    let tool = try installCalibre("exit 0")
+    let tool = try installBoko("exit 0")
 
-    let converter = CalibreConverter(folders: [empty, applications], timeout: .seconds(1))
+    let converter = BokoConverter(folders: [empty, bin], timeout: .seconds(1))
 
     #expect(converter.toolURL == tool)
     #expect(converter.isAvailable)
   }
 
-  @Test func isUnavailableWithoutCalibre() async {
+  @Test func looksFirstWhereCargoAndBokosInstallerPutIt() {
+    let cargo = FileManager.default.homeDirectoryForCurrentUser.appending(
+      path: ".cargo/bin", directoryHint: .isDirectory)
+
+    #expect(BokoConverter.folders.first == cargo)
+  }
+
+  @Test func isUnavailableWithoutBoko() async {
     #expect(converter().toolURL == nil)
     #expect(await convert(converter()) == .failure(.conversionUnavailable))
   }
 
-  @Test func ignoresACalibreThatCannotRun() throws {
-    let tool = try installCalibre("exit 0")
+  @Test func ignoresABokoThatCannotRun() throws {
+    let tool = try installBoko("exit 0")
     try FileManager.default.setAttributes([.posixPermissions: 0o644], ofItemAtPath: tool.path)
 
     #expect(converter().toolURL == nil)
   }
 
-  @Test func noticesCalibreInstalledAfterLaunch() throws {
+  @Test func noticesBokoInstalledAfterLaunch() throws {
     let converter = converter()
     #expect(!converter.isAvailable)
 
-    try installCalibre("exit 0")
+    try installBoko("exit 0")
 
     #expect(converter.isAvailable)
   }
 
   // MARK: Converting
 
-  @Test func convertsForAKindleNextToTheEPUB() async throws {
-    try installCalibre(#"printf '%s\n' "$@" > "$(dirname "$2")/arguments.txt"; cp "$1" "$2""#)
+  @Test func convertsNextToTheEPUB() async throws {
+    try installBoko(#"printf '%s\n' "$@" > "$(dirname "$3")/arguments.txt"; cp "$2" "$3""#)
 
     let result = await convert(converter())
 
@@ -85,15 +90,16 @@ struct CalibreConverterTests {
     #expect(result == .success(PreparedFile(url: output, format: .azw3)))
     let arguments = try String(
       contentsOf: staging.appending(path: "arguments.txt"), encoding: .utf8)
-    #expect(arguments == "\(epub.url.path)\n\(output.path)\n--output-profile\nkindle\n")
+    #expect(arguments == "convert\n\(epub.url.path)\n\(output.path)\n")
   }
 
-  @Test func passesOnWhatCalibreSaidWhenItFails() async throws {
-    try installCalibre(
+  @Test func passesOnWhatBokoSaidWhenItFails() async throws {
+    try installBoko(
       """
-      echo "Converting input to HTML..."
-      echo "Traceback (most recent call last):" >&2
-      echo "ValueError: No OPF file found in the EPUB" >&2
+      echo "Reading Moby-Dick - Herman Melville.epub"
+      echo "Error: failed to parse the package document" >&2
+      echo "Caused by: missing <manifest>" >&2
+      echo "Location: src/epub.rs:42" >&2
       exit 1
       """)
 
@@ -103,18 +109,25 @@ struct CalibreConverterTests {
       result
         == .failure(
           .conversionFailed(
-            "Converting input to HTML...\nTraceback (most recent call last):\n"
-              + "ValueError: No OPF file found in the EPUB")))
+            "Error: failed to parse the package document\nCaused by: missing <manifest>\n"
+              + "Location: src/epub.rs:42")))
   }
 
-  @Test func failsWhenCalibreWritesNothing() async throws {
-    try installCalibre("exit 0")
+  @Test func saysHowBokoStoppedWhenItSaidNothing() async throws {
+    try installBoko("exit 3")
 
-    #expect(await convert(converter()) == .failure(.conversionFailed("Calibre made no book.")))
+    #expect(
+      await convert(converter()) == .failure(.conversionFailed("boko stopped with status 3.")))
   }
 
-  @Test func stopsCalibreAfterTheTimeout() async throws {
-    try installCalibre("exec sleep 30")
+  @Test func failsWhenBokoWritesNothing() async throws {
+    try installBoko("exit 0")
+
+    #expect(await convert(converter()) == .failure(.conversionFailed("boko made no book.")))
+  }
+
+  @Test func stopsBokoAfterTheTimeout() async throws {
+    try installBoko("exec sleep 30")
 
     let result = await convert(converter(timeout: .milliseconds(300)))
 
@@ -122,17 +135,17 @@ struct CalibreConverterTests {
       Issue.record("Expected a conversion failure, got \(result)")
       return
     }
-    #expect(message.hasPrefix("Calibre was still converting after"))
+    #expect(message.hasPrefix("boko was still converting after"))
   }
 
   @Test func wordsTheTimeoutInEnglishInEveryLanguage() {
     #expect(
-      CalibreConverter.timeoutMessage(after: .seconds(300))
-        == "Calibre was still converting after 5 minutes, so Sendle stopped it.")
+      BokoConverter.timeoutMessage(after: .seconds(300))
+        == "boko was still converting after 5 minutes, so Sendle stopped it.")
   }
 
-  @Test func cancellingStopsCalibre() async throws {
-    try installCalibre(#"touch "$(dirname "$2")/started"; exec sleep 30"#)
+  @Test func cancellingStopsBoko() async throws {
+    try installBoko(#"touch "$(dirname "$3")/started"; exec sleep 30"#)
     let converter = converter()
     let started = staging.appending(path: "started")
     let conversion = Task { await convert(converter) }
@@ -146,9 +159,8 @@ struct CalibreConverterTests {
     #expect(clock.now - start < .seconds(5))
   }
 
-  @Test func reportsACalibreThatWontStart() async throws {
-    try installCalibre("exit 0")
-    let tool = applications.appending(path: "calibre.app/Contents/MacOS/ebook-convert")
+  @Test func reportsABokoThatWontStart() async throws {
+    let tool = try installBoko("exit 0")
     try Data("not a script".utf8).write(to: tool)
 
     let result = await convert(converter())
@@ -157,6 +169,6 @@ struct CalibreConverterTests {
       Issue.record("Expected a conversion failure, got \(result)")
       return
     }
-    #expect(message.hasPrefix("Couldn't start Calibre"))
+    #expect(message.hasPrefix("Couldn't start boko"))
   }
 }

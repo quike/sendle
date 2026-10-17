@@ -42,7 +42,7 @@ struct SettingsSheet: View {
               Task { await panel.sendTest(from: settings.form) }
             }
           case .usb:
-            CalibreRow(settings: settings) { url in Task { await panel.perform(.openURL(url)) } }
+            BokoRow(settings: settings) { url in Task { await panel.perform(.openURL(url)) } }
           case .general:
             LaunchAtLoginRow(settings: settings)
           }
@@ -70,9 +70,9 @@ struct SettingsSheet: View {
   }
 }
 
-/// Whether Calibre's `ebook-convert` is there to turn EPUBs into AZW3 (spec §3.5).
-private struct CalibreRow: View {
-  static let download = URL(string: "https://calibre-ebook.com/download_osx")
+/// Whether boko is there to turn EPUBs into AZW3 (spec §3.5).
+private struct BokoRow: View {
+  static let download = URL(string: "https://github.com/zacharydenton/boko#install")
 
   let settings: SettingsViewModel
   let open: (URL) -> Void
@@ -80,19 +80,19 @@ private struct CalibreRow: View {
   var body: some View {
     VStack(alignment: .leading, spacing: 8) {
       HStack(spacing: 10) {
-        Image(systemName: settings.calibre == nil ? "questionmark.circle" : "checkmark.circle.fill")
+        Image(systemName: settings.boko == nil ? "questionmark.circle" : "checkmark.circle.fill")
           .font(.system(size: 18))
-          .foregroundStyle(settings.calibre == nil ? Theme.warm : Theme.live)
+          .foregroundStyle(settings.boko == nil ? Theme.warm : Theme.live)
           .accessibilityHidden(true)
         VStack(alignment: .leading, spacing: 1) {
-          Text(settings.calibreTitle).font(.system(size: 12.5, weight: .semibold))
-          Text(settings.calibreNote)
+          Text(settings.bokoTitle).font(.system(size: 12.5, weight: .semibold))
+          Text(settings.bokoNote)
             .font(.system(size: 10.5))
             .foregroundStyle(Theme.muted)
             .fixedSize(horizontal: false, vertical: true)
         }
       }
-      if let path = settings.calibre?.path {
+      if let path = settings.boko?.path {
         Text(path)
           .font(.system(size: 10.5, design: .monospaced))
           .foregroundStyle(Theme.muted)
@@ -100,7 +100,7 @@ private struct CalibreRow: View {
           .truncationMode(.middle)
           .textSelection(.enabled)
       } else if let download = Self.download {
-        Button("Get Calibre ↗") { open(download) }
+        Button("Get boko ↗") { open(download) }
           .buttonStyle(.plain)
           .font(.system(size: 11.5, weight: .semibold))
           .foregroundStyle(Color(hex: 0x9cc2ff))

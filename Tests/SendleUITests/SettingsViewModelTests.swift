@@ -147,29 +147,29 @@ struct SettingsViewModelTests {
 
   // MARK: USB
 
-  @Test func explainsWhatCalibreIsForUntilItIsInstalled() async {
+  @Test func explainsWhatBokoIsForUntilItIsInstalled() async {
     let model = makeModel()
 
     await model.open(at: .usb)
 
-    #expect(model.calibre == nil)
-    #expect(model.calibreTitle == "Calibre not found")
+    #expect(model.boko == nil)
+    #expect(model.bokoTitle == "boko not found")
     #expect(
-      model.calibreNote
-        == "Your Kindle can't read EPUB, so Sendle converts EPUBs with Calibre before copying "
+      model.bokoNote
+        == "Your Kindle can't read EPUB, so Sendle converts EPUBs with boko before copying "
         + "them. Until it's installed, PDFs go over USB and EPUBs go by email.")
   }
 
-  @Test func showsWhereCalibreIsOnceInstalled() async {
+  @Test func showsWhereBokoIsOnceInstalled() async {
     let model = makeModel()
     await model.open(at: .usb)
 
     converter.install()
     await model.open(at: .usb)
 
-    #expect(model.calibre == converter.toolURL)
-    #expect(model.calibreTitle == "Calibre found")
+    #expect(model.boko == converter.toolURL)
+    #expect(model.bokoTitle == "boko found")
     #expect(
-      model.calibreNote == "EPUBs are converted to AZW3 before they're copied to your Kindle.")
+      model.bokoNote == "EPUBs are converted to AZW3 before they're copied to your Kindle.")
   }
 }

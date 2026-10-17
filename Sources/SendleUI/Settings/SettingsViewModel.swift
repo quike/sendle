@@ -9,8 +9,8 @@ public final class SettingsViewModel {
   package let form: EmailForm
   package private(set) var launchAtLogin = LoginItemStatus.disabled
   package private(set) var launchAtLoginError: String?
-  /// Calibre's `ebook-convert`, when it is installed.
-  package private(set) var calibre: URL?
+  /// boko, when it is installed.
+  package private(set) var boko: URL?
 
   private let settings: any SettingsStore
   private let loginItem: any LoginItem
@@ -35,7 +35,7 @@ public final class SettingsViewModel {
     form.fill(from: await settings.load().email)
     launchAtLogin = loginItem.status
     launchAtLoginError = nil
-    calibre = converter.toolURL
+    boko = converter.toolURL
   }
 
   /// The setup is checked as a whole; when the fields to fix are in the other section, go there.
@@ -69,13 +69,13 @@ public final class SettingsViewModel {
     }
   }
 
-  package var calibreTitle: String {
-    calibre == nil ? "Calibre not found" : "Calibre found"
+  package var bokoTitle: String {
+    boko == nil ? "boko not found" : "boko found"
   }
 
-  package var calibreNote: String {
-    calibre == nil
-      ? "Your Kindle can't read EPUB, so Sendle converts EPUBs with Calibre before copying them. "
+  package var bokoNote: String {
+    boko == nil
+      ? "Your Kindle can't read EPUB, so Sendle converts EPUBs with boko before copying them. "
         + "Until it's installed, PDFs go over USB and EPUBs go by email."
       : "EPUBs are converted to AZW3 before they're copied to your Kindle."
   }

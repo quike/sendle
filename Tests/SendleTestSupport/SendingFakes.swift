@@ -36,10 +36,10 @@ public final class FakeFormatConverter: FormatConverter {
 
   public var toolURL: URL? {
     isInstalled.withLock { $0 }
-      ? URL(filePath: "/Applications/calibre.app/Contents/MacOS/ebook-convert") : nil
+      ? URL(filePath: "/Users/reader/.cargo/bin/boko") : nil
   }
 
-  /// As if the user installed Calibre while Sendle runs.
+  /// As if the user installed boko while Sendle runs.
   public func install() {
     isInstalled.withLock { $0 = true }
   }

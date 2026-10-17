@@ -118,7 +118,7 @@ public final class LibraryViewModel {
     }
   }
 
-  /// Calibre is looked for again, in case it was installed since the panel last opened.
+  /// boko is looked for again, in case it was installed since the panel last opened.
   package func appear() async {
     isVisible = true
     converterAvailable = converter.isAvailable

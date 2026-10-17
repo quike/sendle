@@ -51,7 +51,7 @@ struct ProblemPresenterTests {
       (.missing, "The file is no longer on this Mac", nil),
       (.invalidBook("no OPF"), "This EPUB is damaged and can't be prepared", nil),
       (.conversionUnavailable, "Your Kindle can't read EPUB over USB", .useDestination(.email)),
-      (.conversionFailed("error"), "Calibre couldn't convert this book", .useDestination(.email)),
+      (.conversionFailed("error"), "boko couldn't convert this book", .useDestination(.email)),
       (.deviceDisconnected, "The Kindle was unplugged during the copy", .retry),
       (.diskFull, "Not enough space on the Kindle", nil),
       (.copyFailed("Input/output error"), "Couldn't copy the book to the Kindle", .retry),

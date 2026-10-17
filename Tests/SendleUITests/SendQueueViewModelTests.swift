@@ -313,7 +313,7 @@ struct SendQueueViewModelTests {
   }
 
   @Test(arguments: [
-    (QueueStatus.preparing, "Converting with Calibre"), (.uploading(0.5), "Copying · 50%"),
+    (QueueStatus.preparing, "Converting with boko"), (.uploading(0.5), "Copying · 50%"),
     (.uploading(1), "Copying · 100%"), (.sent, "On your Kindle"),
   ])
   func describesEachStatusOfAnEPUBGoingOverUSB(status: QueueStatus, detail: String) {

@@ -24,7 +24,7 @@ struct Composition {
     let settings = JSONSettingsStore(directory: data)
     let secrets = KeychainSecretStore()
     let staging = FileSystemStagingArea()
-    let converter = CalibreConverter()
+    let converter = BokoConverter()
     let channels =
       override ?? DeliveryChannels(email: EmailChannelFactory(settings: settings, secrets: secrets))
     let configure = ConfigureEmail(settings: settings, secrets: secrets)

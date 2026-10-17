@@ -57,7 +57,7 @@ struct FormatPolicyTests {
     #expect(FormatPolicy.plan(for: book, to: .usb, converterAvailable: false) == .send([.deliver]))
   }
 
-  @Test func epubToUSBIsConvertedWhenCalibreIsInstalled() {
+  @Test func epubToUSBIsConvertedWhenAConverterIsInstalled() {
     let plan = FormatPolicy.plan(for: .fixture(format: .epub), to: .usb, converterAvailable: true)
     #expect(plan == .send([.prepareEPUB, .convert(to: .azw3), .deliver]))
   }

@@ -51,7 +51,7 @@ package struct QueueRow: Identifiable, Hashable, Sendable {
     case (.waiting, _): "Waiting"
     case (.preparing, _) where book.format == .pdf: "Preparing"
     case (.preparing, .email): "Preparing the EPUB"
-    case (.preparing, .usb): "Converting with Calibre"
+    case (.preparing, .usb): "Converting with boko"
     // Servers scan a message before they answer, for up to two minutes.
     case (.uploading(let fraction), .email) where fraction >= 1:
       "Waiting for the mail server to confirm"

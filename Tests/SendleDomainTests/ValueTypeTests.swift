@@ -42,9 +42,7 @@ struct FormatConverterTests {
   }
 
   @Test func isAvailableOnlyWhileItsToolIsInstalled() {
-    #expect(
-      Tool(toolURL: URL(filePath: "/Applications/calibre.app/Contents/MacOS/ebook-convert"))
-        .isAvailable)
+    #expect(Tool(toolURL: URL(filePath: "/Users/reader/.cargo/bin/boko")).isAvailable)
     #expect(!Tool(toolURL: nil).isAvailable)
   }
 }

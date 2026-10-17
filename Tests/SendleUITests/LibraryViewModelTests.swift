@@ -301,7 +301,7 @@ struct LibraryViewModelTests {
     #expect(await eventually { model.isKindlePluggedIn })
   }
 
-  @Test func noticesCalibreInstalledWhileSendleRuns() async {
+  @Test func noticesBokoInstalledWhileSendleRuns() async {
     let converter = FakeFormatConverter(isAvailable: false)
     let (model, _) = makeModel(
       AppSettings(email: .fixture, activeDestination: .usb), converter: converter)
