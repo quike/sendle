@@ -55,7 +55,7 @@ package final class EmailForm {
     warnings = []
     saveError = nil
     savedSender = email?.senderAddress
-    testStatus = .idle
+    if testStatus != .sending { testStatus = .idle }
   }
 
   /// The first setup step after library access checks only this field.
@@ -82,6 +82,7 @@ package final class EmailForm {
       savedSender = trimmed(senderAddress)
       return true
     } catch {
+      if testStatus != .sending { testStatus = .idle }
       switch error {
       case .invalid(let found):
         issues = Set(found)
@@ -96,6 +97,7 @@ package final class EmailForm {
 
   /// Saves first, so the test checks the setup the form shows.
   package func sendTest() async {
+    let provider = provider
     guard await save() else { return }
     testStatus = .sending
     do {

@@ -141,6 +141,17 @@ struct SMTPSessionTests {
     #expect(transport.written == ["EHLO [127.0.0.1]\r\n"])
   }
 
+  @Test(arguments: ["me@gmail.com\0", "me\u{1B}@gmail.com", "me\u{7F}@gmail.com"])
+  func refusesAnAddressWithAControlCharacter(address: String) async throws {
+    let transport = ScriptedSMTPTransport([greeting, ehlo])
+    let session = session(transport)
+    try await session.connect()
+
+    await #expect(throws: SMTPError.invalidAddress) {
+      try await session.send(message, from: "me@gmail.com", to: [address]) { _ in }
+    }
+  }
+
   // MARK: Failures
 
   @Test(

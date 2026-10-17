@@ -3,6 +3,7 @@ import SendleDomain
 import SendleTestSupport
 import Testing
 
+@Suite(.timeLimit(.minutes(1)))
 struct SendBooksTests {
   struct Harness {
     let channel: FakeDeliveryChannel

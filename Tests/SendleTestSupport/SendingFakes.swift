@@ -67,6 +67,8 @@ public final class FakeDeliveryChannel: DeliveryChannel {
     case fail(SendFailure)
     case hangUntilCancelled
     case hangThenFail(SendFailure)
+    /// Waits for `gate` to fire, then succeeds.
+    case succeedAfter(Signal)
   }
 
   private let script: OSAllocatedUnfairLock<[Behavior]>
@@ -103,6 +105,9 @@ public final class FakeDeliveryChannel: DeliveryChannel {
     case .hangThenFail(let failure):
       try? await Task.sleep(for: .seconds(3_600))
       throw failure
+    case .succeedAfter(let gate):
+      await gate.wait()
+      await progress(1)
     }
   }
 

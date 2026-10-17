@@ -248,4 +248,46 @@ struct EmailFormTests {
 
     #expect(form.testStatus == .idle)
   }
+
+  @Test func aFailedSaveForgetsTheLastTest() async {
+    let form = filled(makeForm())
+    await form.sendTest()
+
+    form.senderAddress = ""
+    #expect(!(await form.save()))
+
+    #expect(form.testStatus == .idle)
+  }
+
+  @Test func namesTheProviderTheTestWentThrough() async {
+    let gate = Signal()
+    let channels = FakeDeliveryChannelFactory(channel: FakeDeliveryChannel(.succeedAfter(gate)))
+    let form = filled(makeForm(channels: channels))
+    let test = Task { await form.sendTest() }
+    await channels.deliveryChannel.waitUntilDeliveryStarts()
+
+    form.provider = .fastmail
+    await gate.fire()
+    await test.value
+
+    guard case .sent(let text) = form.testStatus else {
+      Issue.record("Expected a sent test, got \(form.testStatus)")
+      return
+    }
+    #expect(text.hasPrefix("Sent through Gmail."))
+  }
+
+  @Test func refillingKeepsARunningTestRunning() async {
+    let gate = Signal()
+    let channels = FakeDeliveryChannelFactory(channel: FakeDeliveryChannel(.succeedAfter(gate)))
+    let form = filled(makeForm(channels: channels))
+    let test = Task { await form.sendTest() }
+    await channels.deliveryChannel.waitUntilDeliveryStarts()
+
+    form.fill(from: .fixture)
+
+    #expect(form.testStatus == .sending)
+    await gate.fire()
+    await test.value
+  }
 }

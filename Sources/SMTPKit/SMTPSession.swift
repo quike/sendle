@@ -168,6 +168,7 @@ public actor SMTPSession {
 
   private static func isSafe(_ address: String) -> Bool {
     !address.isEmpty && !address.contains { $0.isWhitespace || $0 == "<" || $0 == ">" }
+      && !address.unicodeScalars.contains { $0.value < 0x20 || $0.value == 0x7F }
   }
 
   private static func base64(_ text: String) -> String {

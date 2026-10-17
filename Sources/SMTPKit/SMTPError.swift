@@ -34,7 +34,8 @@ public enum SMTPError: Error, Hashable, Sendable {
   case tlsUnavailable
   /// The server offers neither AUTH PLAIN nor AUTH LOGIN.
   case authenticationUnavailable
-  /// An address with spaces, line breaks or angle brackets, which could smuggle in a command.
+  /// An address with spaces, control characters or angle brackets, which could smuggle in a
+  /// command.
   case invalidAddress
   case untrustedServer(String)
   case cancelled
