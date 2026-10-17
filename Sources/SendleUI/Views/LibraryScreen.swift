@@ -113,8 +113,14 @@ struct EjectButton: View {
     .foregroundStyle(Color(hex: 0xc9d3ea))
     .disabled(!canEject)
     .opacity(canEject || panel.ejecting == volume ? 1 : 0.4)
-    .help(canEject ? "Eject \(volume.name)" : "Wait until the copy is done to eject it")
+    .help(help(canEject: canEject))
     .accessibilityLabel("Eject \(volume.name)")
+  }
+
+  private func help(canEject: Bool) -> String {
+    if canEject { return "Eject \(volume.name)" }
+    if let ejecting = panel.ejecting { return "Ejecting \(ejecting.name)…" }
+    return "Wait until the copy is done to eject it"
   }
 }
 

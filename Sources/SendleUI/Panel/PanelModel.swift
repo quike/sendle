@@ -184,6 +184,7 @@ public final class PanelModel {
     guard let destination = library.activeDestination, !books.isEmpty, !queue.isRunning else {
       return
     }
+    if case .usb(let volume) = destination, ejecting == volume { return }
     system?.endEditing()
     queue.send(books, to: destination)
     _ = library.clearSelection()
@@ -194,12 +195,21 @@ public final class PanelModel {
 
   /// A Kindle stays put while a book is being copied to it.
   package func canEject(_ volume: KindleVolume) -> Bool {
-    ejecting == nil && !(queue.isRunning && queue.destination == .usb(volume))
+    ejecting == nil && !isCopying(to: volume)
   }
 
-  /// The Kindle's chip goes away by itself once it is unmounted; a failure says why.
+  private func isCopying(to volume: KindleVolume) -> Bool {
+    queue.isRunning && queue.destination == .usb(volume)
+  }
+
+  /// The Kindle's chip goes away by itself once it is unmounted; a failure says why. A Kindle
+  /// that is already gone is what Eject was for, so it says nothing.
   package func eject(_ volume: KindleVolume) async {
-    guard canEject(volume) else { return }
+    guard library.destinations.contains(.usb(volume)) else { return }
+    guard !isCopying(to: volume) else {
+      return show(notice: ProblemPresenter.ejectWhileCopying(volume))
+    }
+    guard ejecting == nil else { return }
     ejecting = volume
     defer { ejecting = nil }
     do throws(EjectError) {

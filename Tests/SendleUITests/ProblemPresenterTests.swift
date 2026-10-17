@@ -119,6 +119,16 @@ struct ProblemPresenterTests {
     #expect(failed.message == "The disk isn't responding.")
   }
 
+  @Test func asksToEjectAfterTheCopy() {
+    let kindle = KindleVolume.fixture(name: "Kindle Oasis")
+
+    let problem = ProblemPresenter.ejectWhileCopying(kindle)
+
+    #expect(problem.title == "Kindle Oasis is still being copied to")
+    #expect(problem.message == "Eject it when the copy is done.")
+    #expect(problem.fix == Fix("Eject", .eject(kindle)))
+  }
+
   @Test func namesEachProviderMidSentence() {
     #expect(
       MailProvider.allCases.map(\.inlineName) == [

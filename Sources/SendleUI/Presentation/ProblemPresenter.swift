@@ -98,6 +98,12 @@ public enum ProblemPresenter {
     }
   }
 
+  package static func ejectWhileCopying(_ volume: KindleVolume) -> Problem {
+    Problem(
+      "\(volume.name) is still being copied to", message: "Eject it when the copy is done.",
+      fix: Fix("Eject", .eject(volume)))
+  }
+
   public static func settingsSetAside(_ file: URL) -> Problem {
     Problem(
       "Sendle couldn't read its settings",

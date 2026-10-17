@@ -32,8 +32,12 @@ public final class FakeDestinationMonitor: DestinationMonitor {
 public final class FakeKindleEjector: KindleEjector {
   private let log = OSAllocatedUnfairLock<[KindleVolume]>(initialState: [])
   private let failure = OSAllocatedUnfairLock<EjectError?>(initialState: nil)
+  private let gate: Signal?
 
-  public init() {}
+  /// With a `gate`, an eject doesn't finish until it fires.
+  public init(gate: Signal? = nil) {
+    self.gate = gate
+  }
 
   public var ejected: [KindleVolume] { log.withLock { $0 } }
 
@@ -44,6 +48,7 @@ public final class FakeKindleEjector: KindleEjector {
 
   public func eject(_ volume: KindleVolume) async throws(EjectError) {
     log.withLock { $0.append(volume) }
+    await gate?.wait()
     if let error = failure.withLock({ $0 }) { throw error }
   }
 }
