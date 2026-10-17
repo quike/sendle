@@ -58,7 +58,7 @@ plutil -lint -s "$APP/Contents/Info.plist"
 echo "▸ Signing"
 if [ -n "${CODESIGN_IDENTITY:-}" ]; then
   codesign --force --options runtime --timestamp --sign "$CODESIGN_IDENTITY" "$APP"
-elif security find-identity -p codesigning | grep -qF "\"$LOCAL_IDENTITY\""; then
+elif security find-identity -p codesigning | grep -F "\"$LOCAL_IDENTITY\"" >/dev/null; then
   codesign --force --options runtime --sign "$LOCAL_IDENTITY" "$APP"
 else
   echo "  Signing ad hoc. Run scripts/make-signing-identity.sh once, so that Full Disk Access"

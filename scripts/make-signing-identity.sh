@@ -8,7 +8,7 @@ set -euo pipefail
 NAME="Sendle Local Signing"
 KEYCHAIN="${1:-$HOME/Library/Keychains/login.keychain-db}"
 
-if security find-identity -p codesigning "$KEYCHAIN" | grep -qF "\"$NAME\""; then
+if security find-identity -p codesigning "$KEYCHAIN" | grep -F "\"$NAME\"" >/dev/null; then
   echo "✓ $NAME is already in $KEYCHAIN"
   exit 0
 fi
