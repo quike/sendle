@@ -302,24 +302,38 @@ struct SendBar: View {
         Text(library.sendHint).font(.system(size: 9.5)).foregroundStyle(Theme.faint)
       }
       Spacer(minLength: 8)
-      HStack(spacing: 2) {
-        Button("Send") { panel.sendSelection() }
-          .buttonStyle(PressedOpacityStyle())
-          .fixedSize()
+      HStack(spacing: 0) {
+        // The whole label sends; only the arrow opens the menu.
+        Button {
+          panel.sendSelection()
+        } label: {
+          HStack(spacing: 4) {
+            Text("Send")
+            Text("to \(library.activeDestination?.chipTitle ?? "Kindle")").opacity(0.75)
+          }
           .padding(.leading, 14)
+          .padding(.trailing, 8)
           .frame(minHeight: 34)
           .contentShape(Rectangle())
+        }
+        .buttonStyle(PressedOpacityStyle())
+        .fixedSize()
+        Rectangle().fill(Color.white.opacity(0.25)).frame(width: 1, height: 16)
         Menu {
           ForEach(library.destinations, id: \.self) { destination in
             Button(destination.chipTitle) { Task { await library.activate(destination.kind) } }
           }
         } label: {
-          Text("to \(library.activeDestination?.chipTitle ?? "Kindle") ▾").opacity(0.75)
+          Text("▾").opacity(0.75)
+            .padding(.horizontal, 10)
+            .frame(minHeight: 34)
+            .contentShape(Rectangle())
         }
-        .menuStyle(.borderlessButton)
+        // Drawn by SwiftUI, unlike `.borderlessButton`, so the padding takes clicks too.
+        .menuStyle(.button)
+        .buttonStyle(PressedOpacityStyle())
         .menuIndicator(.hidden)
         .fixedSize()
-        .padding(.trailing, 12)
         .help("Choose where Send goes")
         .accessibilityLabel("Send to")
         .accessibilityValue(library.activeDestination?.chipTitle ?? "Kindle")
