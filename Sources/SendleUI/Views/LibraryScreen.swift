@@ -56,6 +56,10 @@ struct DestinationChips: View {
   var body: some View {
     let library = panel.library
     HStack(spacing: 6) {
+      if !library.isKindlePluggedIn {
+        Chip(title: "No Kindle plugged in", dot: Color.white.opacity(0.25), isActive: false)
+          .help("Plug in a Kindle with its USB cable to copy books to it")
+      }
       ForEach(library.destinations, id: \.self) { destination in
         Button {
           Task { await library.activate(destination.kind) }
@@ -67,6 +71,9 @@ struct DestinationChips: View {
         }
         .buttonStyle(.plain)
         .help("Quick-send goes here")
+        if case .usb(let volume) = destination {
+          EjectButton(panel: panel, volume: volume)
+        }
       }
       if !library.hasKindleEmail {
         Button {
@@ -77,6 +84,37 @@ struct DestinationChips: View {
         .buttonStyle(.plain)
       }
     }
+  }
+}
+
+/// Ejects a plugged-in Kindle, except while a book is being copied to it.
+struct EjectButton: View {
+  let panel: PanelModel
+  let volume: KindleVolume
+
+  var body: some View {
+    let canEject = panel.canEject(volume)
+    Button {
+      Task { await panel.eject(volume) }
+    } label: {
+      Group {
+        if panel.ejecting == volume {
+          ProgressView().controlSize(.mini)
+        } else {
+          Image(systemName: "eject.fill").font(.system(size: 9, weight: .bold))
+        }
+      }
+      .frame(width: 26, height: 26)
+      .background(Theme.glass, in: Circle())
+      .overlay(Circle().strokeBorder(Theme.line))
+      .contentShape(Circle())
+    }
+    .buttonStyle(.plain)
+    .foregroundStyle(Color(hex: 0xc9d3ea))
+    .disabled(!canEject)
+    .opacity(canEject || panel.ejecting == volume ? 1 : 0.4)
+    .help(canEject ? "Eject \(volume.name)" : "Wait until the copy is done to eject it")
+    .accessibilityLabel("Eject \(volume.name)")
   }
 }
 

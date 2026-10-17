@@ -1,5 +1,6 @@
 import Foundation
 import SendleDomain
+import SendleTestSupport
 import SendleUI
 import Testing
 
@@ -101,6 +102,20 @@ struct ProblemPresenterTests {
     let problem = ProblemPresenter.problem(for: .copyFailed("The volume is read-only."))
 
     #expect(problem.message == "The volume is read-only.")
+  }
+
+  @Test func explainsAKindleThatWontEject() {
+    let kindle = KindleVolume.fixture(name: "Kindle Oasis")
+
+    let inUse = ProblemPresenter.problem(for: .inUse, ejecting: kindle)
+    let failed = ProblemPresenter.problem(
+      for: .failed("The disk isn't responding."), ejecting: kindle)
+
+    #expect(inUse.title == "Kindle Oasis is in use")
+    #expect(inUse.message == "Close any books or folders open on it, then eject it again.")
+    #expect(inUse.fix == Fix("Eject", .eject(kindle)))
+    #expect(failed.title == "Couldn't eject Kindle Oasis")
+    #expect(failed.message == "The disk isn't responding.")
   }
 
   @Test func namesEachProviderMidSentence() {

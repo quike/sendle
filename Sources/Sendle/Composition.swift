@@ -14,8 +14,12 @@ struct Composition {
   let panel: PanelModel
   private let settings: JSONSettingsStore
 
-  /// `channels` replaces every delivery, as snapshot mode does so that nothing is sent.
-  init(loginItem: any LoginItem, channels override: (any DeliveryChannelFactory)? = nil) {
+  /// Snapshot mode replaces every delivery, so that nothing is sent, and the plugged-in Kindles.
+  init(
+    loginItem: any LoginItem,
+    channels override: (any DeliveryChannelFactory)? = nil,
+    kindles: (any DestinationMonitor)? = nil
+  ) {
     let data = DataDirectory.url()
     let settings = JSONSettingsStore(directory: data)
     let secrets = KeychainSecretStore()
@@ -29,7 +33,8 @@ struct Composition {
     let library = LibraryViewModel(
       loadLibrary: LoadLibrary(
         library: AppleBooksLibrary(location: .standard()), inspector: EPUBProtectionInspector()),
-      observeDestinations: ObserveDestinations(monitor: KindleVolumeMonitor(), settings: settings),
+      observeDestinations: ObserveDestinations(
+        monitor: kindles ?? KindleVolumeMonitor(), settings: settings),
       settings: settings,
       history: history,
       converter: converter)
@@ -47,7 +52,8 @@ struct Composition {
       queue: SendQueueViewModel(
         sendBooks: SendBooks(
           channels: channels, preparer: KindleEPUBPreparer(), converter: converter,
-          staging: staging, history: history)))
+          staging: staging, history: history)),
+      ejector: VolumeEjector())
     self.settings = settings
     // Clears folders an interrupted send left behind.
     staging.purge()

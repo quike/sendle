@@ -13,12 +13,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     NSApp.appearance = NSAppearance(named: .darkAqua)
     let snapshotFolder = ProcessInfo.processInfo.environment[Snapshot.environmentKey]
     if snapshotFolder != nil { Snapshot.requireDataDirectory() }
+    let kindles = snapshotFolder.map { _ in SnapshotKindles() }
     let composition = Composition(
-      loginItem: MainAppLoginItem(), channels: snapshotFolder.map { _ in SnapshotChannels() })
+      loginItem: MainAppLoginItem(), channels: snapshotFolder.map { _ in SnapshotChannels() },
+      kindles: kindles)
     self.composition = composition
-    if let folder = snapshotFolder {
+    if let folder = snapshotFolder, let kindles {
       Task {
-        await Snapshot.render(composition, to: URL(filePath: folder, directoryHint: .isDirectory))
+        await Snapshot.render(
+          composition, kindles: kindles, to: URL(filePath: folder, directoryHint: .isDirectory))
         NSApp.terminate(nil)
       }
       return

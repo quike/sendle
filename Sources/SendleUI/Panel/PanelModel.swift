@@ -24,12 +24,15 @@ public final class PanelModel {
   package private(set) var route = PanelRoute.library
   package private(set) var isShowingSettings = false
   package private(set) var notice: Problem?
+  /// The Kindle being ejected, while it is.
+  package private(set) var ejecting: KindleVolume?
   /// Bumped by ⌘F; the search field takes the keyboard when it changes.
   package private(set) var searchFocusRequests = 0
   /// The status item's centre, measured from the card's left edge, where the arrow points.
   public var arrowX: CGFloat = 200
 
   @ObservationIgnored private weak var system: (any SystemActions)?
+  @ObservationIgnored private let ejector: any KindleEjector
   @ObservationIgnored private var accessWatch: Task<Void, Never>?
   /// Bumped by every open and close, so an opening that a newer one replaced leaves the state alone.
   @ObservationIgnored private var session = 0
@@ -39,13 +42,15 @@ public final class PanelModel {
     setup: SetupViewModel,
     settings: SettingsViewModel,
     covers: CoverStore,
-    queue: SendQueueViewModel
+    queue: SendQueueViewModel,
+    ejector: any KindleEjector
   ) {
     self.library = library
     self.setup = setup
     self.settings = settings
     self.covers = covers
     self.queue = queue
+    self.ejector = ejector
     library.reportProblem = { [weak self] problem in self?.show(notice: problem) }
     queue.onFinish = { [weak library] in await library?.refreshHistory() }
   }
@@ -56,10 +61,9 @@ public final class PanelModel {
   }
 
   public var statusItem: StatusItemState {
-    let kindlePluggedIn = library.destinations.contains { $0.kind == .usb }
     let libraryFailed = if case .failed = library.state { true } else { false }
     return StatusItemState(
-      symbolName: kindlePluggedIn ? "books.vertical.fill" : "books.vertical",
+      symbolName: library.isKindlePluggedIn ? "books.vertical.fill" : "books.vertical",
       needsAttention: notice != nil || libraryFailed || queue.needsAttention,
       progress: queue.progressLabel)
   }
@@ -167,7 +171,7 @@ public final class PanelModel {
     switch action {
     case .retry:
       queue.retryFailed()
-    case .useDestination:
+    case .useDestination, .eject:
       finishQueue()
       await perform(action)
     case .openPrivacySettings, .openSettings, .openURL:
@@ -183,6 +187,25 @@ public final class PanelModel {
     queue.send(books, to: destination)
     _ = library.clearSelection()
     route = .queue
+  }
+
+  // MARK: Ejecting
+
+  /// A Kindle stays put while a book is being copied to it.
+  package func canEject(_ volume: KindleVolume) -> Bool {
+    ejecting == nil && !(queue.isRunning && queue.destination == .usb(volume))
+  }
+
+  /// The Kindle's chip goes away by itself once it is unmounted; a failure says why.
+  package func eject(_ volume: KindleVolume) async {
+    guard canEject(volume) else { return }
+    ejecting = volume
+    defer { ejecting = nil }
+    do throws(EjectError) {
+      try await ejector.eject(volume)
+    } catch {
+      show(notice: ProblemPresenter.problem(for: error, ejecting: volume))
+    }
   }
 
   // MARK: Settings sheet
@@ -290,6 +313,8 @@ public final class PanelModel {
       await openSettings(section)
     case .useDestination(let kind):
       await library.activate(kind)
+    case .eject(let volume):
+      await eject(volume)
     case .openURL(let url):
       system?.open(url)
     case .retry:

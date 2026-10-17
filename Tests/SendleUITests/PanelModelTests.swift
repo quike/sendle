@@ -24,6 +24,7 @@ struct PanelModelTests {
   let monitor = FakeDestinationMonitor()
   let system = FakeSystemActions()
   let history = InMemorySendHistoryStore()
+  let ejector = FakeKindleEjector()
 
   /// `onSleep` runs each time setup waits between access checks.
   /// `channel` delivers every send and test email.
@@ -57,7 +58,8 @@ struct PanelModelTests {
         sendBooks: SendBooks(
           channels: channels, preparer: FakeEPUBPreparer(),
           converter: FakeFormatConverter(isAvailable: false), staging: staging, history: history,
-          retryDelay: .zero, sleep: { _ in })))
+          retryDelay: .zero, sleep: { _ in })),
+      ejector: ejector)
     panel.attach(system)
     return (panel, settings)
   }
@@ -590,6 +592,9 @@ struct PanelModelTests {
 
     await panel.perform(.retry)
     #expect(library.loads == loads + 1)
+
+    await panel.perform(.eject(.fixture()))
+    #expect(ejector.ejected == [.fixture()])
   }
 
   @Test func aNoticeNeedsAttentionUntilItsFixRuns() async {
@@ -616,6 +621,52 @@ struct PanelModelTests {
     monitor.update([.fixture()])
 
     #expect(await eventually { panel.statusItem.symbolName == "books.vertical.fill" })
+  }
+
+  // MARK: Ejecting
+
+  @Test func ejectsAPluggedInKindle() async {
+    let (panel, _) = makePanel()
+    await panel.launch()
+
+    await panel.eject(.fixture())
+
+    #expect(ejector.ejected == [.fixture()])
+    #expect(panel.ejecting == nil)
+    #expect(panel.notice == nil)
+  }
+
+  @Test func explainsAKindleThatWontEject() async {
+    ejector.fail(with: .inUse)
+    let (panel, _) = makePanel()
+    await panel.launch()
+
+    await panel.eject(.fixture())
+
+    #expect(panel.notice?.title == "Kindle is in use")
+    #expect(panel.notice?.fix?.action == .eject(.fixture()))
+  }
+
+  @Test func keepsAKindleWhileABookIsCopiedToIt() async {
+    let kindle = KindleVolume.fixture()
+    library.result = .success([.fixture(id: "a", format: .pdf)])
+    monitor.update([kindle])
+    let channel = FakeDeliveryChannel(.hangUntilCancelled)
+    let (panel, _) = makePanel(
+      AppSettings(email: .fixture, activeDestination: .usb), channel: channel)
+    await panel.launch()
+    await panel.panelDidOpen()
+    #expect(await eventually { panel.library.activeDestination == .usb(kindle) })
+    panel.quickSend(BookID(rawValue: "a"))
+    await channel.waitUntilDeliveryStarts()
+
+    #expect(!panel.canEject(kindle))
+    await panel.eject(kindle)
+    #expect(ejector.ejected.isEmpty)
+
+    panel.queue.cancel()
+    await panel.queue.waitUntilFinished()
+    #expect(panel.canEject(kindle))
   }
 
   @Test func showsSendleInFinderForTheFullDiskAccessList() {

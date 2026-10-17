@@ -83,6 +83,8 @@ public final class LibraryViewModel {
     destinations.first { $0.kind == preferredDestination } ?? destinations.first
   }
 
+  package var isKindlePluggedIn: Bool { !volumes.isEmpty }
+
   /// Something to send to; the selection itself only ever holds books that can go there.
   package var canSend: Bool { activeDestination != nil }
 

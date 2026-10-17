@@ -82,6 +82,18 @@ public enum ProblemPresenter {
     }
   }
 
+  public static func problem(for error: EjectError, ejecting volume: KindleVolume) -> Problem {
+    let again = Fix("Eject", .eject(volume))
+    return switch error {
+    case .inUse:
+      Problem(
+        "\(volume.name) is in use",
+        message: "Close any books or folders open on it, then eject it again.", fix: again)
+    case .failed(let detail):
+      Problem("Couldn't eject \(volume.name)", message: detail, fix: again)
+    }
+  }
+
   public static func settingsSetAside(_ file: URL) -> Problem {
     Problem(
       "Sendle couldn't read its settings",

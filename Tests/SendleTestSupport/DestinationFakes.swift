@@ -28,3 +28,22 @@ public final class FakeDestinationMonitor: DestinationMonitor {
     feed.finish()
   }
 }
+
+public final class FakeKindleEjector: KindleEjector {
+  private let log = OSAllocatedUnfairLock<[KindleVolume]>(initialState: [])
+  private let failure = OSAllocatedUnfairLock<EjectError?>(initialState: nil)
+
+  public init() {}
+
+  public var ejected: [KindleVolume] { log.withLock { $0 } }
+
+  /// Every later eject fails with `error`.
+  public func fail(with error: EjectError) {
+    failure.withLock { $0 = error }
+  }
+
+  public func eject(_ volume: KindleVolume) async throws(EjectError) {
+    log.withLock { $0.append(volume) }
+    if let error = failure.withLock({ $0 }) { throw error }
+  }
+}

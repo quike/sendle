@@ -291,6 +291,16 @@ struct LibraryViewModelTests {
     #expect(model.selection.isEmpty)
   }
 
+  @Test func knowsWhenAKindleIsPluggedIn() async {
+    let (model, _) = makeModel()
+    await model.start()
+    #expect(!model.isKindlePluggedIn)
+
+    monitor.update([kindle])
+
+    #expect(await eventually { model.isKindlePluggedIn })
+  }
+
   @Test func noticesCalibreInstalledWhileSendleRuns() async {
     let converter = FakeFormatConverter(isAvailable: false)
     let (model, _) = makeModel(

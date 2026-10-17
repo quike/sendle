@@ -24,7 +24,7 @@ enum Snapshot {
     exit(1)
   }
 
-  static func render(_ composition: Composition, to folder: URL) async {
+  static func render(_ composition: Composition, kindles: SnapshotKindles, to folder: URL) async {
     try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
     let panel = composition.panel
     let window = NSWindow(
@@ -56,6 +56,11 @@ enum Snapshot {
       await panel.openSettings(section)
       await write(window, "settings-\(section.rawValue).png", to: folder)
     }
+    panel.closeSettings()
+    panel.skipSetup()
+    kindles.plugIn()
+    await panel.library.activate(.usb)
+    await write(window, "library-usb.png", to: folder)
   }
 
   /// Waits for covers and animations, then draws the window's content.
@@ -67,6 +72,35 @@ enum Snapshot {
     view.cacheDisplay(in: view.bounds, to: bitmap)
     try? bitmap.representation(using: .png, properties: [:])?.write(
       to: folder.appending(path: name))
+  }
+}
+
+/// Snapshot mode's Kindle: none at first, then one at /Volumes/Kindle that nothing is copied to.
+final class SnapshotKindles: DestinationMonitor {
+  private struct State {
+    var volumes: [KindleVolume] = []
+    var listeners: [AsyncStream<[KindleVolume]>.Continuation] = []
+  }
+
+  private let state = OSAllocatedUnfairLock(initialState: State())
+
+  func volumes() -> AsyncStream<[KindleVolume]> {
+    AsyncStream { continuation in
+      state.withLock {
+        $0.listeners.append(continuation)
+        continuation.yield($0.volumes)
+      }
+    }
+  }
+
+  func plugIn() {
+    state.withLock { state in
+      state.volumes = [
+        KindleVolume(
+          id: "/Volumes/Kindle", name: "Kindle", mountURL: URL(filePath: "/Volumes/Kindle"))
+      ]
+      for listener in state.listeners { listener.yield(state.volumes) }
+    }
   }
 }
 

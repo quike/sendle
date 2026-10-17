@@ -12,6 +12,7 @@ public enum FixAction: Hashable, Sendable {
   case openPrivacySettings
   case openSettings(SettingsSection)
   case useDestination(DestinationKind)
+  case eject(KindleVolume)
   case openURL(URL)
   case retry
 }
