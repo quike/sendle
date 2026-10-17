@@ -20,7 +20,7 @@ struct CachedCoverProviderTests {
   @Test func rendersAnEPUBsCoverImage() async throws {
     try writeEPUB(cover: try ImageFixtures.png(width: 300, height: 450))
 
-    let png = try #require(await provider.cover(for: book(), maxPixel: 120))
+    let png = try #require(await provider.cover(for: book(), maxPixel: 120).png)
 
     #expect(ImageFixtures.size(of: png)?.width == 80)
     #expect(ImageFixtures.size(of: png)?.height == 120)
@@ -30,7 +30,7 @@ struct CachedCoverProviderTests {
     let pdf = folder.appending(path: "Manual.pdf")
     try ImageFixtures.writePDF(width: 300, height: 200, to: pdf)
 
-    let png = try #require(await provider.cover(for: book(format: .pdf, at: pdf), maxPixel: 90))
+    let png = try #require(await provider.cover(for: book(format: .pdf, at: pdf), maxPixel: 90).png)
 
     #expect(ImageFixtures.size(of: png)?.width == 90)
     #expect(ImageFixtures.size(of: png)?.height == 60)
@@ -42,7 +42,7 @@ struct CachedCoverProviderTests {
     let cached = try #require(try cacheFiles().first)
     try Data("cached".utf8).write(to: cache.appending(path: cached))
 
-    #expect(await provider.cover(for: book(), maxPixel: 120) == Data("cached".utf8))
+    #expect(await provider.cover(for: book(), maxPixel: 120) == .image(Data("cached".utf8)))
     #expect(cached.hasPrefix("book%2F1-"))
     #expect(cached.hasSuffix("-120.png"))
   }
@@ -50,8 +50,8 @@ struct CachedCoverProviderTests {
   @Test func keepsOneCoverPerSize() async throws {
     try writeEPUB(cover: try ImageFixtures.png(width: 300, height: 450))
 
-    let small = try #require(await provider.cover(for: book(), maxPixel: 60))
-    let large = try #require(await provider.cover(for: book(), maxPixel: 300))
+    let small = try #require(await provider.cover(for: book(), maxPixel: 60).png)
+    let large = try #require(await provider.cover(for: book(), maxPixel: 300).png)
 
     #expect(ImageFixtures.size(of: small)?.height == 60)
     #expect(ImageFixtures.size(of: large)?.height == 300)
@@ -68,7 +68,7 @@ struct CachedCoverProviderTests {
       [.modificationDate: Date(timeIntervalSinceNow: 3_600)],
       ofItemAtPath: epub.path(percentEncoded: false))
 
-    let fresh = try #require(await provider.cover(for: book(), maxPixel: 120))
+    let fresh = try #require(await provider.cover(for: book(), maxPixel: 120).png)
     #expect(ImageFixtures.size(of: fresh)?.height == 120)
   }
 
@@ -76,7 +76,7 @@ struct CachedCoverProviderTests {
   func neverTouchesABookThatIsNotOnThisMac(availability: Availability) async throws {
     try writeEPUB(cover: try ImageFixtures.png(width: 300, height: 450))
 
-    #expect(await provider.cover(for: book(availability: availability), maxPixel: 120) == nil)
+    #expect(await provider.cover(for: book(availability: availability), maxPixel: 120) == .none)
     #expect(!FileManager.default.fileExists(atPath: cache.path(percentEncoded: false)))
   }
 
@@ -84,25 +84,30 @@ struct CachedCoverProviderTests {
   func returnsNothingBelowOnePixel(maxPixel: Int) async throws {
     try writeEPUB(cover: try ImageFixtures.png(width: 300, height: 450))
 
-    #expect(await provider.cover(for: book(), maxPixel: maxPixel) == nil)
+    #expect(await provider.cover(for: book(), maxPixel: maxPixel) == .none)
     #expect(!FileManager.default.fileExists(atPath: cache.path(percentEncoded: false)))
   }
 
   @Test func servesTheCoverOfAProtectedBook() async throws {
     try writeEPUB(cover: try ImageFixtures.png(width: 300, height: 450))
 
-    let png = try #require(await provider.cover(for: book(availability: .protected), maxPixel: 120))
+    let png = try #require(
+      await provider.cover(for: book(availability: .protected), maxPixel: 120).png)
 
     #expect(ImageFixtures.size(of: png)?.height == 120)
   }
 
-  @Test func returnsNilWhenThereIsNoUsableCover() async throws {
+  @Test func findsNoCoverWhenThereIsNoUsableImage() async throws {
     try EPUBFixture.book().write(to: epub)
-    #expect(await provider.cover(for: book(), maxPixel: 120) == nil)
+    #expect(await provider.cover(for: book(), maxPixel: 120) == .none)
 
     try writeEPUB(cover: Data("not an image".utf8))
-    #expect(await provider.cover(for: book(), maxPixel: 120) == nil)
+    #expect(await provider.cover(for: book(), maxPixel: 120) == .none)
     #expect(!FileManager.default.fileExists(atPath: cache.path(percentEncoded: false)))
+  }
+
+  @Test func saysWhenTheBooksFileCannotBeRead() async {
+    #expect(await provider.cover(for: book(), maxPixel: 120) == .unreadable)
   }
 
   private func writeEPUB(cover: Data) throws {

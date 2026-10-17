@@ -15,21 +15,22 @@ public struct CachedCoverProvider: CoverProvider {
   }
 
   /// Never reads a book that isn't on this Mac, so a cover can't trigger an iCloud download.
-  public func cover(for book: Book, maxPixel: Int) async -> Data? {
+  public func cover(for book: Book, maxPixel: Int) async -> Cover {
     guard maxPixel > 0, book.availability == .ready || book.availability == .protected
-    else { return nil }
-    return withoutDownloads { cachedCover(for: book, maxPixel: maxPixel) }
+    else { return .none }
+    return withoutDownloads { cachedCover(for: book, maxPixel: maxPixel) } ?? .unreadable
   }
 
-  private func cachedCover(for book: Book, maxPixel: Int) -> Data? {
-    guard let modified = Self.localModificationTime(of: book.fileURL) else { return nil }
+  /// A file that has gone, or gone back to iCloud, since the library was read may come back.
+  private func cachedCover(for book: Book, maxPixel: Int) -> Cover {
+    guard let modified = Self.localModificationTime(of: book.fileURL) else { return .unreadable }
     let cached = cacheDirectory.appending(
       path: "\(Self.fileName(for: book.id))-\(modified)-\(maxPixel).png")
-    if let data = try? Data(contentsOf: cached) { return data }
-    guard let png = Self.render(book, maxPixel: maxPixel) else { return nil }
+    if let data = try? Data(contentsOf: cached) { return .image(data) }
+    guard let png = Self.render(book, maxPixel: maxPixel) else { return .none }
     try? FileManager.default.createDirectory(at: cacheDirectory, withIntermediateDirectories: true)
     try? png.write(to: cached, options: .atomic)
-    return png
+    return .image(png)
   }
 
   private static func render(_ book: Book, maxPixel: Int) -> Data? {

@@ -34,6 +34,17 @@ struct CoverStoreTests {
     #expect(provider.requests.count == 1)
   }
 
+  @Test func asksAgainForACoverThatCouldNotBeRead() async {
+    let provider = FakeCoverProvider(unreadable: [moby.id])
+    let store = CoverStore(provider: provider)
+
+    await store.load(moby, size: .large)
+    await store.load(moby, size: .large)
+
+    #expect(!store.slot(for: moby, size: .large).isLoaded)
+    #expect(provider.requests.count == 2)
+  }
+
   @Test func sharesOneReadBetweenViewsAskingAtOnce() async {
     let gate = Signal()
     let provider = FakeCoverProvider([moby.id: png], gate: gate)

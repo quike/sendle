@@ -88,20 +88,30 @@ public final class FakeCoverProvider: CoverProvider {
   }
 
   private let covers: [BookID: Data]
+  private let unreadable: Set<BookID>
   private let gate: Signal?
   private let log = OSAllocatedUnfairLock<[Request]>(initialState: [])
 
-  /// With a `gate`, every request waits for it to fire.
-  public init(_ covers: [BookID: Data] = [:], gate: Signal? = nil) {
+  /// With a `gate`, every request waits for it to fire. Books in neither `covers` nor
+  /// `unreadable` have no cover.
+  public init(_ covers: [BookID: Data] = [:], unreadable: Set<BookID> = [], gate: Signal? = nil) {
     self.covers = covers
+    self.unreadable = unreadable
     self.gate = gate
   }
 
   public var requests: [Request] { log.withLock { $0 } }
 
-  public func cover(for book: Book, maxPixel: Int) async -> Data? {
+  public func cover(for book: Book, maxPixel: Int) async -> Cover {
     log.withLock { $0.append(Request(id: book.id, maxPixel: maxPixel)) }
     if let gate { await gate.wait() }
-    return covers[book.id]
+    if let png = covers[book.id] { return .image(png) }
+    return unreadable.contains(book.id) ? .unreadable : .none
+  }
+}
+
+extension Cover {
+  public var png: Data? {
+    if case .image(let png) = self { png } else { nil }
   }
 }

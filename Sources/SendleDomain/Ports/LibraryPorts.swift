@@ -11,7 +11,14 @@ public protocol ProtectionInspector: Sendable {
   func isProtected(_ book: Book) -> Bool
 }
 
+public enum Cover: Hashable, Sendable {
+  /// PNG data no larger than the requested size on its longest side.
+  case image(Data)
+  case none
+  /// The book's file couldn't be read just now, so it's worth asking again later.
+  case unreadable
+}
+
 public protocol CoverProvider: Sendable {
-  /// PNG data no larger than `maxPixel` on its longest side, or nil when the book has no cover.
-  func cover(for book: Book, maxPixel: Int) async -> Data?
+  func cover(for book: Book, maxPixel: Int) async -> Cover
 }

@@ -16,7 +16,8 @@ package final class CoverSlot {
   package fileprivate(set) var isLoaded = false
 }
 
-/// Covers kept in memory for the app's lifetime, "no cover" included, so each is read only once.
+/// Covers kept in memory for the app's lifetime, "no cover" included, so each is read only once. A
+/// cover that couldn't be read is asked for again the next time a view shows it.
 @MainActor
 public final class CoverStore {
   private struct Key: Hashable {
@@ -50,8 +51,15 @@ public final class CoverStore {
     if let running = loads[key] { return await running.value }
     let provider = provider
     let task = Task {
-      slot.data = await provider.cover(for: book, maxPixel: size.rawValue)
-      slot.isLoaded = true
+      switch await provider.cover(for: book, maxPixel: size.rawValue) {
+      case .image(let png):
+        slot.data = png
+        slot.isLoaded = true
+      case .none:
+        slot.isLoaded = true
+      case .unreadable:
+        break
+      }
     }
     loads[key] = task
     await task.value
