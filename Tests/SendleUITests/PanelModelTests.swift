@@ -40,7 +40,7 @@ struct PanelModelTests {
     let libraryModel = LibraryViewModel(
       loadLibrary: LoadLibrary(library: library, inspector: StubProtectionInspector()),
       observeDestinations: ObserveDestinations(monitor: monitor, settings: settings),
-      settings: settings, history: history)
+      settings: settings, history: history, converter: FakeFormatConverter(isAvailable: false))
     let setup = SetupViewModel(
       configure: configure, sendTest: sendTest,
       checkAccess: {

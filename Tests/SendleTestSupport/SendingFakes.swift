@@ -23,17 +23,26 @@ public final class FakeEPUBPreparer: EPUBPreparer {
 }
 
 public final class FakeFormatConverter: FormatConverter {
-  public let toolURL: URL?
+  private let isInstalled: OSAllocatedUnfairLock<Bool>
   private let converted = OSAllocatedUnfairLock<[PreparedFile]>(initialState: [])
   private let failure: SendFailure?
 
   public init(isAvailable: Bool = true, failure: SendFailure? = nil) {
-    toolURL =
-      isAvailable ? URL(filePath: "/Applications/calibre.app/Contents/MacOS/ebook-convert") : nil
+    isInstalled = OSAllocatedUnfairLock(initialState: isAvailable)
     self.failure = failure
   }
 
   public var convertedFiles: [PreparedFile] { converted.withLock { $0 } }
+
+  public var toolURL: URL? {
+    isInstalled.withLock { $0 }
+      ? URL(filePath: "/Applications/calibre.app/Contents/MacOS/ebook-convert") : nil
+  }
+
+  /// As if the user installed Calibre while Sendle runs.
+  public func install() {
+    isInstalled.withLock { $0 = true }
+  }
 
   public func convert(
     _ file: PreparedFile,

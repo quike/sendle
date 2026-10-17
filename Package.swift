@@ -22,7 +22,7 @@ let package = Package(
       name: "Sendle",
       dependencies: [
         "SendleDomain", "SendleUI", "SendlePersistence", "SendleAppleBooks", "SendleEPUB",
-        "SendleCovers", "SendleMail",
+        "SendleCovers", "SendleMail", "SendleKindleUSB",
       ]
     ),
     .target(

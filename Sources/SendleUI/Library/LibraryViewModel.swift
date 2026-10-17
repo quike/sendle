@@ -34,6 +34,7 @@ public final class LibraryViewModel {
 
   private var sends: [BookID: SendRecord] = [:]
   private var volumes: [KindleVolume] = []
+  private var converterAvailable = false
   private var isVisible = false
   private var watcher: Task<Void, Never>?
   private var watcherGeneration = 0
@@ -44,7 +45,7 @@ public final class LibraryViewModel {
   private let observeDestinations: ObserveDestinations
   private let settings: any SettingsStore
   private let history: any SendHistoryStore
-  private let converterAvailable: Bool
+  private let converter: any FormatConverter
   private let now: @Sendable () -> Date
 
   public init(
@@ -52,14 +53,14 @@ public final class LibraryViewModel {
     observeDestinations: ObserveDestinations,
     settings: any SettingsStore,
     history: any SendHistoryStore,
-    converterAvailable: Bool = false,
+    converter: any FormatConverter,
     now: @escaping @Sendable () -> Date = { Date() }
   ) {
     self.loadLibrary = loadLibrary
     self.observeDestinations = observeDestinations
     self.settings = settings
     self.history = history
-    self.converterAvailable = converterAvailable
+    self.converter = converter
     self.now = now
   }
 
@@ -105,6 +106,7 @@ public final class LibraryViewModel {
     layout = saved.layout
     preferredDestination = saved.activeDestination
     hasKindleEmail = saved.email != nil
+    converterAvailable = converter.isAvailable
     let updates = observeDestinations()
     destinationUpdates = Task { [weak self] in
       for await destinations in updates {
@@ -114,8 +116,10 @@ public final class LibraryViewModel {
     }
   }
 
+  /// Calibre is looked for again, in case it was installed since the panel last opened.
   package func appear() async {
     isVisible = true
+    converterAvailable = converter.isAvailable
     await reload()
   }
 

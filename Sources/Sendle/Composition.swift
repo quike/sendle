@@ -3,6 +3,7 @@ import SendleAppleBooks
 import SendleCovers
 import SendleDomain
 import SendleEPUB
+import SendleKindleUSB
 import SendleMail
 import SendlePersistence
 import SendleUI
@@ -13,12 +14,13 @@ struct Composition {
   let panel: PanelModel
   private let settings: JSONSettingsStore
 
-  /// `channels` replaces email delivery, as snapshot mode does so that nothing is sent.
+  /// `channels` replaces every delivery, as snapshot mode does so that nothing is sent.
   init(loginItem: any LoginItem, channels override: (any DeliveryChannelFactory)? = nil) {
     let data = DataDirectory.url()
     let settings = JSONSettingsStore(directory: data)
     let secrets = KeychainSecretStore()
     let staging = FileSystemStagingArea()
+    let converter = CalibreConverter()
     let channels =
       override ?? DeliveryChannels(email: EmailChannelFactory(settings: settings, secrets: secrets))
     let configure = ConfigureEmail(settings: settings, secrets: secrets)
@@ -27,9 +29,10 @@ struct Composition {
     let library = LibraryViewModel(
       loadLibrary: LoadLibrary(
         library: AppleBooksLibrary(location: .standard()), inspector: EPUBProtectionInspector()),
-      observeDestinations: ObserveDestinations(monitor: NoKindleMonitor(), settings: settings),
+      observeDestinations: ObserveDestinations(monitor: KindleVolumeMonitor(), settings: settings),
       settings: settings,
-      history: history)
+      history: history,
+      converter: converter)
     let setup = SetupViewModel(
       configure: configure, sendTest: sendTest,
       checkAccess: {
@@ -43,7 +46,7 @@ struct Composition {
       covers: CoverStore(provider: CachedCoverProvider()),
       queue: SendQueueViewModel(
         sendBooks: SendBooks(
-          channels: channels, preparer: KindleEPUBPreparer(), converter: NoConverter(),
+          channels: channels, preparer: KindleEPUBPreparer(), converter: converter,
           staging: staging, history: history)))
     self.settings = settings
     // Clears folders an interrupted send left behind.
@@ -59,34 +62,14 @@ struct Composition {
   }
 }
 
-/// Email goes through SendleMail. USB arrives with Plan 5; until then no Kindle is ever offered.
+/// Each destination's own adapter: SendleMail for email, SendleKindleUSB for a plugged-in Kindle.
 struct DeliveryChannels: DeliveryChannelFactory {
   let email: EmailChannelFactory
 
   func channel(for destination: Destination) async throws(SendFailure) -> any DeliveryChannel {
     switch destination {
     case .email(let kindle): try await email.channel(to: kindle)
-    case .usb: throw .deviceDisconnected
+    case .usb(let volume): USBDeliveryChannel(volume: volume)
     }
-  }
-}
-
-/// Calibre support arrives with USB, so EPUBs only go by email for now.
-struct NoConverter: FormatConverter {
-  let toolURL: URL? = nil
-
-  func convert(
-    _ file: PreparedFile,
-    to format: FileFormat,
-    in staging: URL
-  ) async throws(SendFailure) -> PreparedFile {
-    throw .conversionUnavailable
-  }
-}
-
-/// No Kindle is ever plugged in until USB support arrives.
-struct NoKindleMonitor: DestinationMonitor {
-  func volumes() -> AsyncStream<[KindleVolume]> {
-    AsyncStream { $0.yield([]) }
   }
 }

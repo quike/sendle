@@ -13,13 +13,14 @@ struct LibraryViewModelTests {
   let kindle = KindleVolume.fixture()
 
   func makeModel(
-    _ saved: AppSettings = AppSettings(email: .fixture)
+    _ saved: AppSettings = AppSettings(email: .fixture),
+    converter: FakeFormatConverter = FakeFormatConverter(isAvailable: false)
   ) -> (LibraryViewModel, InMemorySettingsStore) {
     let settings = InMemorySettingsStore(saved)
     let model = LibraryViewModel(
       loadLibrary: LoadLibrary(library: library, inspector: StubProtectionInspector()),
       observeDestinations: ObserveDestinations(monitor: monitor, settings: settings),
-      settings: settings, history: history,
+      settings: settings, history: history, converter: converter,
       now: { Date(timeIntervalSince1970: 1_800_000_000) })
     return (model, settings)
   }
@@ -288,6 +289,23 @@ struct LibraryViewModelTests {
     await model.activate(.email)
 
     #expect(model.selection.isEmpty)
+  }
+
+  @Test func noticesCalibreInstalledWhileSendleRuns() async {
+    let converter = FakeFormatConverter(isAvailable: false)
+    let (model, _) = makeModel(
+      AppSettings(email: .fixture, activeDestination: .usb), converter: converter)
+    monitor.update([kindle])
+    await model.start()
+    await model.appear()
+    #expect(await eventually { model.activeDestination == .usb(kindle) })
+    #expect(model.items.first?.detail == "Your Kindle can't read EPUB over USB")
+
+    converter.install()
+    model.disappear()
+    await model.appear()
+
+    #expect(model.items.first?.canSend == true)
   }
 
   @Test func clearingReportsWhetherThereWasASelection() async {
