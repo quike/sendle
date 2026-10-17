@@ -64,7 +64,7 @@ public final class PanelModel {
   public var statusItem: StatusItemState {
     let libraryFailed = if case .failed = library.state { true } else { false }
     return StatusItemState(
-      symbolName: library.isKindlePluggedIn ? "books.vertical.fill" : "books.vertical",
+      symbolName: library.isKindlePluggedIn ? "book.closed.fill" : "book.closed",
       needsAttention: notice != nil || libraryFailed || queue.needsAttention,
       progress: queue.progressLabel)
   }

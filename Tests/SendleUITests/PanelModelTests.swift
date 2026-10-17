@@ -653,11 +653,11 @@ struct PanelModelTests {
   @Test func theMenuBarIconFillsWhileAKindleIsPluggedIn() async {
     let (panel, _) = makePanel()
     await panel.launch()
-    #expect(panel.statusItem.symbolName == "books.vertical")
+    #expect(panel.statusItem.symbolName == "book.closed")
 
     monitor.update([.fixture()])
 
-    #expect(await eventually { panel.statusItem.symbolName == "books.vertical.fill" })
+    #expect(await eventually { panel.statusItem.symbolName == "book.closed.fill" })
   }
 
   // MARK: Ejecting
