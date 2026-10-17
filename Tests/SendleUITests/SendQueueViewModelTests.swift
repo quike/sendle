@@ -337,6 +337,40 @@ struct SendQueueViewModelTests {
     #expect(queue.summary?.fix?.action == .useDestination(.usb))
   }
 
+  // MARK: Quitting
+
+  @Test func warnsBeforeQuittingInTheMiddleOfARun() async {
+    let channel = FakeDeliveryChannel(.hangUntilCancelled)
+    let queue = makeQueue(channel)
+    #expect(queue.quitWarning == nil)
+
+    queue.send([moby, dracula], to: email)
+    await channel.waitUntilDeliveryStarts()
+
+    #expect(
+      queue.quitWarning
+        == Problem(
+          "Sendle is still sending 2 books", message: "Quit now and they won't reach your Kindle."))
+    queue.cancel()
+    await queue.waitUntilFinished()
+    #expect(queue.quitWarning == nil)
+  }
+
+  @Test func warnsAboutABookStillBeingCopied() async {
+    let channel = FakeDeliveryChannel(.hangUntilCancelled)
+    let queue = makeQueue(channel)
+
+    queue.send([meditations], to: kindle)
+    await channel.waitUntilDeliveryStarts()
+
+    #expect(
+      queue.quitWarning
+        == Problem(
+          "Sendle is still copying a book", message: "Quit now and it won't reach your Kindle."))
+    queue.cancel()
+    await queue.waitUntilFinished()
+  }
+
   @Test func namesEveryFixAmazonNeeds() {
     let row = QueueRow(book: moby, status: .sent, fixes: EPUBFix.allCases)
 

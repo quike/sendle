@@ -33,6 +33,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     Task { await composition.launch() }
   }
 
+  /// Quitting in the middle of a run asks first: the books not sent yet would be lost.
+  func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+    guard let warning = composition?.panel.queue.quitWarning else { return .terminateNow }
+    panel?.hide()
+    NSApp.activate()
+    let alert = NSAlert()
+    alert.messageText = warning.title
+    alert.informativeText = warning.message ?? ""
+    alert.addButton(withTitle: "Keep sending")
+    alert.addButton(withTitle: "Quit")
+    return alert.runModal() == .alertSecondButtonReturn ? .terminateNow : .terminateCancel
+  }
+
   // MARK: Status item
 
   private func makeStatusItem() {
@@ -81,9 +94,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     button.toolTip = state.needsAttention ? "Sendle needs you" : "Sendle"
   }
 
+  /// A right click or a Control-click opens the menu, as on any menu bar item.
   @objc private func statusItemClicked() {
     guard let button = statusItem?.button else { return }
-    if NSApp.currentEvent?.type == .rightMouseUp {
+    let event = NSApp.currentEvent
+    if event?.type == .rightMouseUp || event?.modifierFlags.contains(.control) == true {
       showMenu()
     } else {
       panel?.toggle(below: button)

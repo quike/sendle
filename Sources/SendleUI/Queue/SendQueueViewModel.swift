@@ -65,6 +65,17 @@ public final class SendQueueViewModel {
     return isRunning ? "\(place) · close the panel anytime" : place
   }
 
+  /// What to say before Sendle quits in the middle of a run; nil while nothing is being sent.
+  package var quitWarning: Problem? {
+    guard isRunning else { return nil }
+    let left = rows.filter { !$0.status.isFinished }.count
+    let verb = destination?.kind == .usb ? "copying" : "sending"
+    let what = left == 1 ? "a book" : "\(left) books"
+    return Problem(
+      "Sendle is still \(verb) \(what)",
+      message: "Quit now and \(left == 1 ? "it" : "they") won't reach your Kindle.")
+  }
+
   // MARK: Actions
 
   /// Starts a run and replaces the queue. Ignored while a run is in progress.
