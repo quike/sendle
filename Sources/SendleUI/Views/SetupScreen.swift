@@ -54,6 +54,7 @@ struct SetupHero: View {
             .strokeBorder(Theme.brandStart.opacity(0.4))
         )
         .padding(.bottom, 12)
+        .accessibilityHidden(true)
       Text(title).font(.system(size: 15, weight: .semibold)).multilineTextAlignment(.center)
       Text(text)
         .font(.system(size: 11.5))

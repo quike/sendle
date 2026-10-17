@@ -248,6 +248,7 @@ struct BookCover: View {
       .offset(y: isHovered ? -3 : 0)
       .animation(reduceMotion ? nil : Theme.press, value: isHovered)
       .task(id: book) { await panel.covers.load(book, size: size) }
+      .accessibilityHidden(true)
   }
 }
 
@@ -312,9 +313,11 @@ extension ClickKind {
 }
 
 extension View {
-  /// Click to select, hover for quick-send: the same in every layout.
+  /// Click to select, hover for quick-send: the same in every layout. VoiceOver reads one element
+  /// per book, whose actions select it or send it.
   func bookInteractions(_ panel: PanelModel, _ item: BookItemViewModel) -> some View {
     let library = panel.library
+    let details = [item.badge, item.detail].filter { !$0.isEmpty }
     return contentShape(Rectangle())
       .onTapGesture { panel.click(item.id, .current) }
       .onHover { inside in
@@ -325,8 +328,17 @@ extension View {
         }
       }
       .help(item.detail)
-      .accessibilityElement(children: .combine)
+      .accessibilityElement(children: .ignore)
+      .accessibilityLabel("\(item.title), \(item.byline)")
+      .accessibilityValue(details.joined(separator: ", "))
       .accessibilityAddTraits(
-        library.selection.contains(item.id) ? [.isButton, .isSelected] : .isButton)
+        library.selection.contains(item.id) ? [.isButton, .isSelected] : .isButton
+      )
+      .accessibilityAction { panel.click(item.id, .plain) }
+      .accessibilityActions {
+        if item.canSend, library.canSend {
+          Button("Send") { panel.quickSend(item.id) }
+        }
+      }
   }
 }

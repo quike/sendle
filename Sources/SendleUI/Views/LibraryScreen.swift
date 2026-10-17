@@ -151,6 +151,7 @@ struct SearchField: View {
       Image(systemName: "magnifyingglass")
         .font(.system(size: 11, weight: .semibold))
         .foregroundStyle(Theme.faint)
+        .accessibilityHidden(true)
       TextField(
         "Search", text: $library.query,
         prompt: Text("Search title or author").foregroundStyle(Theme.faint)
@@ -184,6 +185,7 @@ struct FilterBar: View {
       ForEach(LibraryFilter.allCases, id: \.self) { filter in
         Button(filter.title) { library.filter = filter }
           .buttonStyle(FilterPillStyle(isOn: library.filter == filter))
+          .accessibilityAddTraits(library.filter == filter ? .isSelected : [])
       }
       Spacer(minLength: 0)
       LayoutSwitcher(library: library)
@@ -234,6 +236,7 @@ struct LayoutSwitcher: View {
         .buttonStyle(.plain)
         .help(help)
         .accessibilityLabel(help)
+        .accessibilityAddTraits(isOn ? .isSelected : [])
       }
     }
     .padding(2)
@@ -295,7 +298,7 @@ struct SendBar: View {
       Spacer(minLength: 8)
       HStack(spacing: 2) {
         Button("Send") { panel.sendSelection() }
-          .buttonStyle(.plain)
+          .buttonStyle(PressedOpacityStyle())
           .fixedSize()
           .padding(.leading, 14)
           .frame(minHeight: 34)
@@ -312,6 +315,8 @@ struct SendBar: View {
         .fixedSize()
         .padding(.trailing, 12)
         .help("Choose where Send goes")
+        .accessibilityLabel("Send to")
+        .accessibilityValue(library.activeDestination?.chipTitle ?? "Kindle")
       }
       .font(.system(size: 12.5, weight: .semibold))
       .foregroundStyle(.white)
@@ -327,6 +332,13 @@ struct SendBar: View {
   }
 }
 
+/// Dims a plain button while it's held down.
+struct PressedOpacityStyle: ButtonStyle {
+  func makeBody(configuration: Configuration) -> some View {
+    configuration.label.opacity(configuration.isPressed ? 0.6 : 1)
+  }
+}
+
 struct ProblemCard: View {
   let problem: Problem
   let perform: (FixAction) -> Void
@@ -336,6 +348,7 @@ struct ProblemCard: View {
       Image(systemName: "exclamationmark.triangle")
         .font(.system(size: 22, weight: .semibold))
         .foregroundStyle(Theme.warm)
+        .accessibilityHidden(true)
       Text(problem.title).font(.system(size: 14, weight: .semibold)).multilineTextAlignment(.center)
       if let message = problem.message {
         Text(message)
@@ -365,6 +378,7 @@ struct EmptyLibraryView: View {
       Image(systemName: isFiltered ? "magnifyingglass" : "books.vertical")
         .font(.system(size: 22))
         .foregroundStyle(Theme.faint)
+        .accessibilityHidden(true)
       Text(isFiltered ? "No books match" : "Your Books library is empty")
         .font(.system(size: 13, weight: .semibold))
       Text(

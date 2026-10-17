@@ -16,7 +16,9 @@ struct LabeledField<Content: View>: View {
   }
 }
 
+/// `label` is what VoiceOver calls the field; the screen shows its own label above it.
 struct GlassTextField: View {
+  let label: String
   let prompt: String
   @Binding var text: String
   var isSecure = false
@@ -24,11 +26,12 @@ struct GlassTextField: View {
   var body: some View {
     Group {
       if isSecure {
-        SecureField("", text: $text, prompt: Text(prompt).foregroundStyle(Theme.faint))
+        SecureField(label, text: $text, prompt: Text(prompt).foregroundStyle(Theme.faint))
       } else {
-        TextField("", text: $text, prompt: Text(prompt).foregroundStyle(Theme.faint))
+        TextField(label, text: $text, prompt: Text(prompt).foregroundStyle(Theme.faint))
       }
     }
+    .labelsHidden()
     .textFieldStyle(.plain)
     .font(.system(size: 12))
     .padding(.horizontal, 11)
@@ -42,7 +45,8 @@ struct KindleAddressField: View {
 
   var body: some View {
     LabeledField(label: "Kindle email") {
-      GlassTextField(prompt: "name@kindle.com", text: $form.kindleAddress)
+      GlassTextField(
+        label: "Kindle email", prompt: "name@kindle.com", text: $form.kindleAddress)
       if form.issues.contains(.invalidKindleAddress) {
         FieldNote(text: form.message(for: .invalidKindleAddress), color: Theme.danger)
       } else if let warning = form.kindleAddressWarning {
@@ -94,11 +98,14 @@ struct SenderFields: View {
         }
       }
       LabeledField(label: "Sender address") {
-        GlassTextField(prompt: "you@example.com", text: $form.senderAddress)
+        GlassTextField(
+          label: "Sender address", prompt: "you@example.com", text: $form.senderAddress)
         issueNote(.invalidSenderAddress)
       }
       LabeledField(label: "App password") {
-        GlassTextField(prompt: form.passwordPrompt, text: $form.password, isSecure: true)
+        GlassTextField(
+          label: "App password", prompt: form.passwordPrompt, text: $form.password,
+          isSecure: true)
         issueNote(.missingPassword)
         FieldNote(text: form.appPasswordHelp)
         if let link = form.appPasswordLink {
@@ -111,8 +118,8 @@ struct SenderFields: View {
       if form.provider == .custom {
         LabeledField(label: "Mail server") {
           HStack(spacing: 6) {
-            GlassTextField(prompt: "smtp.example.com", text: $form.customHost)
-            GlassTextField(prompt: "Port", text: $form.customPort).frame(width: 64)
+            GlassTextField(label: "Mail server", prompt: "smtp.example.com", text: $form.customHost)
+            GlassTextField(label: "Port", prompt: "Port", text: $form.customPort).frame(width: 64)
           }
           Picker("Security", selection: $form.customSecurity) {
             Text("TLS").tag(SMTPSecurity.implicitTLS)
