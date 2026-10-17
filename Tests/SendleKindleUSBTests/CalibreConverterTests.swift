@@ -125,6 +125,12 @@ struct CalibreConverterTests {
     #expect(message.hasPrefix("Calibre was still converting after"))
   }
 
+  @Test func wordsTheTimeoutInEnglishInEveryLanguage() {
+    #expect(
+      CalibreConverter.timeoutMessage(after: .seconds(300))
+        == "Calibre was still converting after 5 minutes, so Sendle stopped it.")
+  }
+
   @Test func cancellingStopsCalibre() async throws {
     try installCalibre(#"touch "$(dirname "$2")/started"; exec sleep 30"#)
     let converter = converter()

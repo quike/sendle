@@ -45,8 +45,7 @@ public struct CalibreConverter: FormatConverter {
     case .cancelled:
       throw .cancelled
     case .timedOut:
-      let limit = timeout.formatted(.units(allowed: [.minutes, .seconds], width: .wide))
-      throw .conversionFailed("Calibre was still converting after \(limit), so Sendle stopped it.")
+      throw .conversionFailed(Self.timeoutMessage(after: timeout))
     case .failedToStart(let reason):
       throw .conversionFailed("Couldn't start Calibre: \(reason)")
     case .exited(let status):
@@ -56,6 +55,13 @@ public struct CalibreConverter: FormatConverter {
       }
       return PreparedFile(url: output, format: format)
     }
+  }
+
+  /// English in every language, like the rest of Sendle's copy.
+  package static func timeoutMessage(after timeout: Duration) -> String {
+    let limit = timeout.formatted(
+      .units(allowed: [.minutes, .seconds], width: .wide).locale(Locale(identifier: "en_US_POSIX")))
+    return "Calibre was still converting after \(limit), so Sendle stopped it."
   }
 
   /// Calibre ends with what went wrong; the rest of its output is progress.

@@ -7,7 +7,7 @@ package enum KindleVolumeDetector {
   package static func isKindle(root: URL, name: String) -> Bool {
     let folders = folderNames(in: root)
     guard folders.contains("documents") else { return false }
-    return folders.contains("system") || name.localizedCaseInsensitiveContains("kindle")
+    return folders.contains("system") || name.range(of: "kindle", options: .caseInsensitive) != nil
   }
 
   /// The names as stored on disk, so a case-insensitive volume can't pass "Documents" off.
