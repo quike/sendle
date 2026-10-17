@@ -27,6 +27,7 @@ struct SMTPErrorTests {
       (.closed, .connection("The server closed the connection", stage: .hello)),
       (.malformedReply, .malformedReply(.hello)),
       (.cancelled, .cancelled),
+      (.untrusted("bad certificate"), .untrustedServer("bad certificate")),
     ] as [(SMTPTransportError, SMTPError)])
   func namesTheStageATransportFailureHappenedIn(failure: SMTPTransportError, error: SMTPError) {
     #expect(SMTPError(failure, at: .hello) == error)

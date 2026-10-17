@@ -42,6 +42,10 @@ public enum ProblemPresenter {
         message: "It may still arrive. Check your Kindle before you send it again.")
     case .rejected(let detail):
       Problem("The mail server refused the message", message: detail)
+    case .mailSetup(let detail):
+      Problem(
+        "Check your sender settings", message: detail,
+        fix: Fix("Open Settings", .openSettings(.sender)))
     case .notConfigured:
       Problem("Set up your Kindle email first", fix: Fix("Open Settings", .openSettings(.kindle)))
     case .passwordUnavailable:

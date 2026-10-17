@@ -12,6 +12,8 @@ public enum SendFailure: Error, Hashable, Sendable {
   /// The connection broke after the whole message was sent: the server may have accepted it.
   case unconfirmed(host: String)
   case rejected(String)
+  /// Sendle won't send through the mail account as it is set up, for example without TLS.
+  case mailSetup(String)
   case notConfigured
   /// The sender's app password is missing from the Keychain, or the Keychain refused to give it.
   case passwordUnavailable

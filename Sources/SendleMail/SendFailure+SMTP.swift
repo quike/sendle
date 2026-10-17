@@ -11,16 +11,20 @@ extension SendFailure {
     case .reply(let reply, _) where (400..<500).contains(reply.code):
       self = .connectionFailed(host: host)
     case .reply(let reply, .authentication):
-      self = .rejected("The server refused the sign-in (\(reply.code)).")
+      self = .mailSetup("The server refused the sign-in (\(reply.code)).")
     case .reply(let reply, _):
       self = .rejected(reply.description)
     case .tlsUnavailable:
-      self = .rejected(
+      self = .mailSetup(
         "\(host) doesn't offer a secure connection, so Sendle didn't send your password.")
     case .authenticationUnavailable:
-      self = .rejected("\(host) doesn't accept an app password.")
+      self = .mailSetup("\(host) doesn't accept an app password.")
     case .invalidAddress:
-      self = .rejected("The sender or Kindle address can't be used.")
+      self = .mailSetup("The sender or Kindle address can't be used.")
+    case .untrustedServer:
+      self = .mailSetup(
+        "Sendle couldn't confirm it was talking to \(host), so it didn't connect. "
+          + "Check the server and its security.")
     case .cancelled:
       self = .cancelled
     case _ where error.mayHaveDeliveredMessage:

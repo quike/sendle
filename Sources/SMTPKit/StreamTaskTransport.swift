@@ -71,6 +71,10 @@ public actor StreamTaskTransport: SMTPTransport {
     switch (error.domain, error.code) {
     case (NSPOSIXErrorDomain, Int(ETIMEDOUT)), (NSURLErrorDomain, NSURLErrorTimedOut):
       return .timedOut
+    // Secure Transport's errSSL codes, and URL loading's certificate errors.
+    case (NSOSStatusErrorDomain, -9899...(-9800)),
+      (NSURLErrorDomain, NSURLErrorClientCertificateRequired...NSURLErrorSecureConnectionFailed):
+      return .untrusted("\(error.domain) \(error.code): \(error.localizedDescription)")
     default: return .failed("\(error.domain) \(error.code): \(error.localizedDescription)")
     }
   }

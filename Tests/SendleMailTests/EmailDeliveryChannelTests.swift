@@ -202,7 +202,17 @@ struct EmailDeliveryChannelTests {
         .connectionFailed(host: "smtp.gmail.com")
       ),
       (4, .code(550, "5.1.1 No such user"), .rejected("550 5.1.1 No such user")),
-      (2, .code(504, "5.5.4 Unknown"), .rejected("The server refused the sign-in (504).")),
+      (2, .code(504, "5.5.4 Unknown"), .mailSetup("The server refused the sign-in (504).")),
+      (
+        1, .code(250, "smtp.gmail.com", "AUTH XOAUTH2"),
+        .mailSetup("smtp.gmail.com doesn't accept an app password.")
+      ),
+      (
+        0, .fail(.untrusted("-9843")),
+        .mailSetup(
+          "Sendle couldn't confirm it was talking to smtp.gmail.com, so it didn't connect. "
+            + "Check the server and its security.")
+      ),
       (0, .fail(.failed("refused")), .connectionFailed(host: "smtp.gmail.com")),
       (5, .fail(.timedOut), .connectionFailed(host: "smtp.gmail.com")),
       (6, .fail(.closed), .unconfirmed(host: "smtp.gmail.com")),
@@ -224,7 +234,7 @@ struct EmailDeliveryChannelTests {
 
     let failure = await deliver(try file(), with: ScriptedSMTPTransport(reads))
 
-    #expect(failure == .rejected("The server refused the sign-in (501)."))
+    #expect(failure == .mailSetup("The server refused the sign-in (501)."))
     #expect(echo.logDescription == "reply 535 at authentication")
     #expect(other.logDescription == String(describing: other))
   }
@@ -239,7 +249,7 @@ struct EmailDeliveryChannelTests {
 
     #expect(
       failure
-        == .rejected(
+        == .mailSetup(
           "mail.example.com doesn't offer a secure connection, so Sendle didn't send your password."
         ))
   }

@@ -19,6 +19,8 @@ public enum SMTPTransportError: Error, Hashable, Sendable {
   case timedOut
   case closed
   case malformedReply
+  /// TLS failed: the server's certificate didn't check out, or it doesn't speak TLS on this port.
+  case untrusted(String)
   case cancelled
 }
 
@@ -34,6 +36,7 @@ public enum SMTPError: Error, Hashable, Sendable {
   case authenticationUnavailable
   /// An address with spaces, line breaks or angle brackets, which could smuggle in a command.
   case invalidAddress
+  case untrustedServer(String)
   case cancelled
 
   public init(_ failure: SMTPTransportError, at stage: SMTPStage) {
@@ -42,6 +45,7 @@ public enum SMTPError: Error, Hashable, Sendable {
     case .timedOut: self = .timedOut(stage)
     case .closed: self = .connection("The server closed the connection", stage: stage)
     case .malformedReply: self = .malformedReply(stage)
+    case .untrusted(let detail): self = .untrustedServer(detail)
     case .cancelled: self = .cancelled
     }
   }

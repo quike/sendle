@@ -44,6 +44,7 @@ struct ProblemPresenterTests {
       ),
       (.connectionFailed(host: "smtp.gmail.com"), "Couldn't reach smtp.gmail.com", .retry),
       (.rejected("552 too big"), "The mail server refused the message", nil),
+      (.mailSetup("No AUTH"), "Check your sender settings", .openSettings(.sender)),
       (.notConfigured, "Set up your Kindle email first", .openSettings(.kindle)),
       (.protected, "Protected by Apple (DRM), can't be sent", nil),
       (.inCloudOnly, "In iCloud only. Open it in Books to download.", nil),

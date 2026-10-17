@@ -75,6 +75,22 @@ struct StreamTaskTransportTests {
     await transport.close()
   }
 
+  @Test func refusesAServerItCannotTrust() async throws {
+    let server = try LoopbackServer { client in
+      client.send("220 ready\r\n")
+      client.pause(1)
+    }
+    let transport = StreamTaskTransport(host: "127.0.0.1", port: server.port, implicitTLS: true)
+    try await transport.open()
+
+    await #expect {
+      try await transport.readReply(timeout: .seconds(5))
+    } throws: { error in
+      if case .untrusted = error as? SMTPTransportError { true } else { false }
+    }
+    await transport.close()
+  }
+
   @Test func failsWhenNothingListens() async throws {
     let transport = StreamTaskTransport(
       host: "127.0.0.1", port: try LoopbackServer.unusedPort(), implicitTLS: false)
