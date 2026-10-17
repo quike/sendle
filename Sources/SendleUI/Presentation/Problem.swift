@@ -4,6 +4,7 @@ import SendleDomain
 public enum SettingsSection: String, Hashable, Sendable, CaseIterable {
   case kindle
   case sender
+  case usb
   case general
 }
 

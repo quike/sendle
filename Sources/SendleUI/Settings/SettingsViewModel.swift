@@ -2,26 +2,31 @@ import Foundation
 import Observation
 import SendleDomain
 
-/// The settings sheet: Kindle, sender and general (spec §3.5).
+/// The settings sheet: Kindle, sender, USB and general (spec §3.5).
 @Observable @MainActor
 public final class SettingsViewModel {
   package var section = SettingsSection.kindle
   package let form: EmailForm
   package private(set) var launchAtLogin = LoginItemStatus.disabled
   package private(set) var launchAtLoginError: String?
+  /// Calibre's `ebook-convert`, when it is installed.
+  package private(set) var calibre: URL?
 
   private let settings: any SettingsStore
   private let loginItem: any LoginItem
+  private let converter: any FormatConverter
 
   public init(
     configure: ConfigureEmail,
     sendTest: SendTestEmail,
     settings: any SettingsStore,
-    loginItem: any LoginItem
+    loginItem: any LoginItem,
+    converter: any FormatConverter
   ) {
     form = EmailForm(configure: configure, sendTest: sendTest)
     self.settings = settings
     self.loginItem = loginItem
+    self.converter = converter
   }
 
   /// Starts from what is saved, so edits that were never saved are gone.
@@ -30,6 +35,7 @@ public final class SettingsViewModel {
     form.fill(from: await settings.load().email)
     launchAtLogin = loginItem.status
     launchAtLoginError = nil
+    calibre = converter.toolURL
   }
 
   /// The setup is checked as a whole; when the fields to fix are in the other section, go there.
@@ -61,5 +67,16 @@ public final class SettingsViewModel {
     case .unavailable: "Launch at login works once Sendle runs as an app."
     case .enabled, .disabled: nil
     }
+  }
+
+  package var calibreTitle: String {
+    calibre == nil ? "Calibre not found" : "Calibre found"
+  }
+
+  package var calibreNote: String {
+    calibre == nil
+      ? "Your Kindle can't read EPUB, so Sendle converts EPUBs with Calibre before copying them. "
+        + "Until it's installed, PDFs go over USB and EPUBs go by email."
+      : "EPUBs are converted to AZW3 before they're copied to your Kindle."
   }
 }

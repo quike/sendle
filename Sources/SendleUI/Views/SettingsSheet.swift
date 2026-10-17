@@ -22,6 +22,7 @@ struct SettingsSheet: View {
       Picker("Section", selection: Bindable(settings).section) {
         Text("Kindle").tag(SettingsSection.kindle)
         Text("Sender").tag(SettingsSection.sender)
+        Text("USB").tag(SettingsSection.usb)
         Text("General").tag(SettingsSection.general)
       }
       .pickerStyle(.segmented)
@@ -40,6 +41,8 @@ struct SettingsSheet: View {
             SendTestRow(form: settings.form) {
               Task { await panel.sendTest(from: settings.form) }
             }
+          case .usb:
+            CalibreRow(settings: settings) { url in Task { await panel.perform(.openURL(url)) } }
           case .general:
             LaunchAtLoginRow(settings: settings)
           }
@@ -48,7 +51,7 @@ struct SettingsSheet: View {
         .padding(.bottom, 8)
       }
       .scrollIndicators(.never)
-      if settings.section != .general {
+      if settings.section == .kindle || settings.section == .sender {
         HStack(spacing: 8) {
           if let error = settings.form.saveError {
             FieldNote(text: error, color: Theme.danger)
@@ -64,6 +67,48 @@ struct SettingsSheet: View {
     .padding(14)
     .frame(maxWidth: .infinity, maxHeight: .infinity)
     .background(CardBackground())
+  }
+}
+
+/// Whether Calibre's `ebook-convert` is there to turn EPUBs into AZW3 (spec §3.5).
+private struct CalibreRow: View {
+  static let download = URL(string: "https://calibre-ebook.com/download_osx")
+
+  let settings: SettingsViewModel
+  let open: (URL) -> Void
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 8) {
+      HStack(spacing: 10) {
+        Image(systemName: settings.calibre == nil ? "questionmark.circle" : "checkmark.circle.fill")
+          .font(.system(size: 18))
+          .foregroundStyle(settings.calibre == nil ? Theme.warm : Theme.live)
+          .accessibilityHidden(true)
+        VStack(alignment: .leading, spacing: 1) {
+          Text(settings.calibreTitle).font(.system(size: 12.5, weight: .semibold))
+          Text(settings.calibreNote)
+            .font(.system(size: 10.5))
+            .foregroundStyle(Theme.muted)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+      }
+      if let path = settings.calibre?.path {
+        Text(path)
+          .font(.system(size: 10.5, design: .monospaced))
+          .foregroundStyle(Theme.muted)
+          .lineLimit(2)
+          .truncationMode(.middle)
+          .textSelection(.enabled)
+      } else if let download = Self.download {
+        Button("Get Calibre ↗") { open(download) }
+          .buttonStyle(.plain)
+          .font(.system(size: 11.5, weight: .semibold))
+          .foregroundStyle(Color(hex: 0x9cc2ff))
+      }
+    }
+    .padding(12)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .glass(cornerRadius: 14)
   }
 }
 

@@ -47,7 +47,8 @@ struct Composition {
     panel = PanelModel(
       library: library, setup: setup,
       settings: SettingsViewModel(
-        configure: configure, sendTest: sendTest, settings: settings, loginItem: loginItem),
+        configure: configure, sendTest: sendTest, settings: settings, loginItem: loginItem,
+        converter: converter),
       covers: CoverStore(provider: CachedCoverProvider()),
       queue: SendQueueViewModel(
         sendBooks: SendBooks(

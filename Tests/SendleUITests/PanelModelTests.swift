@@ -52,7 +52,8 @@ struct PanelModelTests {
     let panel = PanelModel(
       library: libraryModel, setup: setup,
       settings: SettingsViewModel(
-        configure: configure, sendTest: sendTest, settings: settings, loginItem: FakeLoginItem()),
+        configure: configure, sendTest: sendTest, settings: settings, loginItem: FakeLoginItem(),
+        converter: FakeFormatConverter(isAvailable: false)),
       covers: CoverStore(provider: FakeCoverProvider()),
       queue: SendQueueViewModel(
         sendBooks: SendBooks(

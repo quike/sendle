@@ -25,13 +25,14 @@ struct SettingsViewModelTests {
   let settings = InMemorySettingsStore(AppSettings(email: .fixture))
   let secrets = MemorySecretStore(["me@gmail.com": "saved"])
   let loginItem = FakeLoginItem()
+  let converter = FakeFormatConverter(isAvailable: false)
 
   func makeModel() -> SettingsViewModel {
     SettingsViewModel(
       configure: ConfigureEmail(settings: settings, secrets: secrets),
       sendTest: SendTestEmail(
         settings: settings, channels: FakeDeliveryChannelFactory(), staging: FakeStagingArea()),
-      settings: settings, loginItem: loginItem)
+      settings: settings, loginItem: loginItem, converter: converter)
   }
 
   /// A model with nothing saved yet, as before the first setup.
@@ -41,7 +42,7 @@ struct SettingsViewModelTests {
       configure: ConfigureEmail(settings: empty, secrets: MemorySecretStore()),
       sendTest: SendTestEmail(
         settings: empty, channels: FakeDeliveryChannelFactory(), staging: FakeStagingArea()),
-      settings: empty, loginItem: loginItem)
+      settings: empty, loginItem: loginItem, converter: converter)
   }
 
   @Test func opensAtASectionWithTheSavedSetup() async {
@@ -142,5 +143,33 @@ struct SettingsViewModelTests {
 
     #expect(model.launchAtLogin == .unavailable)
     #expect(model.launchAtLoginNote != nil)
+  }
+
+  // MARK: USB
+
+  @Test func explainsWhatCalibreIsForUntilItIsInstalled() async {
+    let model = makeModel()
+
+    await model.open(at: .usb)
+
+    #expect(model.calibre == nil)
+    #expect(model.calibreTitle == "Calibre not found")
+    #expect(
+      model.calibreNote
+        == "Your Kindle can't read EPUB, so Sendle converts EPUBs with Calibre before copying "
+        + "them. Until it's installed, PDFs go over USB and EPUBs go by email.")
+  }
+
+  @Test func showsWhereCalibreIsOnceInstalled() async {
+    let model = makeModel()
+    await model.open(at: .usb)
+
+    converter.install()
+    await model.open(at: .usb)
+
+    #expect(model.calibre == converter.toolURL)
+    #expect(model.calibreTitle == "Calibre found")
+    #expect(
+      model.calibreNote == "EPUBs are converted to AZW3 before they're copied to your Kindle.")
   }
 }
