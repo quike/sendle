@@ -52,10 +52,11 @@ struct KindleVolumeMonitorTests {
 
   @Test func ordersKindlesWithTheSameNameByMountPoint() throws {
     let second = MountedVolume(url: try makeVolumeRoot(), name: "Kindle")
+    let ascending = [kindle, second].sorted { $0.url.path < $1.url.path }
 
-    let kindles = KindleVolumeMonitor.kindles(in: [second, kindle])
+    let kindles = KindleVolumeMonitor.kindles(in: ascending.reversed())
 
-    #expect(kindles.map(\.mountURL) == [kindle, second].map(\.url).sorted { $0.path < $1.path })
+    #expect(kindles.map(\.mountURL) == ascending.map(\.url))
   }
 
   @Test func givesEveryListenerItsOwnStream() async {
