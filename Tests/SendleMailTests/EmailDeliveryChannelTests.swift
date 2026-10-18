@@ -318,12 +318,15 @@ struct EmailDeliveryChannelTests {
     reads[5] = .hang
     let transport = ScriptedSMTPTransport(reads)
     let book = try file()
-    let delivery = Task { await deliver(book, with: transport) }
+    let log = FakeActivityLog()
+    let delivery = Task { await deliver(book, with: transport, log: log) }
 
     await transport.waitUntilHanging()
     delivery.cancel()
 
     #expect(await delivery.value == .cancelled)
+    #expect(log.summary.last == "info MAIL SMTP cancelled")
+    #expect(!log.summary.contains { $0.hasPrefix("error") })
   }
 
   @Test func aCancelAfterTheWholeBookWasSentIsUnconfirmed() async throws {

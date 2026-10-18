@@ -34,6 +34,9 @@ public struct SendTestEmail: Sendable {
       let channel = try await channels.channel(for: .email(email.kindleAddress))
       try await channel.deliver(
         PreparedFile(url: url, format: .txt), named: Self.documentName, progress: { _ in })
+    } catch .cancelled {
+      log.info(.mail, "Send test cancelled")
+      throw .cancelled
     } catch {
       log.error(.mail, "Send test failed: \(error.logDescription)")
       throw error

@@ -48,6 +48,18 @@ struct SendTestEmailTests {
       log.summary.last == "error MAIL Send test failed: the mail server didn't accept the password")
   }
 
+  @Test func logsACancelledTestAsInfo() async {
+    let log = FakeActivityLog()
+    let sendTest = SendTestEmail(
+      settings: InMemorySettingsStore(AppSettings(email: .fixture)),
+      channels: FakeDeliveryChannelFactory(channel: FakeDeliveryChannel(.fail(.cancelled))),
+      staging: FakeStagingArea(), log: log)
+
+    await #expect(throws: SendFailure.cancelled) { try await sendTest() }
+
+    #expect(log.summary.last == "info MAIL Send test cancelled")
+  }
+
   @Test func needsTheEmailSetupFirst() async {
     let sendTest = SendTestEmail(
       settings: InMemorySettingsStore(), channels: FakeDeliveryChannelFactory(),

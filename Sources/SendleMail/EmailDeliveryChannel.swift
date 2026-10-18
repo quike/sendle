@@ -107,6 +107,9 @@ public struct EmailDeliveryChannel: DeliveryChannel {
   private func smtp(_ step: () async throws(SMTPError) -> Void) async throws(SendFailure) {
     do {
       try await step()
+    } catch .cancelled {
+      log.info(.mail, "SMTP cancelled")
+      throw .cancelled
     } catch {
       log.error(.mail, "SMTP stopped: \(error.logDescription)")
       throw SendFailure(error, provider: email.provider, host: email.server.host)

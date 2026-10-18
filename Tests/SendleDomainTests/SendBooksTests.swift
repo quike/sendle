@@ -259,6 +259,10 @@ struct SendBooksTests {
     let events = await harness.send([book], to: email)
 
     #expect(events.last == .sent(book.id, fixes: []))
+    #expect(
+      harness.log.summary.suffix(2) == [
+        "warning APP Couldn't add the send to the history: read-only", "info MAIL Sent",
+      ])
   }
 
   @Test func cancellingStopsTheCurrentAndRemainingBooks() async {
@@ -285,6 +289,8 @@ struct SendBooksTests {
     #expect(channel.deliveries.count == 1)
     #expect(await harness.history.records().isEmpty)
     #expect(harness.staging.snapshot.removed.count == 1)
+    #expect(harness.log.summary.last == "info MAIL Cancelled")
+    #expect(!harness.log.summary.contains { $0.hasPrefix("error") })
   }
 
   @Test func aCancelAfterTheServerHadTheWholeBookStaysUnconfirmed() async {
@@ -312,6 +318,10 @@ struct SendBooksTests {
     #expect(channel.deliveries.count == 1)
     #expect(await harness.history.records().map(\.bookID) == [first.id])
     #expect(await harness.history.records().map(\.outcome) == [.unconfirmed])
+    #expect(
+      harness.log.summary.last
+        == "warning MAIL Not confirmed: smtp.gmail.com didn't confirm the message, which may still "
+        + "arrive")
   }
 
   @Test func remembersABookTheServerDidNotConfirm() async {

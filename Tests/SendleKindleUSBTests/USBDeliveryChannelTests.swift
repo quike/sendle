@@ -105,6 +105,7 @@ struct USBDeliveryChannelTests {
     let failure = await send(channel()) { _ in try? FileManager.default.removeItem(at: root) }
 
     #expect(failure == .deviceDisconnected)
+    #expect(log.summary.last == "error USB Stopped copying: the Kindle was unplugged")
   }
 
   @Test func cancellingStopsTheCopyAndLeavesNothingBehind() async throws {
@@ -112,6 +113,7 @@ struct USBDeliveryChannelTests {
 
     #expect(failure == .cancelled)
     #expect(try documentNames().isEmpty)
+    #expect(log.summary.last == "info USB Copy cancelled")
   }
 
   @Test func clearsWhatAnInterruptedCopyLeftBehind() async throws {

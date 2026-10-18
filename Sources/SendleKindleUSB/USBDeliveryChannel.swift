@@ -66,7 +66,11 @@ public struct USBDeliveryChannel: DeliveryChannel {
       }
     } catch {
       unlink(partial.path)
-      log.error(.usb, "The copy failed: \(error)")
+      if error == .cancelled {
+        log.info(.usb, "Copy cancelled")
+      } else {
+        log.error(.usb, "Stopped copying: \(error.logDescription)")
+      }
       throw error
     }
     AppleDouble.remove(beside: destination)
