@@ -93,6 +93,20 @@ struct USBDeliveryChannelTests {
       ])
   }
 
+  @Test func removesTheAttributesFileMacOSWritesBesideTheBook() async throws {
+    try Data("attributes".utf8).write(
+      to: documents.appending(path: "._Moby-Dick - Herman Melville.pdf"))
+
+    #expect(await send(channel()) == nil)
+
+    #expect(try documentNames() == ["Moby-Dick - Herman Melville.pdf"])
+    #expect(
+      log.summary.suffix(2) == [
+        "debug USB Removed ._Moby-Dick - Herman Melville.pdf, macOS's attributes file",
+        "info USB Saved documents/Moby-Dick - Herman Melville.pdf and flushed it to the Kindle",
+      ])
+  }
+
   @Test func aKindleWithoutItsDocumentsFolderIsGone() async throws {
     try FileManager.default.removeItem(at: documents)
 

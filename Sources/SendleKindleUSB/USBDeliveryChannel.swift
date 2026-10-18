@@ -73,7 +73,9 @@ public struct USBDeliveryChannel: DeliveryChannel {
       }
       throw error
     }
-    AppleDouble.remove(beside: destination)
+    if AppleDouble.remove(beside: destination) {
+      log.debug(.usb, "Removed ._\(destination.lastPathComponent), macOS's attributes file")
+    }
     DeviceSync.flush(documents)
     log.info(
       .usb, "Saved documents/\(destination.lastPathComponent) and flushed it to the Kindle")
