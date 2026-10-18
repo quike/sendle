@@ -17,6 +17,8 @@ final class PanelController: NSObject, NSWindowDelegate {
   private var keyMonitor: Any?
   private var lastHide = Date.distantPast
   private var opening: Task<Void, Never>?
+  /// A file picker is open, so losing the key window must not close the panel.
+  private var isChoosingFile = false
   private(set) var isVisible = false
 
   init(model: PanelModel) {
@@ -107,7 +109,7 @@ final class PanelController: NSObject, NSWindowDelegate {
   }
 
   func windowDidResignKey(_ notification: Notification) {
-    hide()
+    if !isChoosingFile { hide() }
   }
 
   /// Text fields keep their editing keys; everything else goes to the panel's shortcuts. A field
@@ -158,5 +160,28 @@ extension PanelController: SystemActions {
 
   func endEditing() {
     window.makeFirstResponder(nil)
+  }
+
+  func chooseProgram() async -> URL? {
+    isChoosingFile = true
+    defer {
+      isChoosingFile = false
+      window.makeKeyAndOrderFront(nil)
+    }
+    let picker = NSOpenPanel()
+    picker.canChooseFiles = true
+    picker.canChooseDirectories = false
+    picker.allowsMultipleSelection = false
+    picker.directoryURL = FileManager.default.homeDirectoryForCurrentUser.appending(
+      path: ".cargo/bin", directoryHint: .isDirectory)
+    picker.message = "Choose the boko program."
+    picker.prompt = "Use"
+    // Above the panel, which floats at the pop-up menu level.
+    picker.level = NSWindow.Level(rawValue: NSWindow.Level.popUpMenu.rawValue + 1)
+    NSApp.activate()
+    let response = await withCheckedContinuation { continuation in
+      picker.begin { continuation.resume(returning: $0) }
+    }
+    return response == .OK ? picker.url : nil
   }
 }

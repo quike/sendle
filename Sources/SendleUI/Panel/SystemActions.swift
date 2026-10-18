@@ -9,6 +9,8 @@ public protocol SystemActions: AnyObject {
   func closePanel()
   /// Takes the keyboard back from a text field, such as search.
   func endEditing()
+  /// Asks for a program, keeping the panel open meanwhile; nil when the user cancels.
+  func chooseProgram() async -> URL?
 }
 
 public struct StatusItemState: Equatable, Sendable {

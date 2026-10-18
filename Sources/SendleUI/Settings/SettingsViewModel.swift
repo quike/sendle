@@ -29,6 +29,7 @@ public final class SettingsViewModel {
   package private(set) var bokoError: String?
   /// Told whenever a choice the panel shows changes: the A–Z bar, logs, the Kindle address.
   @ObservationIgnored package var onChange: (@MainActor () async -> Void)?
+  @ObservationIgnored private var unmark: Task<Void, Never>?
 
   private let settings: any SettingsStore
   private let addresses: ManageKindleAddresses
@@ -96,6 +97,12 @@ public final class SettingsViewModel {
     query = ""
     section = item.section
     highlighted = item
+    unmark?.cancel()
+    unmark = Task { [weak self] in
+      try? await Task.sleep(for: .seconds(1.5))
+      guard !Task.isCancelled, self?.highlighted == item else { return }
+      self?.highlighted = nil
+    }
   }
 
   /// What each row of the front page says about its section.

@@ -10,11 +10,13 @@ final class FakeSystemActions: SystemActions {
   var revealedApp = 0
   var closedPanel = 0
   var endedEditing = 0
+  var program: URL?
 
   func open(_ url: URL) { opened.append(url) }
   func revealApp() { revealedApp += 1 }
   func closePanel() { closedPanel += 1 }
   func endEditing() { endedEditing += 1 }
+  func chooseProgram() async -> URL? { program }
 }
 
 @MainActor
@@ -56,7 +58,8 @@ struct PanelModelTests {
       settings: SettingsViewModel(
         configure: configure, sendTest: sendTest,
         addresses: ManageKindleAddresses(settings: settings),
-        chooseTool: ChooseConverterTool(settings: settings, choice: converter),
+        chooseTool: ChooseConverterTool(
+          settings: settings, choice: converter, isExecutable: { _ in true }),
         settings: settings, loginItem: FakeLoginItem(), converter: converter),
       covers: CoverStore(provider: FakeCoverProvider()),
       queue: SendQueueViewModel(
@@ -578,6 +581,18 @@ struct PanelModelTests {
   }
 
   // MARK: Settings sheet
+
+  @Test func choosesBokoThroughTheSystemsFilePicker() async {
+    let (panel, settings) = makePanel()
+    await panel.openSettings(.usb)
+
+    await panel.chooseBoko()
+    #expect(await settings.settings.bokoPath == nil)
+
+    system.program = URL(filePath: "/Users/reader/bin/boko")
+    await panel.chooseBoko()
+    #expect(await settings.settings.bokoPath == "/Users/reader/bin/boko")
+  }
 
   @Test func aJumpBarChosenInSettingsReachesTheLibrary() async {
     let (panel, _) = makePanel()

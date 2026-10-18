@@ -84,25 +84,25 @@ struct ApprovedSendersNote: View {
 
 struct SenderFields: View {
   @Bindable var form: EmailForm
+  /// The setting a settings search led to.
+  var highlighted: SettingsItem?
   let open: (URL) -> Void
 
   var body: some View {
     VStack(alignment: .leading, spacing: 12) {
-      LabeledField(label: "Account") {
-        Picker("Account", selection: $form.provider) {
-          ForEach(MailProvider.allCases, id: \.self) { Text($0.pickerName).tag($0) }
-        }
-        .pickerStyle(.segmented)
-        .labelsHidden()
+      LabeledField(label: "Send with") {
+        ProviderTiles(form: form)
         if let server = form.provider.defaultServer {
           FieldNote(text: server.summary, color: Theme.faint)
         }
       }
+      .marked(highlighted == .mailProvider)
       LabeledField(label: "Sender address") {
         GlassTextField(
           label: "Sender address", prompt: "you@example.com", text: $form.senderAddress)
         issueNote(.invalidSenderAddress)
       }
+      .marked(highlighted == .senderAddress)
       LabeledField(label: "App password") {
         GlassTextField(
           label: "App password", prompt: form.passwordPrompt, text: $form.password,
@@ -116,6 +116,7 @@ struct SenderFields: View {
             .foregroundStyle(Color(hex: 0x9cc2ff))
         }
       }
+      .marked(highlighted == .appPassword)
       if form.provider == .custom {
         LabeledField(label: "Mail server") {
           HStack(spacing: 6) {
@@ -130,6 +131,7 @@ struct SenderFields: View {
           .labelsHidden()
           issueNote(.missingServer)
         }
+        .marked(highlighted == .mailServer)
       }
     }
   }
@@ -139,6 +141,57 @@ struct SenderFields: View {
     if form.issues.contains(issue) {
       FieldNote(text: form.message(for: issue), color: Theme.danger)
     }
+  }
+}
+
+/// One tile per mail provider, in its brand's colour with a glyph Sendle draws: no company logos.
+struct ProviderTiles: View {
+  @Bindable var form: EmailForm
+
+  var body: some View {
+    HStack(spacing: 6) {
+      ForEach(MailProvider.allCases, id: \.self) { provider in
+        let isOn = form.provider == provider
+        let shape = RoundedRectangle(cornerRadius: 12, style: .continuous)
+        Button {
+          form.provider = provider
+        } label: {
+          VStack(spacing: 5) {
+            Image(systemName: provider.symbol)
+              .font(.system(size: 11, weight: .semibold))
+              .foregroundStyle(.white)
+              .frame(width: 24, height: 24)
+              .background(
+                LinearGradient(
+                  colors: provider.colors, startPoint: .topLeading, endPoint: .bottomTrailing),
+                in: RoundedRectangle(cornerRadius: 7, style: .continuous))
+            Text(provider.pickerName)
+              .font(.system(size: 10, weight: .semibold))
+              .foregroundStyle(isOn ? Theme.text : Theme.muted)
+          }
+          .frame(maxWidth: .infinity)
+          .padding(.vertical, 8)
+          .background(isOn ? Theme.accent.opacity(0.16) : Theme.glass, in: shape)
+          .overlay(shape.strokeBorder(isOn ? Theme.accent.opacity(0.6) : Theme.line))
+          .contentShape(shape)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(provider.pickerName)
+        .accessibilityAddTraits(isOn ? .isSelected : [])
+      }
+    }
+  }
+}
+
+extension View {
+  /// Marks the field a settings search led to.
+  fileprivate func marked(_ isMarked: Bool) -> some View {
+    padding(isMarked ? 6 : 0)
+      .background(
+        isMarked ? Theme.accent.opacity(0.18) : .clear,
+        in: RoundedRectangle(cornerRadius: 12, style: .continuous)
+      )
+      .animation(.easeOut(duration: 0.6), value: isMarked)
   }
 }
 
@@ -174,6 +227,24 @@ struct SendTestRow: View {
 }
 
 extension MailProvider {
+  var symbol: String {
+    switch self {
+    case .gmail: "envelope.fill"
+    case .iCloud: "icloud.fill"
+    case .fastmail: "bolt.fill"
+    case .custom: "server.rack"
+    }
+  }
+
+  var colors: [Color] {
+    switch self {
+    case .gmail: [Color(hex: 0xea4335), Color(hex: 0xc5221f)]
+    case .iCloud: [Color(hex: 0x5ac8fa), Color(hex: 0x007aff)]
+    case .fastmail: [Color(hex: 0x3b82f6), Color(hex: 0x1d4ed8)]
+    case .custom: [Color(hex: 0x6b7280), Color(hex: 0x374151)]
+    }
+  }
+
   var pickerName: String {
     switch self {
     case .gmail: "Gmail"

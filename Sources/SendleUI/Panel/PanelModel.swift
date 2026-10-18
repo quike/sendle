@@ -235,6 +235,12 @@ public final class PanelModel {
     await library.refreshSettings()
   }
 
+  /// Lets the user point Sendle at a boko somewhere else.
+  package func chooseBoko() async {
+    guard let tool = await system?.chooseProgram() else { return }
+    await settings.chooseBoko(tool)
+  }
+
   package func closeSettings() {
     isShowingSettings = false
   }
