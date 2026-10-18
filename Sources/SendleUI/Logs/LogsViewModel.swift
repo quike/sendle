@@ -148,21 +148,22 @@ public final class LogsViewModel {
   private func refilter() {
     let words = query.split(whereSeparator: \.isWhitespace)
     var shown: [LogEntry] = []
-    var pendingHeading: LogEntry?
+    // A heading waiting for its first line, and where it goes when that line shows.
+    var pending: (heading: LogEntry, index: Int)?
     for entry in entries where area.includes(entry.area) {
       let matches = words.allSatisfy {
         entry.message.range(of: $0, options: [.caseInsensitive, .diacriticInsensitive]) != nil
       }
       if entry.heading != nil {
-        pendingHeading = entry
+        pending = (entry, shown.count)
         if matches && !words.isEmpty && isShowing(entry.level) {
           shown.append(entry)
-          pendingHeading = nil
+          pending = nil
         }
       } else if matches && isShowing(entry.level) {
-        if let heading = pendingHeading, Self.belongs(entry, under: heading) {
-          shown.append(heading)
-          pendingHeading = nil
+        if let (heading, index) = pending, Self.belongs(entry, under: heading) {
+          shown.insert(heading, at: index)
+          pending = nil
         }
         shown.append(entry)
       }

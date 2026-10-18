@@ -84,6 +84,28 @@ struct LogsViewModelTests {
     #expect(messages(model).isEmpty)
   }
 
+  @Test func searchIgnoresAccents() {
+    log.info(.app, "Saved Café.epub")
+    log.info(.app, "Saved Moby-Dick.epub")
+    let model = makeModel()
+
+    model.query = "cafe"
+
+    #expect(messages(model) == ["Saved Café.epub"])
+  }
+
+  @Test func aHeadingStaysAboveLinesThatCameAfterItFromElsewhere() {
+    log.heading(.book(moby), .mail, "Moby-Dick · reader@kindle.com")
+    log.debug(.mail, "Plan: deliver it")
+    log.info(.library, "Read 2 books")
+    log.info(.mail, "Sent")
+    let model = makeModel()
+
+    model.toggle(.debug)
+
+    #expect(messages(model) == ["Moby-Dick · reader@kindle.com", "Read 2 books", "Sent"])
+  }
+
   @Test func aHeadingShowsOnlyWithSomethingUnderIt() {
     recordASend()
     let model = makeModel()
