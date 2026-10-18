@@ -52,6 +52,16 @@ struct FormatConverterTests {
   }
 }
 
+struct ByteCountTests {
+  @Test func writesSizesInDecimalUnitsInEnglish() {
+    #expect(ByteCount.text(999) == "999 bytes")
+    #expect(ByteCount.text(3_584) == "4 KB")
+    #expect(ByteCount.text(1_400_000) == "1.4 MB")
+    #expect(ByteCount.text(3_100_000_000) == "3.1 GB")
+    #expect(ByteCount.text(21_234_000, precise: true) == "21.2 MB")
+  }
+}
+
 struct FileFormatTests {
   @Test func mimeTypesMatchWhatAmazonExpects() {
     #expect(FileFormat.epub.mimeType == "application/epub+zip")

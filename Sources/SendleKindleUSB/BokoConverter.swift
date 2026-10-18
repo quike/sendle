@@ -18,15 +18,17 @@ public final class BokoConverter: FormatConverter, ToolChoice {
 
   private let folders: [URL]
   private let timeout: Duration
+  private let log: any ActivityLog
   private let chosen = OSAllocatedUnfairLock<URL?>(initialState: nil)
 
-  public convenience init() {
-    self.init(folders: Self.folders, timeout: .seconds(300))
+  public convenience init(log: any ActivityLog = NoActivityLog()) {
+    self.init(folders: Self.folders, timeout: .seconds(300), log: log)
   }
 
-  package init(folders: [URL], timeout: Duration) {
+  package init(folders: [URL], timeout: Duration, log: any ActivityLog = NoActivityLog()) {
     self.folders = folders
     self.timeout = timeout
+    self.log = log
   }
 
   /// Looked up on every read, so a boko installed while Sendle runs is found. A chosen boko that
@@ -53,32 +55,64 @@ public final class BokoConverter: FormatConverter, ToolChoice {
     guard let tool = toolURL else { throw .conversionUnavailable }
     let name = file.url.deletingPathExtension().lastPathComponent
     let output = staging.appending(path: "\(name).\(format.fileExtension)")
-    let log = staging.appending(path: "boko.log")
+    let printed = staging.appending(path: "boko.log")
+    log.info(
+      .boko,
+      "Running \(tool.path) convert \"\(file.url.lastPathComponent)\" "
+        + "\"\(output.lastPathComponent)\"")
+    let clock = ContinuousClock()
+    let start = clock.now
     let outcome = try await Command.run(
-      tool, ["convert", file.url.path, output.path], log: log, timeout: timeout)
+      tool, ["convert", file.url.path, output.path], log: printed, timeout: timeout)
+    let elapsed = Self.seconds(clock.now - start)
+    if let text = Self.output(in: printed) { log.debug(.boko, text) }
     switch outcome {
     case .cancelled:
+      log.info(.boko, "Conversion cancelled")
       throw .cancelled
     case .timedOut:
+      log.error(.boko, Self.timeoutMessage(after: timeout))
       throw .conversionFailed(Self.timeoutMessage(after: timeout))
     case .failedToStart(let reason):
+      log.error(.boko, "Couldn't start boko: \(reason)")
       throw .conversionFailed("Couldn't start boko: \(reason)")
     case .exited(let status):
-      guard status == 0 else { throw .conversionFailed(Self.lastLines(of: log, status: status)) }
+      guard status == 0 else {
+        log.error(.boko, "boko stopped with status \(status) after \(elapsed)")
+        throw .conversionFailed(Self.lastLines(of: printed, status: status))
+      }
       guard FileManager.default.fileExists(atPath: output.path) else {
+        log.error(.boko, "boko finished in \(elapsed) but made no book")
         throw .conversionFailed("boko made no book.")
       }
-      Self.giveOwnASIN(to: output, named: name)
+      log.info(.boko, "boko finished in \(elapsed)")
+      giveOwnASIN(to: output, named: name)
       return PreparedFile(url: output, format: format)
     }
   }
 
   /// boko gives every book the ASIN "EBOK000000", so they would all share one cover on the Kindle.
-  private static func giveOwnASIN(to book: URL, named name: String) {
+  private func giveOwnASIN(to book: URL, named name: String) {
+    let asin = AZW3Metadata.asin(for: name)
     guard let data = try? Data(contentsOf: book),
-      let patched = AZW3Metadata.replacingASIN(in: data, with: AZW3Metadata.asin(for: name))
-    else { return }
-    try? patched.write(to: book, options: .atomic)
+      let patched = AZW3Metadata.replacingASIN(in: data, with: asin),
+      (try? patched.write(to: book, options: .atomic)) != nil
+    else {
+      return log.warning(.boko, "Couldn't set the book's ASIN; the Kindle may mix up its cover")
+    }
+    log.info(.boko, "Set the book's ASIN to \(asin)")
+  }
+
+  private static func output(in file: URL) -> String? {
+    let text = (try? String(contentsOf: file, encoding: .utf8))?
+      .trimmingCharacters(in: .whitespacesAndNewlines)
+    return text?.isEmpty == false ? text : nil
+  }
+
+  private static func seconds(_ duration: Duration) -> String {
+    let parts = duration.components
+    let value = Double(parts.seconds) + Double(parts.attoseconds) / 1e18
+    return String(format: "%.1f s", value)
   }
 
   /// English in every language, like the rest of Sendle's copy.

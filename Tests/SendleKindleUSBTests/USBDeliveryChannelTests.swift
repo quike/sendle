@@ -23,8 +23,10 @@ struct USBDeliveryChannelTests {
 
   var kindle: KindleVolume { KindleVolume(id: root.path, name: "Kindle", mountURL: root) }
 
+  let log = FakeActivityLog()
+
   func channel(freeSpace: Int64? = nil) -> USBDeliveryChannel {
-    USBDeliveryChannel(volume: kindle, chunkSize: 1_024, freeSpace: { _ in freeSpace })
+    USBDeliveryChannel(volume: kindle, chunkSize: 1_024, freeSpace: { _ in freeSpace }, log: log)
   }
 
   func send(
@@ -78,6 +80,17 @@ struct USBDeliveryChannelTests {
     #expect(await send(channel(freeSpace: 3_000)) == .diskFull)
 
     #expect(try documentNames().isEmpty)
+    #expect(log.summary.last == "error USB Kindle has 3 KB free; the book needs 4 KB")
+  }
+
+  @Test func logsTheCopy() async {
+    _ = await send(channel(freeSpace: 3_100_000_000))
+
+    #expect(
+      log.summary == [
+        "info USB Copying 4 KB to Kindle (3.1 GB free)",
+        "info USB Saved documents/Moby-Dick - Herman Melville.pdf and flushed it to the Kindle",
+      ])
   }
 
   @Test func aKindleWithoutItsDocumentsFolderIsGone() async throws {
@@ -108,6 +121,7 @@ struct USBDeliveryChannelTests {
     #expect(await send(channel()) == nil)
 
     #expect(try documentNames() == ["Dracula.azw3", "Moby-Dick - Herman Melville.pdf"])
+    #expect(log.summary.first == "debug USB Removed 1 unfinished copy from an earlier send")
   }
 
   @Test func aBookThatIsGoneIsMissing() async throws {
@@ -153,6 +167,9 @@ struct USBDeliveryChannelTests {
     let size = try #require(pixelSize(of: Data(contentsOf: thumbnail)))
     #expect(size.height == 500)
     #expect(abs(size.width - 362) <= 1)
+    #expect(
+      log.summary.last
+        == "info USB Wrote the cover to system/thumbnails/thumbnail_SN2Q7KXA4B_EBOK_portrait.jpg")
   }
 
   @Test func replacesTheCoverTheKindleFoundForItself() async throws {
@@ -168,6 +185,7 @@ struct USBDeliveryChannelTests {
     #expect(try await send(azw3: makeAZW3(asin: "SN2Q7KXA4B")) == nil)
 
     #expect(!FileManager.default.fileExists(atPath: thumbnails.path))
+    #expect(log.summary.last == "debug USB The book has no cover, so the Kindle gets no thumbnail")
   }
 
   @Test func aPDFGetsNoThumbnail() async throws {
@@ -197,6 +215,8 @@ struct USBDeliveryChannelTests {
 
     #expect(try documentNames() == ["Moby-Dick - Herman Melville.azw3"])
     #expect(!FileManager.default.fileExists(atPath: root.appending(path: "system").path))
+    #expect(
+      log.summary.last == "debug USB The Kindle has no system folder, so it gets no thumbnail")
   }
 
   @Test(

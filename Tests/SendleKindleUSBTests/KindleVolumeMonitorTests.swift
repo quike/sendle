@@ -38,6 +38,22 @@ struct KindleVolumeMonitorTests {
     #expect(await updates.next() == [])
   }
 
+  @Test func logsKindlesComingAndGoing() async {
+    let source = FakeVolumeSource([kindle])
+    let log = FakeActivityLog()
+    var updates = KindleVolumeMonitor(source: source, log: log).volumes().makeAsyncIterator()
+    _ = await updates.next()
+
+    source.unmount(kindle)
+    _ = await updates.next()
+
+    #expect(
+      log.summary == [
+        "info USB Kindle is plugged in at \(kindle.url.path(percentEncoded: false))",
+        "info USB Kindle was unplugged or ejected",
+      ])
+  }
+
   @Test func staysQuietWhileOtherVolumesComeAndGo() async {
     let source = FakeVolumeSource()
     var updates = KindleVolumeMonitor(source: source).volumes().makeAsyncIterator()

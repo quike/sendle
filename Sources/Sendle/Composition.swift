@@ -26,11 +26,11 @@ struct Composition {
     let settings = JSONSettingsStore(directory: data)
     let secrets = KeychainSecretStore()
     let staging = FileSystemStagingArea()
-    let converter = BokoConverter()
+    let converter = BokoConverter(log: log)
     let channels =
       override
       ?? DeliveryChannels(
-        email: EmailChannelFactory(settings: settings, secrets: secrets, log: log))
+        email: EmailChannelFactory(settings: settings, secrets: secrets, log: log), log: log)
     let configure = ConfigureEmail(settings: settings, secrets: secrets, log: log)
     let sendTest = SendTestEmail(settings: settings, channels: channels, staging: staging)
     let history = JSONSendHistoryStore(directory: data)
@@ -38,7 +38,7 @@ struct Composition {
       loadLibrary: LoadLibrary(
         library: AppleBooksLibrary(location: .standard()), inspector: EPUBProtectionInspector()),
       observeDestinations: ObserveDestinations(
-        monitor: kindles ?? KindleVolumeMonitor(), settings: settings),
+        monitor: kindles ?? KindleVolumeMonitor(log: log), settings: settings),
       settings: settings,
       history: history,
       converter: converter)
@@ -58,7 +58,7 @@ struct Composition {
         sendBooks: SendBooks(
           channels: channels, preparer: KindleEPUBPreparer(), converter: converter,
           staging: staging, history: history)),
-      ejector: VolumeEjector())
+      ejector: VolumeEjector(log: log))
     self.settings = settings
     chooseTool = ChooseConverterTool(settings: settings, choice: converter, log: log)
     // Clears folders an interrupted send left behind.
@@ -78,11 +78,12 @@ struct Composition {
 /// Each destination's own adapter: SendleMail for email, SendleKindleUSB for a plugged-in Kindle.
 struct DeliveryChannels: DeliveryChannelFactory {
   let email: EmailChannelFactory
+  let log: any ActivityLog
 
   func channel(for destination: Destination) async throws(SendFailure) -> any DeliveryChannel {
     switch destination {
     case .email(let kindle): try await email.channel(to: kindle)
-    case .usb(let volume): USBDeliveryChannel(volume: volume)
+    case .usb(let volume): USBDeliveryChannel(volume: volume, log: log)
     }
   }
 }

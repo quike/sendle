@@ -27,8 +27,10 @@ struct BokoConverterTests {
     return tool
   }
 
+  let log = FakeActivityLog()
+
   func converter(timeout: Duration = .seconds(30)) -> BokoConverter {
-    BokoConverter(folders: [bin], timeout: timeout)
+    BokoConverter(folders: [bin], timeout: timeout, log: log)
   }
 
   func convert(_ converter: BokoConverter) async -> Result<PreparedFile, SendFailure> {
@@ -134,6 +136,48 @@ struct BokoConverterTests {
     #expect(
       AZW3Metadata(try Data(contentsOf: output))?.asin
         == AZW3Metadata.asin(for: "Moby-Dick - Herman Melville"))
+    #expect(
+      log.summary.last
+        == "info BOKO Set the book's ASIN to \(AZW3Metadata.asin(for: "Moby-Dick - Herman Melville"))"
+    )
+  }
+
+  // MARK: Logs
+
+  @Test func logsTheCommandAndWhatBokoPrinted() async throws {
+    let tool = try installBoko(
+      """
+      echo "Reading Moby-Dick - Herman Melville.epub"
+      echo "Writing AZW3"
+      cp "$2" "$3"
+      """)
+
+    _ = await convert(converter())
+
+    let lines = log.summary
+    #expect(
+      lines.first
+        == "info BOKO Running \(tool.path) convert \"Moby-Dick - Herman Melville.epub\" "
+        + "\"Moby-Dick - Herman Melville.azw3\"")
+    #expect(lines.contains("debug BOKO Reading Moby-Dick - Herman Melville.epub\nWriting AZW3"))
+    #expect(lines.contains { $0.hasPrefix("info BOKO boko finished in ") })
+  }
+
+  @Test func logsHowBokoStopped() async throws {
+    try installBoko("echo oops; exit 3")
+
+    _ = await convert(converter())
+
+    #expect(log.summary.contains("debug BOKO oops"))
+    #expect(log.summary.last?.hasPrefix("error BOKO boko stopped with status 3 after ") == true)
+  }
+
+  @Test func logsATimeout() async throws {
+    try installBoko("exec sleep 30")
+
+    _ = await convert(converter(timeout: .milliseconds(300)))
+
+    #expect(log.summary.last?.hasPrefix("error BOKO boko was still converting after") == true)
   }
 
   @Test func leavesABookItCannotReadAsBokoWroteIt() async throws {

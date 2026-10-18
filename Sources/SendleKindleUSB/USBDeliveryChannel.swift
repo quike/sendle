@@ -10,15 +10,22 @@ public struct USBDeliveryChannel: DeliveryChannel {
   private let volume: KindleVolume
   private let chunkSize: Int
   private let freeSpace: FreeSpace
+  private let log: any ActivityLog
 
-  public init(volume: KindleVolume) {
-    self.init(volume: volume, chunkSize: 1 << 20, freeSpace: Self.availableCapacity)
+  public init(volume: KindleVolume, log: any ActivityLog = NoActivityLog()) {
+    self.init(volume: volume, chunkSize: 1 << 20, freeSpace: Self.availableCapacity, log: log)
   }
 
-  package init(volume: KindleVolume, chunkSize: Int, freeSpace: @escaping FreeSpace) {
+  package init(
+    volume: KindleVolume,
+    chunkSize: Int,
+    freeSpace: @escaping FreeSpace,
+    log: any ActivityLog = NoActivityLog()
+  ) {
     self.volume = volume
     self.chunkSize = chunkSize
     self.freeSpace = freeSpace
+    self.log = log
   }
 
   public func deliver(
@@ -27,10 +34,29 @@ public struct USBDeliveryChannel: DeliveryChannel {
     progress: @Sendable (Double) async -> Void
   ) async throws(SendFailure) {
     let documents = volume.mountURL.appending(path: "documents", directoryHint: .isDirectory)
-    guard Self.isFolder(documents) else { throw .deviceDisconnected }
-    Self.removeLeftovers(in: documents)
+    guard Self.isFolder(documents) else {
+      log.error(.usb, "\(volume.name) has no documents folder any more")
+      throw .deviceDisconnected
+    }
+    let leftovers = Self.removeLeftovers(in: documents)
+    if leftovers > 0 {
+      log.debug(
+        .usb,
+        "Removed \(leftovers) unfinished \(leftovers == 1 ? "copy" : "copies") from an earlier send"
+      )
+    }
     let size = try Self.size(of: file.url)
-    if let free = freeSpace(volume.mountURL), free < size { throw .diskFull }
+    let free = freeSpace(volume.mountURL)
+    if let free, free < size {
+      log.error(
+        .usb,
+        "\(volume.name) has \(ByteCount.text(free)) free; the book needs \(ByteCount.text(size))")
+      throw .diskFull
+    }
+    log.info(
+      .usb,
+      "Copying \(ByteCount.text(size)) to \(volume.name) "
+        + "(\(free.map { "\(ByteCount.text($0)) free" } ?? "free space unknown"))")
     let partial = documents.appending(path: ".sendle-\(UUID().uuidString).partial")
     let destination = documents.appending(path: "\(baseName).\(file.format.fileExtension)")
     do throws(SendFailure) {
@@ -40,11 +66,26 @@ public struct USBDeliveryChannel: DeliveryChannel {
       }
     } catch {
       unlink(partial.path)
+      log.error(.usb, "The copy failed: \(error)")
       throw error
     }
     AppleDouble.remove(beside: destination)
     DeviceSync.flush(documents)
-    if file.format == .azw3 { KindleThumbnail.write(for: file.url, onKindleAt: volume.mountURL) }
+    log.info(
+      .usb, "Saved documents/\(destination.lastPathComponent) and flushed it to the Kindle")
+    if file.format == .azw3 {
+      logThumbnail(KindleThumbnail.write(for: file.url, onKindleAt: volume.mountURL))
+    }
+  }
+
+  private func logThumbnail(_ outcome: KindleThumbnail.Outcome) {
+    switch outcome {
+    case .written(let name): log.info(.usb, "Wrote the cover to system/thumbnails/\(name)")
+    case .noSystemFolder:
+      log.debug(.usb, "The Kindle has no system folder, so it gets no thumbnail")
+    case .noCover: log.debug(.usb, "The book has no cover, so the Kindle gets no thumbnail")
+    case .failed(let reason): log.warning(.usb, "Couldn't write the cover: \(reason)")
+    }
   }
 
   /// What a failed write to the Kindle means. Once its `documents` folder is gone, the Kindle was
@@ -135,12 +176,13 @@ public struct USBDeliveryChannel: DeliveryChannel {
       && isDirectory.boolValue
   }
 
-  /// A copy cut short by a quit or a crash leaves a hidden partial file behind.
-  private static func removeLeftovers(in documents: URL) {
+  /// A copy cut short by a quit or a crash leaves a hidden partial file behind. Returns how many
+  /// there were.
+  private static func removeLeftovers(in documents: URL) -> Int {
     let names = (try? FileManager.default.contentsOfDirectory(atPath: documents.path)) ?? []
-    for name in names where name.hasPrefix(".sendle-") && name.hasSuffix(".partial") {
-      unlink(documents.appending(path: name).path)
-    }
+    let leftovers = names.filter { $0.hasPrefix(".sendle-") && $0.hasSuffix(".partial") }
+    for name in leftovers { unlink(documents.appending(path: name).path) }
+    return leftovers.count
   }
 
   private static func retrying(_ call: () -> Int) -> Int {
