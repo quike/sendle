@@ -28,6 +28,7 @@ public struct PanelView: View {
           case .library: LibraryScreen(panel: panel)
           case .setup: SetupScreen(panel: panel)
           case .queue: QueueScreen(panel: panel)
+          case .logs: LogsScreen(panel: panel)
           }
         }
         .disabled(panel.isShowingSettings)

@@ -56,12 +56,28 @@ private struct QueueRowView: View {
         if let note = row.fixesNote {
           Text(note).font(.system(size: 10)).foregroundStyle(Theme.warm).lineLimit(2)
         }
+        if panel.showsLogs, case .failed = row.status {
+          ShowLogsLink { panel.openLogs(revealing: .book(row.book.id)) }
+        }
       }
       Spacer(minLength: 6)
       QueueMark(status: row.status)
     }
     .padding(7)
-    .accessibilityElement(children: .combine)
+    .accessibilityElement(children: .contain)
+  }
+}
+
+/// Opens the logs at the story of a send that failed.
+struct ShowLogsLink: View {
+  let open: () -> Void
+
+  var body: some View {
+    Button("Show logs ›", action: open)
+      .buttonStyle(.plain)
+      .font(.system(size: 10.5, weight: .semibold))
+      .foregroundStyle(Color(hex: 0x9cc2ff))
+      .padding(.top, 2)
   }
 }
 

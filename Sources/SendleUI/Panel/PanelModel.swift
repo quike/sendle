@@ -7,6 +7,7 @@ package enum PanelRoute: Equatable, Sendable {
   case library
   case setup
   case queue
+  case logs
 }
 
 /// The panel's state above its screens: which one shows, the settings sheet, keys, fixes and the
@@ -21,6 +22,7 @@ public final class PanelModel {
   package let settings: SettingsViewModel
   package let covers: CoverStore
   package let queue: SendQueueViewModel
+  package let logs: LogsViewModel
   package private(set) var route = PanelRoute.library
   package private(set) var isShowingSettings = false
   package private(set) var notice: Problem?
@@ -34,6 +36,8 @@ public final class PanelModel {
   @ObservationIgnored private weak var system: (any SystemActions)?
   @ObservationIgnored private let ejector: any KindleEjector
   @ObservationIgnored private var accessWatch: Task<Void, Never>?
+  /// Where the logs go back to.
+  @ObservationIgnored private var beforeLogs = PanelRoute.library
   /// Bumped by every open and close, so an opening that a newer one replaced leaves the state alone.
   @ObservationIgnored private var session = 0
 
@@ -43,6 +47,7 @@ public final class PanelModel {
     settings: SettingsViewModel,
     covers: CoverStore,
     queue: SendQueueViewModel,
+    logs: LogsViewModel,
     ejector: any KindleEjector
   ) {
     self.library = library
@@ -50,6 +55,7 @@ public final class PanelModel {
     self.settings = settings
     self.covers = covers
     self.queue = queue
+    self.logs = logs
     self.ejector = ejector
     library.reportProblem = { [weak self] problem in self?.show(notice: problem) }
     settings.onChange = { [weak library] in await library?.refreshSettings() }
@@ -72,6 +78,9 @@ public final class PanelModel {
 
   package var isWaitingForAccess: Bool { accessWatch != nil }
 
+  /// The logs button shows while Settings › General › Show logs is on.
+  package var showsLogs: Bool { settings.showsLogs }
+
   // MARK: Lifecycle
 
   /// Reads the library once, so the red dot can ask for access before the panel ever opens.
@@ -89,6 +98,7 @@ public final class PanelModel {
     await library.appear()
     guard opened == session else { return }
     guard !Task.isCancelled else { return panelDidClose() }
+    if route == .logs { logs.start() }
     if library.needsAccess, route != .queue {
       showSetup(at: .libraryAccess)
     } else if route == .setup, setup.step == .libraryAccess {
@@ -99,6 +109,7 @@ public final class PanelModel {
   public func panelDidClose() {
     session += 1
     library.disappear()
+    logs.stop()
     accessWatch?.cancel()
     accessWatch = nil
   }
@@ -193,6 +204,26 @@ public final class PanelModel {
     route = .queue
   }
 
+  // MARK: Logs
+
+  /// Opens the logs over whatever shows; `subject` scrolls to the latest story of that send.
+  package func openLogs(revealing subject: LogSubject? = nil) {
+    isShowingSettings = false
+    if route != .logs { beforeLogs = route }
+    route = .logs
+    logs.start()
+    if let subject { logs.reveal(subject) }
+  }
+
+  package func closeLogs() {
+    logs.stop()
+    route = beforeLogs
+  }
+
+  package func copyLogs() {
+    system?.copy(logs.copyText())
+  }
+
   // MARK: Ejecting
 
   /// A Kindle stays put while a book is being copied to it.
@@ -258,6 +289,8 @@ public final class PanelModel {
   package func escape() {
     if isShowingSettings {
       isShowingSettings = false
+    } else if route == .logs {
+      closeLogs()
     } else if route == .queue, !queue.isRunning {
       finishQueue()
     } else if route == .setup, !library.needsAccess {
@@ -319,6 +352,8 @@ public final class PanelModel {
     case .queue:
       guard !queue.isRunning else { return false }
       finishQueue()
+    case .logs:
+      return false
     }
     return true
   }

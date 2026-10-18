@@ -52,6 +52,10 @@ enum Snapshot {
       panel.panelDidClose()
       await write(window, "setup-\(step.rawValue + 1).png", to: folder)
     }
+    await panel.openSettings()
+    await write(window, "settings.png", to: folder)
+    panel.settings.query = "pass"
+    await write(window, "settings-search.png", to: folder)
     for section in SettingsSection.allCases {
       await panel.openSettings(section)
       await write(window, "settings-\(section.rawValue).png", to: folder)
@@ -68,6 +72,9 @@ enum Snapshot {
     await panel.queue.waitUntilFinished()
     await write(window, "queue-usb-done.png", to: folder)
     panel.finishQueue()
+    panel.openLogs()
+    await write(window, "logs.png", to: folder)
+    panel.closeLogs()
     kindles.plugIn(["Kindle", "Kindle Oasis", "Kindle Scribe"])
     await panel.library.activate(.usb(SnapshotKindles.volume(named: "Kindle Oasis")))
     await write(window, "library-usb-3.png", to: folder)

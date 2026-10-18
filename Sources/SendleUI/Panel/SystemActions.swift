@@ -11,6 +11,8 @@ public protocol SystemActions: AnyObject {
   func endEditing()
   /// Asks for a program, keeping the panel open meanwhile; nil when the user cancels.
   func chooseProgram() async -> URL?
+  /// Puts `text` on the pasteboard.
+  func copy(_ text: String)
 }
 
 public struct StatusItemState: Equatable, Sendable {

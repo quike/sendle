@@ -162,6 +162,11 @@ extension PanelController: SystemActions {
     window.makeFirstResponder(nil)
   }
 
+  func copy(_ text: String) {
+    NSPasteboard.general.clearContents()
+    NSPasteboard.general.setString(text, forType: .string)
+  }
+
   func chooseProgram() async -> URL? {
     isChoosingFile = true
     defer {

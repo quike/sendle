@@ -11,12 +11,14 @@ final class FakeSystemActions: SystemActions {
   var closedPanel = 0
   var endedEditing = 0
   var program: URL?
+  var copied: [String] = []
 
   func open(_ url: URL) { opened.append(url) }
   func revealApp() { revealedApp += 1 }
   func closePanel() { closedPanel += 1 }
   func endEditing() { endedEditing += 1 }
   func chooseProgram() async -> URL? { program }
+  func copy(_ text: String) { copied.append(text) }
 }
 
 @MainActor
@@ -27,6 +29,7 @@ struct PanelModelTests {
   let system = FakeSystemActions()
   let history = InMemorySendHistoryStore()
   let ejector = FakeKindleEjector()
+  let log = FakeActivityLog()
 
   /// `onSleep` runs each time setup waits between access checks.
   /// `channel` delivers every send and test email; `ejector` replaces the suite's.
@@ -67,6 +70,7 @@ struct PanelModelTests {
           channels: channels, preparer: FakeEPUBPreparer(),
           converter: FakeFormatConverter(isAvailable: false), staging: staging, history: history,
           retryDelay: .zero, sleep: { _ in })),
+      logs: LogsViewModel(feed: log),
       ejector: ejector ?? self.ejector)
     panel.attach(system)
     return (panel, settings)
@@ -578,6 +582,62 @@ struct PanelModelTests {
 
     #expect(panel.route == .library)
     #expect(panel.library.preferredDestination == .usb)
+  }
+
+  // MARK: Logs
+
+  @Test func theLogsButtonFollowsTheSetting() async {
+    let (panel, _) = makePanel()
+    await panel.launch()
+    #expect(!panel.showsLogs)
+
+    await panel.settings.setShowsLogs(true)
+
+    #expect(panel.showsLogs)
+  }
+
+  @Test func opensTheLogsAndGoesBackWhereItWas() async {
+    let (panel, _) = makePanel()
+    log.info(.library, "Read 2 books")
+
+    panel.openLogs()
+    #expect(panel.route == .logs)
+    #expect(panel.logs.visible.map(\.message) == ["Read 2 books"])
+
+    panel.escape()
+    #expect(panel.route == .library)
+  }
+
+  @Test func aFailedBookOpensItsStory() async {
+    let (panel, _) = makePanel()
+    log.heading(.book(BookID(rawValue: "a")), .mail, "Moby-Dick · reader@kindle.com")
+    log.error(.mail, "S: 553 Sender address rejected")
+
+    panel.openLogs(revealing: .book(BookID(rawValue: "a")))
+
+    #expect(panel.logs.scrollTarget == 1)
+  }
+
+  @Test func aTestThatFailedInSettingsOpensItsLogsOverTheSheet() async {
+    let (panel, _) = makePanel()
+    await panel.openSettings(.sender)
+    log.heading(.sendTest, .mail, "Send test · reader@kindle.com")
+
+    panel.openLogs(revealing: .sendTest)
+
+    #expect(!panel.isShowingSettings)
+    #expect(panel.route == .logs)
+    #expect(panel.logs.scrollTarget == 1)
+  }
+
+  @Test func copiesWhatTheLogsShow() async {
+    let (panel, _) = makePanel()
+    log.info(.library, "Read 2 books")
+    panel.openLogs()
+
+    panel.copyLogs()
+
+    #expect(system.copied == [panel.logs.copyText()])
   }
 
   // MARK: Settings sheet

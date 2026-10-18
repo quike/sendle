@@ -198,6 +198,8 @@ extension View {
 /// "Send test" proves the login, the server and Amazon's approved senders in one go.
 struct SendTestRow: View {
   let form: EmailForm
+  /// Opens the logs at a failed test, while logs are on.
+  var showLogs: (() -> Void)?
   let send: () -> Void
 
   var body: some View {
@@ -219,6 +221,7 @@ struct SendTestRow: View {
         FieldNote(
           text: [problem.title, problem.message].compactMap { $0 }.joined(separator: ". "),
           color: Theme.danger)
+        if let showLogs { ShowLogsLink(open: showLogs) }
       case .idle, .sending:
         EmptyView()
       }

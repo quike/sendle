@@ -62,6 +62,7 @@ struct Composition {
         sendBooks: SendBooks(
           channels: channels, preparer: KindleEPUBPreparer(), converter: converter,
           staging: staging, history: history, log: log)),
+      logs: LogsViewModel(feed: log),
       ejector: VolumeEjector(log: log))
     self.settings = settings
     self.chooseTool = chooseTool

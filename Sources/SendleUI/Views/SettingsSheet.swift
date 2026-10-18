@@ -451,7 +451,10 @@ private struct SenderPage: View {
         SenderFields(form: settings.form, highlighted: settings.highlighted) { url in
           Task { await panel.perform(.openURL(url)) }
         }
-        SendTestRow(form: settings.form) {
+        SendTestRow(
+          form: settings.form,
+          showLogs: panel.showsLogs ? { panel.openLogs(revealing: .sendTest) } : nil
+        ) {
           Task { await panel.sendTest(from: settings.form) }
         }
         .settingsHighlight(.sendTest, in: settings)

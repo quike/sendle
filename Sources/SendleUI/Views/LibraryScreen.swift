@@ -9,6 +9,16 @@ struct LibraryScreen: View {
     let library = panel.library
     VStack(alignment: .leading, spacing: 0) {
       PanelHeader(title: "Sendle", subtitle: subtitle) {
+        if panel.showsLogs {
+          Button {
+            panel.openLogs()
+          } label: {
+            Image(systemName: "text.alignleft")
+          }
+          .buttonStyle(CircleButtonStyle())
+          .help("Logs")
+          .accessibilityLabel("Logs")
+        }
         Button {
           Task { await panel.openSettings() }
         } label: {
@@ -208,7 +218,7 @@ struct FilterBar: View {
   }
 }
 
-private struct FilterPillStyle: ButtonStyle {
+struct FilterPillStyle: ButtonStyle {
   let isOn: Bool
 
   func makeBody(configuration: Configuration) -> some View {
