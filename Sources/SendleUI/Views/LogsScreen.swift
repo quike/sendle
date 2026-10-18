@@ -191,7 +191,7 @@ private struct LogRow: View {
             } label: {
               Text(isOpen ? "▾ \(extra + 1) lines" : "▸ \(extra) more lines")
                 .font(.system(size: 9, weight: .semibold))
-                .foregroundStyle(Color(hex: 0x9cc2ff))
+                .foregroundStyle(Theme.link)
                 .padding(.horizontal, 6)
                 .padding(.vertical, 1)
                 .background(Theme.accent.opacity(0.14), in: Capsule())
@@ -224,7 +224,7 @@ extension LogLevel {
   var color: Color {
     switch self {
     case .debug: Color(hex: 0xcbd5e1)
-    case .info: Color(hex: 0x9cc2ff)
+    case .info: Theme.link
     case .warning: Theme.warm
     case .error: Color(hex: 0xff8a8a)
     }

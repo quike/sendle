@@ -7,7 +7,7 @@ struct ThemeTests {
     arguments: [
       (Theme.background, 0x0a0e1a), (Theme.text, 0xf3f5fa), (Theme.accent, 0x3d8bff),
       (Theme.warm, 0xffb46b), (Theme.live, 0x4ade80), (Theme.danger, 0xff5c5c),
-      (Theme.brandStart, 0x7c5cff),
+      (Theme.brandStart, 0x7c5cff), (Theme.link, 0x9cc2ff),
     ] as [(Color, Int)])
   func solidColoursMatchTheSpec(color: Color, hex: Int) {
     let resolved = color.resolve(in: EnvironmentValues())

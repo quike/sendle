@@ -390,7 +390,7 @@ private struct KindleAddressRow: View {
       if isActive {
         Text("Active")
           .font(.system(size: 9.5, weight: .bold))
-          .foregroundStyle(Color(hex: 0x9cc2ff))
+          .foregroundStyle(Theme.link)
           .padding(.horizontal, 6)
           .padding(.vertical, 2)
           .background(Theme.accent.opacity(0.18), in: RoundedRectangle(cornerRadius: 6))
@@ -421,7 +421,7 @@ private struct AddKindleAddressRow: View {
     HStack(spacing: 8) {
       Image(systemName: "plus")
         .font(.system(size: 10, weight: .bold))
-        .foregroundStyle(Color(hex: 0x9cc2ff))
+        .foregroundStyle(Theme.link)
         .accessibilityHidden(true)
       TextField(
         "Add address", text: $settings.newKindleAddress,
@@ -502,7 +502,7 @@ private struct USBPage: View {
           Button("Get boko ↗") { Task { await panel.perform(.openURL(download)) } }
             .buttonStyle(.plain)
             .font(.system(size: 11.5, weight: .semibold))
-            .foregroundStyle(Color(hex: 0x9cc2ff))
+            .foregroundStyle(Theme.link)
         }
       }
       if let error = settings.bokoError {

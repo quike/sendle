@@ -73,7 +73,7 @@ struct ApprovedSendersNote: View {
         Button("Open Amazon's settings ↗") { open(url) }
           .buttonStyle(.plain)
           .font(.system(size: 11, weight: .semibold))
-          .foregroundStyle(Color(hex: 0x9cc2ff))
+          .foregroundStyle(Theme.link)
       }
     }
     .padding(12)
@@ -113,7 +113,7 @@ struct SenderFields: View {
           Button("Create one ↗") { open(link) }
             .buttonStyle(.plain)
             .font(.system(size: 10.5, weight: .semibold))
-            .foregroundStyle(Color(hex: 0x9cc2ff))
+            .foregroundStyle(Theme.link)
         }
       }
       .marked(highlighted == .appPassword)

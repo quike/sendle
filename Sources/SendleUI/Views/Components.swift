@@ -200,7 +200,7 @@ struct NoticeView: View {
         Button("\(fix.label) →", action: onFix)
           .buttonStyle(.plain)
           .font(.system(size: 11.5, weight: .semibold))
-          .foregroundStyle(Color(hex: 0x9cc2ff))
+          .foregroundStyle(Theme.link)
       }
       if let onDismiss {
         Button(action: onDismiss) {

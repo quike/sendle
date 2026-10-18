@@ -76,7 +76,7 @@ struct ShowLogsLink: View {
     Button("Show logs ›", action: open)
       .buttonStyle(.plain)
       .font(.system(size: 10.5, weight: .semibold))
-      .foregroundStyle(Color(hex: 0x9cc2ff))
+      .foregroundStyle(Theme.link)
       .padding(.top, 2)
   }
 }
@@ -103,7 +103,7 @@ private struct QueueMark: View {
             .rotationEffect(.degrees(-90))
           Text("\(Int((fraction * 100).rounded()))%")
             .font(.system(size: 8, weight: .bold).monospacedDigit())
-            .foregroundStyle(Color(hex: 0x9cc2ff))
+            .foregroundStyle(Theme.link)
         }
         .frame(width: 30, height: 30)
       case .sent:
@@ -130,7 +130,7 @@ extension QueueRow.Tone {
   var color: Color {
     switch self {
     case .waiting: Theme.faint
-    case .active: Color(hex: 0x9cc2ff)
+    case .active: Theme.link
     case .sent: Theme.live
     case .failed: Theme.danger
     }
