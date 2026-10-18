@@ -53,8 +53,16 @@ struct LibraryScreen: View {
 struct DestinationChips: View {
   let panel: PanelModel
 
+  /// One line however many Kindles are plugged in; it scrolls sideways when they don't fit.
   var body: some View {
     let library = panel.library
+    ScrollView(.horizontal) {
+      chips(library)
+    }
+    .scrollIndicators(.never)
+  }
+
+  private func chips(_ library: LibraryViewModel) -> some View {
     HStack(spacing: 6) {
       if !library.isKindlePluggedIn {
         Chip(title: "No Kindle plugged in", dot: Color.white.opacity(0.25), isActive: false)
@@ -62,7 +70,7 @@ struct DestinationChips: View {
       }
       ForEach(library.destinations, id: \.self) { destination in
         Button {
-          Task { await library.activate(destination.kind) }
+          Task { await library.activate(destination) }
         } label: {
           Chip(
             title: destination.chipTitle,
@@ -135,8 +143,9 @@ struct Chip: View {
     HStack(spacing: 6) {
       if let dot { StatusDot(color: dot) }
       if let symbol { Image(systemName: symbol).font(.system(size: 9, weight: .bold)) }
-      Text(title)
+      Text(title).lineLimit(1)
     }
+    .fixedSize()
     .font(.system(size: 11, weight: .semibold))
     .foregroundStyle(isActive ? Theme.text : Color.white.opacity(0.7))
     .padding(.horizontal, 10)
@@ -321,7 +330,7 @@ struct SendBar: View {
         Rectangle().fill(Color.white.opacity(0.25)).frame(width: 1, height: 16)
         Menu {
           ForEach(library.destinations, id: \.self) { destination in
-            Button(destination.chipTitle) { Task { await library.activate(destination.kind) } }
+            Button(destination.chipTitle) { Task { await library.activate(destination) } }
           }
         } label: {
           Text("▾").opacity(0.75)

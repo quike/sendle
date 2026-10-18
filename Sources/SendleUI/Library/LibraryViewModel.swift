@@ -27,6 +27,8 @@ public final class LibraryViewModel {
   package private(set) var destinations: [Destination] = []
   package private(set) var hasKindleEmail = false
   package private(set) var preferredDestination = DestinationKind.email
+  /// The Kindle chosen among several. It isn't saved: a Kindle's id is where it mounts.
+  private var preferredVolume: KindleVolume?
   package private(set) var selection = Selection()
   package var hovered: BookID?
   /// Told when a reload fails but the books from the last good one stay on screen.
@@ -80,7 +82,9 @@ public final class LibraryViewModel {
 
   /// The saved choice while it's available, otherwise the first destination there is.
   package var activeDestination: Destination? {
-    destinations.first { $0.kind == preferredDestination } ?? destinations.first
+    let preferred = destinations.filter { $0.kind == preferredDestination }
+    return preferred.first { $0.volume?.id == preferredVolume?.id } ?? preferred.first
+      ?? destinations.first
   }
 
   package var isKindlePluggedIn: Bool { !volumes.isEmpty }
@@ -169,6 +173,11 @@ public final class LibraryViewModel {
     await save { $0.activeDestination = kind }
   }
 
+  package func activate(_ destination: Destination) async {
+    if let volume = destination.volume { preferredVolume = volume }
+    await activate(destination.kind)
+  }
+
   package func click(_ id: BookID, _ kind: ClickKind) {
     selection.click(id, kind, in: items)
   }
@@ -244,6 +253,10 @@ public final class LibraryViewModel {
 }
 
 extension Destination {
+  var volume: KindleVolume? {
+    if case .usb(let volume) = self { volume } else { nil }
+  }
+
   package var chipTitle: String {
     switch self {
     case .email: "Kindle email"

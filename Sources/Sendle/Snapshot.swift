@@ -67,6 +67,10 @@ enum Snapshot {
     panel.queue.cancel()
     await panel.queue.waitUntilFinished()
     await write(window, "queue-usb-done.png", to: folder)
+    panel.finishQueue()
+    kindles.plugIn(["Kindle", "Kindle Oasis", "Kindle Scribe"])
+    await panel.library.activate(.usb(SnapshotKindles.volume(named: "Kindle Oasis")))
+    await write(window, "library-usb-3.png", to: folder)
   }
 
   /// Waits for covers and animations, then draws the window's content.
@@ -99,12 +103,13 @@ final class SnapshotKindles: DestinationMonitor {
     }
   }
 
-  func plugIn() {
+  static func volume(named name: String) -> KindleVolume {
+    KindleVolume(id: "/Volumes/\(name)", name: name, mountURL: URL(filePath: "/Volumes/\(name)"))
+  }
+
+  func plugIn(_ names: [String] = ["Kindle"]) {
     state.withLock { state in
-      state.volumes = [
-        KindleVolume(
-          id: "/Volumes/Kindle", name: "Kindle", mountURL: URL(filePath: "/Volumes/Kindle"))
-      ]
+      state.volumes = names.map(Self.volume(named:))
       for listener in state.listeners { listener.yield(state.volumes) }
     }
   }

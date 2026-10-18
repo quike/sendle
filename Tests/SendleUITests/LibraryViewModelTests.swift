@@ -245,6 +245,34 @@ struct LibraryViewModelTests {
     #expect(model.hasKindleEmail)
   }
 
+  @Test func anyPluggedInKindleCanBeChosen() async {
+    let oasis = KindleVolume.fixture(name: "Kindle Oasis")
+    let (model, settings) = makeModel()
+    await model.start()
+    monitor.update([kindle, oasis])
+    #expect(await eventually { model.destinations.count == 3 })
+
+    await model.activate(.usb(oasis))
+
+    #expect(model.activeDestination == .usb(oasis))
+    #expect(await settings.settings.activeDestination == .usb)
+  }
+
+  @Test func aChosenKindleThatGoesAwayGivesWayToTheOtherAndComesBackChosen() async {
+    let oasis = KindleVolume.fixture(name: "Kindle Oasis")
+    let (model, _) = makeModel()
+    await model.start()
+    monitor.update([kindle, oasis])
+    #expect(await eventually { model.destinations.count == 3 })
+    await model.activate(.usb(oasis))
+
+    monitor.update([kindle])
+    #expect(await eventually { model.activeDestination == .usb(kindle) })
+
+    monitor.update([kindle, oasis])
+    #expect(await eventually { model.activeDestination == .usb(oasis) })
+  }
+
   @Test func namesEachDestinationChip() {
     #expect(Destination.email(.fixture).chipTitle == "Kindle email")
     #expect(Destination.usb(.fixture(name: "Kindle Oasis")).chipTitle == "Kindle Oasis · USB")
