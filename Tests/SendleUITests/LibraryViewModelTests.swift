@@ -583,5 +583,8 @@ struct LibraryViewModelTests {
 
     model.query = "moby"
     #expect(builds.withLock { $0 } == afterLoading + 1)
+
+    await model.reload()
+    #expect(builds.withLock { $0 } == afterLoading + 2)
   }
 }

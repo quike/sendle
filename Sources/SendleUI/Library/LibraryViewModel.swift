@@ -165,7 +165,7 @@ public final class LibraryViewModel {
   }
 
   package func refreshHistory() async {
-    sends = LibraryItems.latestSends(in: await history.records())
+    await readHistory()
     refreshItems()
   }
 
@@ -261,7 +261,7 @@ public final class LibraryViewModel {
   private func load() async {
     do {
       let loaded = try await loadLibrary()
-      await refreshHistory()
+      await readHistory()
       books = loaded
       needsAccess = false
       state = .loaded
@@ -277,6 +277,10 @@ public final class LibraryViewModel {
       }
     }
     refreshItems()
+  }
+
+  private func readHistory() async {
+    sends = LibraryItems.latestSends(in: await history.records())
   }
 
   private func show(_ destinations: [Destination]) {
