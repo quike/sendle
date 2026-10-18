@@ -18,13 +18,15 @@ struct LibraryItemsTests {
     to destination: DestinationKind = .email
   ) -> [BookItemViewModel] {
     LibraryItems.make(
-      books: books, sends: LibraryItems.latestSends(in: sends), filter: filter, query: query,
+      books: books, sends: LibraryItems.sendsByBook(in: sends), filter: filter, query: query,
       destination: destination, converterAvailable: false, now: now)
   }
 
-  func sent(_ book: Book, daysAgo: Double, _ outcome: SendOutcome = .sent) -> SendRecord {
+  func sent(
+    _ book: Book, daysAgo: Double, _ outcome: SendOutcome = .sent, by kind: DestinationKind = .email
+  ) -> SendRecord {
     SendRecord(
-      bookID: book.id, destination: .email, date: now.addingTimeInterval(-daysAgo * 86_400),
+      bookID: book.id, destination: kind, date: now.addingTimeInterval(-daysAgo * 86_400),
       outcome: outcome)
   }
 
@@ -102,6 +104,57 @@ struct LibraryItemsTests {
 
     #expect(item.detail == "Sent by email · 2d ago")
     #expect(item.tone == .sent)
+  }
+
+  @Test func marksEveryWayABookWasSent() throws {
+    let usbDate = now.addingTimeInterval(-86_400)
+    let sends = [sent(moby, daysAgo: 3), sent(moby, daysAgo: 1, by: .usb)]
+
+    let item = try #require(items([moby], sends: sends).first)
+
+    #expect(item.routes == [.email, .usb])
+    #expect(item.tone == .sent)
+    #expect(item.detail == "Sent by email and over USB · \(Formatting.age(of: usbDate, now: now))")
+  }
+
+  @Test func oneRouteKeepsItsWording() throws {
+    let item = try #require(items([moby], sends: [sent(moby, daysAgo: 2, by: .usb)]).first)
+
+    #expect(item.routes == [.usb])
+    #expect(item.detail.hasPrefix("Sent over USB · "))
+  }
+
+  @Test func failedSendsLeaveNoMark() throws {
+    let item = try #require(items([moby], sends: [sent(moby, daysAgo: 1, .failed)]).first)
+
+    #expect(item.routes.isEmpty)
+    #expect(item.tone == .plain)
+  }
+
+  @Test func anUnconfirmedSendWarnsWithoutAMark() throws {
+    let item = try #require(items([moby], sends: [sent(moby, daysAgo: 1, .unconfirmed)]).first)
+
+    #expect(item.routes.isEmpty)
+    #expect(item.tone == .warning)
+    #expect(item.detail == "May have been sent · check your Kindle")
+  }
+
+  @Test func anUnconfirmedEmailKeepsAnEarlierUSBMark() throws {
+    let sends = [sent(moby, daysAgo: 2, by: .usb), sent(moby, daysAgo: 1, .unconfirmed)]
+
+    let item = try #require(items([moby], sends: sends).first)
+
+    #expect(item.routes == [.usb])
+    #expect(item.tone == .warning)
+  }
+
+  @Test func routesShowWhenTheBookCantGoToTheActiveDestination() throws {
+    let cloud = Book.fixture(availability: .inCloudOnly)
+
+    let item = try #require(items([cloud], sends: [sent(cloud, daysAgo: 2)]).first)
+
+    #expect(item.routes == [.email])
+    #expect(!item.canSend)
   }
 
   @Test(arguments: [Availability.protected, .inCloudOnly, .missing])

@@ -57,7 +57,7 @@ public final class LibraryViewModel {
   /// Told when a reload fails but the books from the last good one stay on screen.
   @ObservationIgnored package var reportProblem: (@MainActor (Problem) -> Void)?
 
-  private var sends: [BookID: SendRecord] = [:]
+  private var sends: [BookID: BookSends] = [:]
   private var volumes: [KindleVolume] = []
   private var converterAvailable = false
   private var isVisible = false
@@ -280,7 +280,7 @@ public final class LibraryViewModel {
   }
 
   private func readHistory() async {
-    sends = LibraryItems.latestSends(in: await history.records())
+    sends = LibraryItems.sendsByBook(in: await history.records())
   }
 
   private func show(_ destinations: [Destination]) {

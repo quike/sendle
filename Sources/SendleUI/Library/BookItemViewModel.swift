@@ -17,13 +17,15 @@ package struct BookItemViewModel: Identifiable, Hashable, Sendable {
   /// Size, last send, or why the book can't go to the active destination.
   package let detail: String
   package let tone: Tone
+  /// Where the book was sent for sure.
+  package let routes: [DestinationKind]
   package let canSend: Bool
 
   package var id: BookID { book.id }
 
   init(
     book: Book,
-    lastSend: SendRecord?,
+    sends: BookSends?,
     destination: DestinationKind,
     converterAvailable: Bool,
     now: Date
@@ -32,18 +34,20 @@ package struct BookItemViewModel: Identifiable, Hashable, Sendable {
     title = book.title
     byline = book.author ?? "Unknown author"
     badge = book.isStorePurchase ? "STORE" : book.format.rawValue.uppercased()
+    routes = sends?.routes ?? []
     switch FormatPolicy.plan(for: book, to: destination, converterAvailable: converterAvailable) {
     case .blocked(let reason, _):
       detail = ProblemPresenter.problem(for: reason).title
       tone = book.availability == .ready ? .warning : .unavailable
       canSend = false
     case .send:
-      if lastSend?.outcome == .unconfirmed {
+      if sends?.latest.outcome == .unconfirmed {
         detail = "May have been sent · check your Kindle"
         tone = .warning
-      } else if let lastSend {
-        let how = lastSend.destination == .email ? "Sent by email" : "Sent over USB"
-        detail = "\(how) · \(Formatting.age(of: lastSend.date, now: now))"
+      } else if let sends {
+        let how = sends.routes.map { $0 == .email ? "by email" : "over USB" }
+          .joined(separator: " and ")
+        detail = "Sent \(how) · \(Formatting.age(of: sends.latest.date, now: now))"
         tone = .sent
       } else {
         detail = book.sizeBytes.map { Formatting.size($0) } ?? ""
