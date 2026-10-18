@@ -125,8 +125,43 @@ struct SMTPSessionTests {
 
     await #expect(throws: SMTPError.self) { try await sendAll(session) }
 
-    #expect(lines.all.last == "S: 535 Bad AUTH PLAIN <redacted> for <redacted>")
+    #expect(lines.all.last == "S: 535 <redacted>")
     #expect(!lines.all.joined().contains("secret"))
+  }
+
+  @Test(arguments: ["p", "pw", "pwd"])
+  func hidesAShortPasswordAServerEchoes(password: String) async {
+    let lines = TranscriptLines()
+    let session = session(
+      ScriptedSMTPTransport([greeting, ehlo, .code(535, "5.7.8 Bad password \(password)")]),
+      transcript: lines.record)
+
+    try? await session.connect()
+    await #expect(throws: SMTPError.self) {
+      try await session.authenticate(username: "me@gmail.com", password: password)
+    }
+
+    #expect(lines.all.last == "S: 535 <redacted>")
+  }
+
+  @Test func hidesTheEncodedNameAndPasswordAServerEchoesDuringAuthLogin() async {
+    let lines = TranscriptLines()
+    let session = session(
+      ScriptedSMTPTransport([
+        greeting, .code(250, "smtp.example.com", "AUTH LOGIN"), .code(334, "VXNlcm5hbWU6"),
+        .code(334, "Got bWVAZ21haWwuY29t"), .code(535, "c2VjcmV0", "5.7.8 Rejected"),
+      ]), transcript: lines.record)
+
+    try? await session.connect()
+    await #expect(throws: SMTPError.self) {
+      try await session.authenticate(username: "me@gmail.com", password: "secret")
+    }
+
+    #expect(
+      Array(lines.all.dropFirst(3)) == [
+        "C: AUTH LOGIN", "S: 334 VXNlcm5hbWU6", "C: <redacted>", "S: 334 <redacted>",
+        "C: <redacted>", "S: 535 <redacted>",
+      ])
   }
 
   @Test func transcribesTheReplyItStopsAt() async {

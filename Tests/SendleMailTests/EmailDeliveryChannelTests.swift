@@ -235,10 +235,13 @@ struct EmailDeliveryChannelTests {
     let echo = SMTPError.reply(
       SMTPReply(code: 535, lines: ["AUTH PLAIN \(plainToken)"]), stage: .authentication)
     let other = SMTPError.reply(SMTPReply(code: 550, lines: ["No"]), stage: .recipient)
+    let log = FakeActivityLog()
 
-    let failure = await deliver(try file(), with: ScriptedSMTPTransport(reads))
+    let failure = await deliver(try file(), with: ScriptedSMTPTransport(reads), log: log)
 
     #expect(failure == .mailSetup("The server refused the sign-in (501)."))
+    #expect(log.summary.contains("error MAIL S: 501 <redacted>"))
+    #expect(!log.summary.joined(separator: "\n").contains(plainToken))
     #expect(echo.logDescription == "reply 535 at authentication")
     #expect(other.logDescription == "reply 550 No at recipient")
   }
