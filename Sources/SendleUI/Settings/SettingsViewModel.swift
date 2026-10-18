@@ -82,6 +82,11 @@ public final class SettingsViewModel {
     bokoError = nil
   }
 
+  /// Catches up with a setup saved from elsewhere, such as by a test email.
+  package func reload() async {
+    show(await settings.load())
+  }
+
   package var hasEmailSetup: Bool { savedEmail != nil }
 
   // MARK: Pages and search

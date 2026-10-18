@@ -751,6 +751,21 @@ struct PanelModelTests {
     #expect(panel.library.destinations == [.email(.fixture)])
   }
 
+  @Test func aTestEmailUpdatesTheSenderSummary() async {
+    let (panel, _) = makePanel()
+    await panel.launch()
+    await panel.openSettings(.sender)
+    let form = panel.settings.form
+    form.provider = .fastmail
+    form.senderAddress = "me@fastmail.com"
+    form.password = "abcdefghijklmnop"
+
+    await panel.sendTest(from: form)
+    panel.settings.show(nil)
+
+    #expect(panel.settings.summary(of: .sender) == "Fastmail · me@fastmail.com")
+  }
+
   @Test func savingSettingsUpdatesTheDestinations() async {
     let (panel, _) = makePanel(AppSettings())
     await panel.launch()
