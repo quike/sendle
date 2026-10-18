@@ -36,8 +36,8 @@ public final class PanelModel {
   @ObservationIgnored private weak var system: (any SystemActions)?
   @ObservationIgnored private let ejector: any KindleEjector
   @ObservationIgnored private var accessWatch: Task<Void, Never>?
-  /// Where the logs go back to.
-  @ObservationIgnored private var beforeLogs = PanelRoute.library
+  /// Where the logs go back to, and whether the settings sheet was over it.
+  @ObservationIgnored private var beforeLogs = (route: PanelRoute.library, showedSettings: false)
   /// Bumped by every open and close, so an opening that a newer one replaced leaves the state alone.
   @ObservationIgnored private var session = 0
 
@@ -208,8 +208,8 @@ public final class PanelModel {
 
   /// Opens the logs over whatever shows; `subject` scrolls to the latest story of that send.
   package func openLogs(revealing subject: LogSubject? = nil) {
+    if route != .logs { beforeLogs = (route, isShowingSettings) }
     isShowingSettings = false
-    if route != .logs { beforeLogs = route }
     route = .logs
     logs.start()
     if let subject { logs.reveal(subject) } else { logs.showNewest() }
@@ -217,7 +217,8 @@ public final class PanelModel {
 
   package func closeLogs() {
     logs.stop()
-    route = beforeLogs
+    route = beforeLogs.route
+    isShowingSettings = beforeLogs.showedSettings
   }
 
   package func copyLogs() {

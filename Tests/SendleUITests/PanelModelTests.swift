@@ -668,6 +668,23 @@ struct PanelModelTests {
     #expect(panel.logs.scrollTarget == 1)
   }
 
+  @Test func backFromTheLogsReturnsToTheSettingsTheyWereOpenedFrom() async {
+    let (panel, _) = makePanel(channel: FakeDeliveryChannel(.fail(.authenticationFailed(.gmail))))
+    await panel.openSettings(.sender)
+    panel.settings.form.password = "abcdefghijklmnop"
+    await panel.sendTest(from: panel.settings.form)
+    let result = panel.settings.form.testStatus
+    panel.openLogs(revealing: .sendTest)
+
+    panel.escape()
+
+    #expect(panel.route == .library)
+    #expect(panel.isShowingSettings)
+    #expect(panel.settings.section == .sender)
+    #expect(panel.settings.form.testStatus == result)
+    #expect(result != .idle)
+  }
+
   @Test func copiesWhatTheLogsShow() async {
     let (panel, _) = makePanel()
     log.info(.library, "Read 2 books")
