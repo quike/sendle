@@ -47,7 +47,7 @@ extension LogLevel {
 public final class LogsViewModel {
   package var query = "" {
     didSet {
-      closedDuringSearch = []
+      if Self.words(in: query) != Self.words(in: oldValue) { closedDuringSearch = [] }
       refilter()
     }
   }
@@ -113,7 +113,8 @@ public final class LogsViewModel {
     refilter()
   }
 
-  /// Open when the user opened it, or when a searched word sits past its first line.
+  /// Open when the user opened it, or when a searched word sits past its first line, unless the
+  /// user closed it during this search.
   package func isExpanded(_ entry: LogEntry) -> Bool {
     expanded.contains(entry.id)
       || (!closedDuringSearch.contains(entry.id) && matchesPastFirstLine(entry))
@@ -172,12 +173,18 @@ public final class LogsViewModel {
   }
 
   private var words: [Substring] {
+    Self.words(in: query)
+  }
+
+  private static func words(in query: String) -> [Substring] {
     query.split(whereSeparator: \.isWhitespace)
   }
 
   private func matchesPastFirstLine(_ entry: LogEntry) -> Bool {
-    guard let newline = entry.message.firstIndex(of: "\n") else { return false }
-    return highlights(in: entry.message).contains { $0.lowerBound > newline }
+    let words = self.words
+    guard !words.isEmpty, let newline = entry.message.firstIndex(of: "\n") else { return false }
+    let rest = entry.message[entry.message.index(after: newline)...]
+    return words.contains { rest.range(of: $0, options: TextMatches.options) != nil }
   }
 
   private func refilter() {

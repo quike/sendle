@@ -21,6 +21,10 @@ struct LogsViewModelTests {
     model.visible.map(\.message)
   }
 
+  func readingEntry(_ model: LogsViewModel) throws -> LogEntry {
+    try #require(model.visible.first { $0.message.hasPrefix("Reading") })
+  }
+
   func recordASend() {
     log.heading(.book(moby), .mail, "Moby-Dick · reader@kindle.com")
     log.debug(.mail, "C: EHLO [127.0.0.1]")
@@ -141,10 +145,6 @@ struct LogsViewModelTests {
     #expect(makeModel().highlights(in: "SMTP auth accepted").isEmpty)
   }
 
-  func readingEntry(_ model: LogsViewModel) throws -> LogEntry {
-    try #require(model.visible.first { $0.message.hasPrefix("Reading") })
-  }
-
   @Test func searchOpensAnEntryMatchedPastItsFirstLine() throws {
     log.debug(.boko, "Reading Frankenstein.epub\nWriting AZW3\nDone")
     log.debug(.boko, "Writing AZW3\nDone")
@@ -171,8 +171,41 @@ struct LogsViewModelTests {
     model.toggleExpanded(entry)
     #expect(!model.isExpanded(entry))
 
+    log.info(.library, "Read 2 books")
+    model.refresh()
+    model.area = .usb
+    model.area = .all
+    #expect(!model.isExpanded(entry))
+
     model.query = "writing azw3"
     #expect(model.isExpanded(entry))
+  }
+
+  @Test func closingASearchOpenedEntryOutlastsEditsThatKeepTheWords() throws {
+    log.debug(.boko, "Reading Frankenstein.epub\nWriting AZW3\nDone")
+    let model = makeModel()
+    let entry = try readingEntry(model)
+    model.query = "azw3"
+    model.toggleExpanded(entry)
+
+    model.query = "azw3 "
+    #expect(!model.isExpanded(entry))
+
+    model.query = "  azw3  "
+    #expect(!model.isExpanded(entry))
+  }
+
+  @Test func anEntryOpenedByHandAndBySearchClosesInOneToggle() throws {
+    log.debug(.boko, "Reading Frankenstein.epub\nWriting AZW3\nDone")
+    let model = makeModel()
+    let entry = try readingEntry(model)
+    model.toggleExpanded(entry)
+    model.query = "azw3"
+    #expect(model.isExpanded(entry))
+
+    model.toggleExpanded(entry)
+
+    #expect(!model.isExpanded(entry))
   }
 
   @Test func aClosedSearchOpenedEntryOpensAgainOnDemand() throws {

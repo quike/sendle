@@ -146,7 +146,7 @@ private struct SettingsLinkRow: View {
         Text(detail)
           .font(.system(size: 10.5))
           .foregroundStyle(detail == "boko found" ? Theme.live : Theme.muted)
-          .lineLimit(1)
+          .lineLimit(2)
       }
       Spacer(minLength: 6)
       Image(systemName: "chevron.right")
@@ -276,7 +276,7 @@ private struct GeneralPage: View {
         HStack(spacing: 10) {
           RowText(
             title: "Show book format",
-            detail: "A small EPUB or PDF label on covers in All and Not sent")
+            detail: "A small format label, like EPUB or PDF, on covers in All and Not sent.")
           Spacer(minLength: 8)
           Toggle(
             "Show book format",

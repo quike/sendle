@@ -2,7 +2,7 @@ import Foundation
 
 /// How searches find words: ignoring case and accents.
 package enum TextMatches {
-  private static let options: String.CompareOptions = [.caseInsensitive, .diacriticInsensitive]
+  static let options: String.CompareOptions = [.caseInsensitive, .diacriticInsensitive]
 
   package static func contains(every words: [Substring], in text: String) -> Bool {
     words.allSatisfy { text.range(of: $0, options: options) != nil }
