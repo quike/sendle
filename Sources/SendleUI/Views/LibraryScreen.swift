@@ -350,15 +350,15 @@ struct LibraryContent: View {
           }
           .scrollIndicators(.never)
           .scrollPosition(id: Bindable(library).topBook, anchor: .top)
-          // The compact A–Z bar shows while the pointer is near the right edge.
-          .onContinuousHover { phase in
-            guard case .active(let point) = phase else { return library.isRailHovered = false }
-            library.isRailHovered = point.x > geometry.size.width - 36
-          }
           .overlay(alignment: .trailing) {
             if library.showsRail {
               AlphabetRail(library: library).padding(.bottom, library.selection.isEmpty ? 0 : 64)
             }
+          }
+          // The compact A–Z bar shows while the pointer is near the right edge, the bar included.
+          .onContinuousHover { phase in
+            guard case .active(let point) = phase else { return library.isRailHovered = false }
+            library.isRailHovered = point.x > geometry.size.width - 36
           }
         }
       }
