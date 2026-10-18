@@ -488,6 +488,39 @@ struct LibraryViewModelTests {
     #expect(model.currentLetter == "C")
   }
 
+  @Test func aNewSortFilterOrSearchStartsAtTheTop() async {
+    library.result = .success(titled(["Moby-Dick", "Emma", "Candide"]))
+    let (model, _) = makeModel()
+    await model.start()
+    await model.appear()
+
+    model.topBook = BookID(rawValue: "Emma")
+    await model.setSort(.title)
+    #expect(model.topBook == nil)
+    #expect(model.scrollToTopRequests == 1)
+
+    model.filter = .epub
+    model.query = "e"
+    #expect(model.scrollToTopRequests == 3)
+  }
+
+  @Test func reloadsAndRepeatedChoicesKeepTheScroll() async {
+    library.result = .success(titled(["Moby-Dick", "Emma", "Candide"]))
+    let (model, _) = makeModel()
+    await model.start()
+    await model.appear()
+    model.topBook = BookID(rawValue: "Emma")
+
+    model.filter = .all
+    model.query = ""
+    await model.setSort(.recent)
+    await model.reload()
+    await model.refreshHistory()
+
+    #expect(model.topBook == BookID(rawValue: "Emma"))
+    #expect(model.scrollToTopRequests == 0)
+  }
+
   @Test func draggingAlongTheRailShowsTheLetterAndJumps() async {
     library.result = .success(titled(["Moby-Dick", "Emma"]))
     let (model, _) = makeModel(AppSettings(email: .fixture, sort: .title))

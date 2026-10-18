@@ -315,6 +315,8 @@ struct LayoutSwitcher: View {
 }
 
 struct LibraryContent: View {
+  private static let top = "top"
+
   let panel: PanelModel
 
   var body: some View {
@@ -332,24 +334,28 @@ struct LibraryContent: View {
       } else {
         let fullRail = library.showsRail && library.jumpBar == .full
         GeometryReader { geometry in
-          ScrollView {
-            VStack(alignment: .leading, spacing: 0) {
-              switch library.layout {
-              case .grid:
-                SectionLabel("Library").padding(.bottom, 7)
-                BookGrid(panel: panel, items: items)
-              case .list:
-                SectionLabel("Library").padding(.bottom, 4)
-                BookList(panel: panel, items: items)
-              case .shelf:
-                BookShelf(panel: panel, items: items, recent: library.recentItems)
+          ScrollViewReader { proxy in
+            ScrollView {
+              VStack(alignment: .leading, spacing: 0) {
+                switch library.layout {
+                case .grid:
+                  SectionLabel("Library").padding(.bottom, 7)
+                  BookGrid(panel: panel, items: items)
+                case .list:
+                  SectionLabel("Library").padding(.bottom, 4)
+                  BookList(panel: panel, items: items)
+                case .shelf:
+                  BookShelf(panel: panel, items: items, recent: library.recentItems)
+                }
               }
+              .id(Self.top)
+              .padding(.trailing, fullRail ? AlphabetRail.width : 0)
+              .padding(.bottom, library.selection.isEmpty ? 6 : 70)
             }
-            .padding(.trailing, fullRail ? AlphabetRail.width : 0)
-            .padding(.bottom, library.selection.isEmpty ? 6 : 70)
+            .scrollIndicators(.never)
+            .scrollPosition(id: Bindable(library).topBook, anchor: .top)
+            .onChange(of: library.scrollToTopRequests) { proxy.scrollTo(Self.top, anchor: .top) }
           }
-          .scrollIndicators(.never)
-          .scrollPosition(id: Bindable(library).topBook, anchor: .top)
           .overlay(alignment: .trailing) {
             if library.showsRail {
               AlphabetRail(library: library).padding(.bottom, library.selection.isEmpty ? 0 : 64)

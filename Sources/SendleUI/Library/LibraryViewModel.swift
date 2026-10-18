@@ -18,10 +18,16 @@ public final class LibraryViewModel {
   package private(set) var books: [Book] = []
   package private(set) var needsAccess = false
   package var query = "" {
-    didSet { refreshItems() }
+    didSet {
+      refreshItems()
+      if query != oldValue { scrollToTop() }
+    }
   }
   package var filter = LibraryFilter.all {
-    didSet { refreshItems() }
+    didSet {
+      refreshItems()
+      if filter != oldValue { scrollToTop() }
+    }
   }
   package private(set) var layout = LibraryLayout.grid
   package private(set) var sort = LibrarySort.recent
@@ -35,6 +41,8 @@ public final class LibraryViewModel {
   package private(set) var index: AlphabetIndex?
   /// The book at the top of the scrolled list; setting it scrolls there.
   package var topBook: BookID?
+  /// Bumped when a new sort, filter or search should start at the top of the list.
+  package private(set) var scrollToTopRequests = 0
   /// The letter under the pointer while it drags along the A–Z bar.
   package private(set) var draggedLetter: String?
   /// The pointer is over the compact A–Z bar, which shows only then.
@@ -213,6 +221,7 @@ public final class LibraryViewModel {
     guard sort != self.sort else { return }
     self.sort = sort
     refreshItems()
+    scrollToTop()
     await save { $0.sort = sort }
   }
 
@@ -288,6 +297,11 @@ public final class LibraryViewModel {
     recentItems = Array(newestFirst.prefix(8))
     index = sort == .recent ? nil : AlphabetIndex(books: items.map(\.book), sort: sort)
     selection.keep(in: items)
+  }
+
+  private func scrollToTop() {
+    topBook = nil
+    scrollToTopRequests += 1
   }
 
   /// The stream ends at once when Books' folder can't be watched; the next good load tries again.
