@@ -61,7 +61,9 @@ public struct AppleBooksLibrary: BooksLibrary {
       sizeBytes: Self.size(status, record),
       addedAt: record.creationDate.map(Date.init(timeIntervalSinceReferenceDate:)) ?? .distantPast,
       isStorePurchase: Self.nonEmpty(record.storeID) != nil,
-      availability: Self.availability(status, record)
+      availability: Self.availability(status, record),
+      sortTitle: Self.nonEmpty(record.sortTitle),
+      sortAuthor: Self.nonEmpty(record.sortAuthor)
     )
   }
 

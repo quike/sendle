@@ -17,6 +17,8 @@ final class LibraryDatabaseFixture {
     var isSample: Int? = 0
     var state: Int? = 1
     var fileSize: Int? = 0
+    var sortTitle: String?
+    var sortAuthor: String?
   }
 
   static let columns: [(name: String, type: String)] = [
@@ -24,6 +26,7 @@ final class LibraryDatabaseFixture {
     ("ZLANGUAGE", "VARCHAR"), ("ZSTOREID", "VARCHAR"), ("ZCREATIONDATE", "TIMESTAMP"),
     ("ZCONTENTTYPE", "INTEGER"), ("ZISHIDDEN", "INTEGER"), ("ZISSAMPLE", "INTEGER"),
     ("ZSTATE", "INTEGER"), ("ZFILESIZE", "INTEGER"), ("ZSORTTITLE", "VARCHAR"),
+    ("ZSORTAUTHOR", "VARCHAR"),
   ]
 
   let url: URL
@@ -65,7 +68,7 @@ final class LibraryDatabaseFixture {
         "ZCREATIONDATE": literal(asset.creationDate), "ZCONTENTTYPE": literal(asset.contentType),
         "ZISHIDDEN": literal(asset.isHidden), "ZISSAMPLE": literal(asset.isSample),
         "ZSTATE": literal(asset.state), "ZFILESIZE": literal(asset.fileSize),
-        "ZSORTTITLE": literal(asset.title),
+        "ZSORTTITLE": literal(asset.sortTitle), "ZSORTAUTHOR": literal(asset.sortAuthor),
       ]
       let names = present.filter { values[$0] != nil }
       try writer.execute(

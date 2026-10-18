@@ -16,6 +16,8 @@ package struct AssetRecord: Hashable, Sendable {
   package var contentType: Int64?
   package var state: Int64?
   package var fileSize: Int64?
+  package var sortTitle: String?
+  package var sortAuthor: String?
 }
 
 /// Reads the asset table without ever writing to Books' files.
@@ -130,6 +132,8 @@ struct AssetQuery {
     case fileSize = "ZFILESIZE"
     case isHidden = "ZISHIDDEN"
     case isSample = "ZISSAMPLE"
+    case sortTitle = "ZSORTTITLE"
+    case sortAuthor = "ZSORTAUTHOR"
 
     static let required: [Column] = [.assetID, .path]
     /// Read into `AssetRecord`; the flags only filter.
@@ -174,7 +178,9 @@ struct AssetQuery {
       creationDate: row.double(Column.creationDate.index),
       contentType: row.int64(Column.contentType.index),
       state: row.int64(Column.state.index),
-      fileSize: row.int64(Column.fileSize.index)
+      fileSize: row.int64(Column.fileSize.index),
+      sortTitle: row.string(Column.sortTitle.index),
+      sortAuthor: row.string(Column.sortAuthor.index)
     )
   }
 }

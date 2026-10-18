@@ -12,7 +12,9 @@ extension Book {
     sizeBytes: Int64? = 1_000_000,
     addedAt: Date = Date(timeIntervalSince1970: 1_700_000_000),
     isStorePurchase: Bool = false,
-    availability: Availability = .ready
+    availability: Availability = .ready,
+    sortTitle: String? = nil,
+    sortAuthor: String? = nil
   ) -> Book {
     Book(
       id: BookID(rawValue: id),
@@ -24,7 +26,9 @@ extension Book {
       sizeBytes: sizeBytes,
       addedAt: addedAt,
       isStorePurchase: isStorePurchase,
-      availability: availability
+      availability: availability,
+      sortTitle: sortTitle,
+      sortAuthor: sortAuthor
     )
   }
 }

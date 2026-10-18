@@ -46,6 +46,26 @@ struct AppleBooksLibraryTests {
       ])
   }
 
+  @Test func keepsBooksOwnSortKeysWhenItHasThem() async throws {
+    let hobbit = try makeFolder("Hobbit.epub")
+    let essays = try makeFolder("Essays.epub")
+    try fixture.insert(
+      .init(
+        assetID: "H", title: "The Hobbit", author: "J. R. R. Tolkien",
+        path: hobbit.path(percentEncoded: false), sortTitle: "Hobbit, The",
+        sortAuthor: "Tolkien, J. R. R."),
+      .init(
+        assetID: "E", title: "Essays", author: "Montaigne",
+        path: essays.path(percentEncoded: false),
+        sortTitle: " ", sortAuthor: nil)
+    )
+
+    let result = try await library().books().sorted { $0.id.rawValue < $1.id.rawValue }
+
+    #expect(result.map(\.sortTitle) == [nil, "Hobbit, The"])
+    #expect(result.map(\.sortAuthor) == [nil, "Tolkien, J. R. R."])
+  }
+
   @Test func marksFilesThatAreMissingOrOnlyInICloud() async throws {
     let local = try makeFolder("Local.epub")
     let placeholder = try makeFolder("Placeholder.epub")

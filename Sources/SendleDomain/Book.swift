@@ -40,6 +40,9 @@ public struct Book: Sendable, Hashable, Identifiable {
   public let addedAt: Date
   public let isStorePurchase: Bool
   public var availability: Availability
+  /// Books' own sort keys, such as "Hobbit, The" or "Tolkien, J. R. R.", when it has them.
+  public let sortTitle: String?
+  public let sortAuthor: String?
 
   public init(
     id: BookID,
@@ -51,7 +54,9 @@ public struct Book: Sendable, Hashable, Identifiable {
     sizeBytes: Int64?,
     addedAt: Date,
     isStorePurchase: Bool = false,
-    availability: Availability = .ready
+    availability: Availability = .ready,
+    sortTitle: String? = nil,
+    sortAuthor: String? = nil
   ) {
     self.id = id
     self.title = title
@@ -63,5 +68,7 @@ public struct Book: Sendable, Hashable, Identifiable {
     self.addedAt = addedAt
     self.isStorePurchase = isStorePurchase
     self.availability = availability
+    self.sortTitle = sortTitle
+    self.sortAuthor = sortAuthor
   }
 }

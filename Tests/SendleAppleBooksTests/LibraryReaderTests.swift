@@ -21,7 +21,8 @@ struct LibraryReaderTests {
       .init(
         assetID: "A1", title: "Moby-Dick", author: "Herman Melville",
         path: "/Books/Moby-Dick.epub", language: "en", storeID: "123",
-        creationDate: 700_000_000.5, contentType: 3, state: 2, fileSize: 42))
+        creationDate: 700_000_000.5, contentType: 3, state: 2, fileSize: 42,
+        sortTitle: "Moby-Dick", sortAuthor: "Melville, Herman"))
 
     let records = try reader.records(in: fixture.url)
 
@@ -37,6 +38,8 @@ struct LibraryReaderTests {
     #expect(record.contentType == 3)
     #expect(record.state == 2)
     #expect(record.fileSize == 42)
+    #expect(record.sortTitle == "Moby-Dick")
+    #expect(record.sortAuthor == "Melville, Herman")
   }
 
   @Test func leavesOutSamplesHiddenBooksSeriesAndRowsWithoutAPath() throws {
@@ -78,7 +81,7 @@ struct LibraryReaderTests {
   @Test func degradesWhenOptionalColumnsAreMissing() throws {
     let optional: Set = [
       "ZTITLE", "ZAUTHOR", "ZLANGUAGE", "ZSTOREID", "ZCREATIONDATE", "ZCONTENTTYPE", "ZISHIDDEN",
-      "ZISSAMPLE", "ZSTATE", "ZFILESIZE",
+      "ZISSAMPLE", "ZSTATE", "ZFILESIZE", "ZSORTTITLE", "ZSORTAUTHOR",
     ]
     let fixture = try LibraryDatabaseFixture(in: folder, omitting: optional)
     try fixture.insert(.init(assetID: "A1", path: "/Books/Moby-Dick.epub"))
@@ -88,6 +91,7 @@ struct LibraryReaderTests {
     #expect(records.map(\.assetID) == ["A1"])
     #expect(records.first?.title == nil)
     #expect(records.first?.contentType == nil)
+    #expect(records.first?.sortAuthor == nil)
   }
 
   @Test func reportsMissingRequiredColumns() throws {
