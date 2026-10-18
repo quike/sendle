@@ -75,7 +75,7 @@ struct DestinationChips: View {
   private func chips(_ library: LibraryViewModel) -> some View {
     HStack(spacing: 6) {
       if !library.isKindlePluggedIn {
-        Chip(title: "No Kindle plugged in", dot: Color.white.opacity(0.25), isActive: false)
+        Chip(title: "No Kindle plugged in", symbol: "cable.connector", isActive: false)
           .help("Plug in a Kindle with its USB cable to copy books to it")
       }
       ForEach(library.destinations, id: \.self) { destination in
@@ -83,12 +83,13 @@ struct DestinationChips: View {
           Task { await library.activate(destination) }
         } label: {
           Chip(
-            title: destination.chipTitle,
-            dot: destination.kind == .usb ? Theme.live : Theme.accent,
+            title: destination.label, symbol: destination.symbol,
+            tint: Theme.tint(for: destination.kind),
             isActive: destination == library.activeDestination)
         }
         .buttonStyle(.plain)
-        .help("Quick-send goes here")
+        .help(destination.chipHelp)
+        .accessibilityLabel(destination.spokenName)
         if case .usb(let volume) = destination {
           EjectButton(panel: panel, volume: volume)
         }
@@ -142,17 +143,21 @@ struct EjectButton: View {
   }
 }
 
+/// A destination, or a hint where one could be. `tint` is the destination's colour: its icon
+/// carries it, and the active chip glows with it.
 struct Chip: View {
   let title: String
-  var dot: Color?
-  var symbol: String?
+  let symbol: String
+  var tint: Color?
   let isActive: Bool
 
   var body: some View {
     let shape = Capsule()
     HStack(spacing: 6) {
-      if let dot { StatusDot(color: dot) }
-      if let symbol { Image(systemName: symbol).font(.system(size: 9, weight: .bold)) }
+      Image(systemName: symbol)
+        .font(.system(size: 10, weight: .semibold))
+        .foregroundStyle(tint.map { isActive ? $0 : $0.opacity(0.75) } ?? Theme.faint)
+        .accessibilityHidden(true)
       Text(title).lineLimit(1)
     }
     .fixedSize()
@@ -160,8 +165,8 @@ struct Chip: View {
     .foregroundStyle(isActive ? Theme.text : Color.white.opacity(0.7))
     .padding(.horizontal, 10)
     .padding(.vertical, 6)
-    .background(isActive ? Theme.accent.opacity(0.16) : Theme.glass, in: shape)
-    .overlay(shape.strokeBorder(isActive ? Theme.accent.opacity(0.6) : Theme.line))
+    .background(isActive ? (tint ?? Theme.accent).opacity(0.18) : Theme.glass, in: shape)
+    .overlay(shape.strokeBorder(isActive ? (tint ?? Theme.accent).opacity(0.85) : Theme.line))
     .accessibilityAddTraits(isActive ? .isSelected : [])
   }
 }
@@ -315,11 +320,14 @@ struct SendBar: View {
     let shape = RoundedRectangle(cornerRadius: 16, style: .continuous)
     HStack(spacing: 8) {
       VStack(alignment: .leading, spacing: 1) {
-        Text("\(library.selection.count) selected · Esc to clear")
+        Text("\(library.selection.count) selected")
           .font(.system(size: 11.5, weight: .semibold))
           .foregroundStyle(Color.white.opacity(0.75))
-        Text(library.sendHint).font(.system(size: 9.5)).foregroundStyle(Theme.faint)
+        Text(library.canSend ? "\(library.sendHint) · Esc to clear" : library.sendHint)
+          .font(.system(size: 9.5))
+          .foregroundStyle(Theme.faint)
       }
+      .lineLimit(1)
       Spacer(minLength: 8)
       HStack(spacing: 0) {
         // The whole label sends; only the arrow opens the menu.
@@ -327,8 +335,16 @@ struct SendBar: View {
           panel.sendSelection()
         } label: {
           HStack(spacing: 4) {
-            Text("Send")
-            Text("to \(library.activeDestination?.chipTitle ?? "Kindle")").opacity(0.75)
+            Text("Send to")
+            if let destination = library.activeDestination {
+              Image(systemName: destination.symbol)
+                .font(.system(size: 10.5, weight: .semibold))
+                .opacity(0.85)
+                .accessibilityHidden(true)
+              Text(destination.label).opacity(0.85)
+            } else {
+              Text("Kindle").opacity(0.85)
+            }
           }
           .padding(.leading, 14)
           .padding(.trailing, 8)
@@ -337,10 +353,15 @@ struct SendBar: View {
         }
         .buttonStyle(PressedOpacityStyle())
         .fixedSize()
+        .accessibilityLabel("Send to \(library.activeDestination?.spokenName ?? "Kindle")")
         Rectangle().fill(Color.white.opacity(0.25)).frame(width: 1, height: 16)
         Menu {
           ForEach(library.destinations, id: \.self) { destination in
-            Button(destination.chipTitle) { Task { await library.activate(destination) } }
+            Button {
+              Task { await library.activate(destination) }
+            } label: {
+              Label(destination.label, systemImage: destination.symbol)
+            }
           }
         } label: {
           Text("▾").opacity(0.75)
@@ -354,12 +375,15 @@ struct SendBar: View {
         .menuIndicator(.hidden)
         .fixedSize()
         .help("Choose where Send goes")
-        .accessibilityLabel("Send to")
-        .accessibilityValue(library.activeDestination?.chipTitle ?? "Kindle")
+        .accessibilityLabel("Choose where Send goes")
+        .accessibilityValue(library.activeDestination?.spokenName ?? "Kindle")
       }
       .font(.system(size: 12.5, weight: .semibold))
       .foregroundStyle(.white)
-      .background(Theme.action, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+      .background(
+        Theme.action(for: library.activeDestination?.kind ?? .email),
+        in: RoundedRectangle(cornerRadius: 12, style: .continuous)
+      )
       .opacity(library.canSend ? 1 : 0.4)
       .disabled(!library.canSend)
     }

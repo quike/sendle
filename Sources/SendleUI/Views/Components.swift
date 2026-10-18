@@ -74,18 +74,6 @@ struct SectionLabel: View {
   }
 }
 
-struct StatusDot: View {
-  let color: Color
-
-  var body: some View {
-    Circle()
-      .fill(color)
-      .frame(width: 7, height: 7)
-      .shadow(color: color, radius: 4)
-      .accessibilityHidden(true)
-  }
-}
-
 struct FormatBadge: View {
   let text: String
 

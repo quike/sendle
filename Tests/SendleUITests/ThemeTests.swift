@@ -28,4 +28,9 @@ struct ThemeTests {
     #expect(resolved.red == 1)
     #expect(abs(Double(resolved.opacity) - opacity) < 0.001)
   }
+
+  @Test func eachKindOfDestinationKeepsItsColour() {
+    #expect(Theme.tint(for: .email) == Theme.accent)
+    #expect(Theme.tint(for: .usb) == Theme.live)
+  }
 }

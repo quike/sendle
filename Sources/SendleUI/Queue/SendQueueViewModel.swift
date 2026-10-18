@@ -61,7 +61,7 @@ public final class SendQueueViewModel {
   }
 
   package var subtitle: String {
-    let place = "to \(destination?.chipTitle ?? "Kindle")"
+    let place = "to \(destination?.spokenName ?? "Kindle")"
     return isRunning ? "\(place) · close the panel anytime" : place
   }
 

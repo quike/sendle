@@ -1,3 +1,4 @@
+import SendleDomain
 import SwiftUI
 
 /// house-control's palette and motion, so Sendle reads as its sibling (spec §3.4).
@@ -19,6 +20,18 @@ package enum Theme {
     colors: [brandStart, accent], startPoint: .topLeading, endPoint: .bottomTrailing)
   package static let action = LinearGradient(
     colors: [accent, Color(hex: 0x2a6fe0)], startPoint: .topLeading, endPoint: .bottomTrailing)
+  package static let usbAction = LinearGradient(
+    colors: [Color(hex: 0x2fbf6a), Color(hex: 0x1f8f4e)], startPoint: .topLeading,
+    endPoint: .bottomTrailing)
+
+  /// Email is always blue and USB always green, wherever a destination shows.
+  package static func tint(for kind: DestinationKind) -> Color {
+    kind == .usb ? live : accent
+  }
+
+  package static func action(for kind: DestinationKind) -> LinearGradient {
+    kind == .usb ? usbAction : action
+  }
 
   /// Title cards for books without a cover, from the approved mockups.
   package static let coverGradients: [(Color, Color)] = [

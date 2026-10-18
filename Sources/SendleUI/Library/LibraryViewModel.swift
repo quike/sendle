@@ -97,7 +97,7 @@ public final class LibraryViewModel {
   }
 
   package var quickSendHelp: String {
-    activeDestination.map { "Send to \($0.chipTitle)" } ?? "Set up your Kindle email first"
+    activeDestination.map { "Send to \($0.spokenName)" } ?? "Set up your Kindle email first"
   }
 
   package var selectedBooks: [Book] {
@@ -281,10 +281,33 @@ extension Destination {
     if case .usb(let volume) = self { volume } else { nil }
   }
 
-  package var chipTitle: String {
+  /// What chips and the Send button show beside the destination's icon.
+  package var label: String {
     switch self {
     case .email: "Kindle email"
-    case .usb(let volume): "\(volume.name) · USB"
+    case .usb(let volume): volume.name
+    }
+  }
+
+  package var symbol: String {
+    switch self {
+    case .email: "envelope.fill"
+    case .usb: "cable.connector"
+    }
+  }
+
+  /// The name where no icon can go: tooltips, VoiceOver and sentences.
+  package var spokenName: String {
+    switch self {
+    case .email: "Kindle email"
+    case .usb(let volume): "\(volume.name) (USB)"
+    }
+  }
+
+  package var chipHelp: String {
+    switch self {
+    case .email(let address): "Quick-send emails \(address.rawValue)"
+    case .usb(let volume): "Quick-send copies to \(volume.name)"
     }
   }
 }

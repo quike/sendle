@@ -297,7 +297,7 @@ struct SendQueueViewModelTests {
     await queue.waitUntilFinished()
 
     #expect(queue.rows.map(\.detail) == ["On your Kindle"])
-    #expect(queue.subtitle == "to Kindle · USB")
+    #expect(queue.subtitle == "to Kindle (USB)")
     #expect(queue.summary?.title == "Meditations is on your Kindle")
     #expect(queue.summary?.message == "Eject it before you unplug the cable.")
     #expect(queue.summary?.fix == Fix("Eject", .eject(.fixture())))

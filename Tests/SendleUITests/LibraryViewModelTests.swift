@@ -274,9 +274,18 @@ struct LibraryViewModelTests {
     #expect(await eventually { model.activeDestination == .usb(oasis) })
   }
 
-  @Test func namesEachDestinationChip() {
-    #expect(Destination.email(.fixture).chipTitle == "Kindle email")
-    #expect(Destination.usb(.fixture(name: "Kindle Oasis")).chipTitle == "Kindle Oasis · USB")
+  @Test func namesEveryDestinationTheSameWay() {
+    let email = Destination.email(.fixture)
+    let oasis = Destination.usb(.fixture(name: "Kindle Oasis"))
+
+    #expect(email.label == "Kindle email")
+    #expect(oasis.label == "Kindle Oasis")
+    #expect(email.symbol == "envelope.fill")
+    #expect(oasis.symbol == "cable.connector")
+    #expect(email.spokenName == "Kindle email")
+    #expect(oasis.spokenName == "Kindle Oasis (USB)")
+    #expect(email.chipHelp == "Quick-send emails reader@kindle.com")
+    #expect(oasis.chipHelp == "Quick-send copies to Kindle Oasis")
   }
 
   // MARK: Selection
