@@ -302,6 +302,7 @@ struct SettingsViewModelTests {
 
     #expect(model.launchAtLogin == .requiresApproval)
     #expect(model.launchAtLoginNote?.contains("Login Items") == true)
+    #expect(model.summary(of: .general) == "Waiting for approval · A–Z bar: Full · Logs off")
   }
 
   @Test func explainsWhyLaunchAtLoginCouldNotChange() async {

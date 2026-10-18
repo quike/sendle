@@ -112,7 +112,12 @@ public final class SettingsViewModel {
   package func summary(of section: SettingsSection) -> String {
     switch section {
     case .general:
-      let login = launchAtLogin == .enabled ? "Opens at login" : "Doesn't open at login"
+      let login =
+        switch launchAtLogin {
+        case .enabled: "Opens at login"
+        case .requiresApproval: "Waiting for approval"
+        case .disabled, .unavailable: "Doesn't open at login"
+        }
       let bar = jumpBar == .full ? "Full" : "Compact"
       return "\(login) · A–Z bar: \(bar) · Logs \(showsLogs ? "on" : "off")"
     case .kindle:
