@@ -54,7 +54,7 @@ package enum SettingsItem: CaseIterable, Sendable {
   var keywords: [String] {
     switch self {
     case .launchAtLogin: ["startup", "start", "open"]
-    case .jumpBar: ["alphabet", "letters", "index", "sort", "rail", "jump"]
+    case .jumpBar: ["a-z", "az", "alphabet", "letters", "index", "sort", "rail", "jump"]
     case .showLogs: ["debug", "troubleshooting", "diagnostics"]
     case .kindleAddresses: ["send to kindle", "active", "email address"]
     case .addAddress: ["new", "kindle", "email address"]

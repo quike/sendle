@@ -12,6 +12,12 @@ struct SettingsSearchTests {
     #expect(SettingsSearch.results(for: query) == items)
   }
 
+  @Test func findsTheAZBarWithAHyphenOrNone() {
+    #expect(SettingsSearch.results(for: "a-z") == [.jumpBar])
+    #expect(SettingsSearch.results(for: "A-Z bar") == [.jumpBar])
+    #expect(SettingsSearch.results(for: "az").first == .jumpBar)
+  }
+
   @Test func anEmptySearchFindsNothing() {
     #expect(SettingsSearch.results(for: "  ").isEmpty)
   }
