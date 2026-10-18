@@ -91,7 +91,7 @@ struct SMTPSessionTests {
       lines.all == [
         "S: 220 smtp.example.com ESMTP", "C: EHLO [127.0.0.1]",
         "S: 250-smtp.example.com\n250-SIZE 35882577\n250 AUTH LOGIN PLAIN XOAUTH2",
-        "C: AUTH PLAIN <redacted>", "S: 235 Accepted",
+        "C: AUTH PLAIN <redacted>", "S: 235 <redacted>",
         "C: MAIL FROM:<me@gmail.com> SIZE=\(message.count)", "S: 250 OK",
         "C: RCPT TO:<reader@kindle.com>", "S: 250 OK", "C: DATA", "S: 354 Go ahead",
         "C: <message, \(message.count) bytes>", "S: 250 OK queued", "C: QUIT", "S: 221 Bye",
@@ -112,7 +112,7 @@ struct SMTPSessionTests {
     #expect(
       Array(lines.all.dropFirst(3)) == [
         "C: AUTH LOGIN", "S: 334 VXNlcm5hbWU6", "C: <redacted>", "S: 334 UGFzc3dvcmQ6",
-        "C: <redacted>", "S: 235 Accepted",
+        "C: <redacted>", "S: 235 <redacted>",
       ])
   }
 
@@ -141,6 +141,29 @@ struct SMTPSessionTests {
 
     #expect(lines.all.last == "S: 535 <redacted>")
     #expect(!lines.all.joined().contains("secret"))
+  }
+
+  @Test func hidesATruncatedTokenAServerEchoes() async {
+    let lines = TranscriptLines()
+    let session = session(
+      ScriptedSMTPTransport([
+        greeting, ehlo, .code(535, "5.7.8 Bad token \(plainToken.prefix(20))"),
+      ]), transcript: lines.record)
+
+    await #expect(throws: SMTPError.self) { try await sendAll(session) }
+
+    #expect(lines.all.last == "S: 535 <redacted>")
+  }
+
+  @Test func hidesAPasswordAServerSplitsAcrossLines() async {
+    let lines = TranscriptLines()
+    let session = session(
+      ScriptedSMTPTransport([greeting, ehlo, .code(535, "5.7.8 Bad password sec", "ret")]),
+      transcript: lines.record)
+
+    await #expect(throws: SMTPError.self) { try await sendAll(session) }
+
+    #expect(lines.all.last == "S: 535 <redacted>")
   }
 
   @Test(arguments: ["p", "pw", "pwd"])
