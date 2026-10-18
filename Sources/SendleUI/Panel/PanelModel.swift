@@ -334,7 +334,8 @@ public final class PanelModel {
 
   private var isOnLibrary: Bool { route == .library && !isShowingSettings }
 
-  /// Return saves the sheet, moves the setup on, sends the selection or leaves a finished queue.
+  /// Return acts on the settings page, moves the setup on, sends the selection or leaves a finished
+  /// queue.
   private func confirm() -> Bool {
     if isShowingSettings { return confirmSettings() }
     switch route {

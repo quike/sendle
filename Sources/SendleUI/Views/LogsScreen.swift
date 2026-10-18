@@ -1,7 +1,7 @@
 import SendleDomain
 import SwiftUI
 
-/// What Sendle did underneath: search, area pills, level bubbles and the lines (Plan 6).
+/// What Sendle did underneath: search, area pills, level bubbles and the lines.
 struct LogsScreen: View {
   let panel: PanelModel
 

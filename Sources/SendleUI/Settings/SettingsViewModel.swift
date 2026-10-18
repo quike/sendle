@@ -3,7 +3,7 @@ import Observation
 import SendleDomain
 
 /// The settings sheet: a front page of sections with a search, and a page per section
-/// (spec §3.5, Plan 6).
+/// (spec §3.5).
 @Observable @MainActor
 public final class SettingsViewModel {
   /// The open page; nil is the front page.

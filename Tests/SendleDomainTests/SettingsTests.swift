@@ -45,7 +45,7 @@ struct AppSettingsTests {
     #expect(try JSONDecoder().decode(AppSettings.self, from: data) == settings)
   }
 
-  @Test func readsAPlan5FileWithTheNewSettingsAtTheirDefaults() throws {
+  @Test func readsAFileWrittenBeforeTheseSettings() throws {
     let json = #"""
       {"activeDestination": "usb", "layout": "list", "email": {"kindleAddress": "reader@kindle.com",
       "senderAddress": "me@gmail.com", "provider": "gmail",
@@ -61,9 +61,9 @@ struct AppSettingsTests {
     #expect(settings.savedKindleAddresses == [.fixture])
   }
 
-  /// A Plan 5 build ignores the keys it doesn't know, so going back to it keeps the setup.
-  @Test func aPlan5BuildCanStillReadTheFile() throws {
-    struct Plan5Settings: Decodable {
+  /// An older build ignores the keys it doesn't know, so going back to it keeps the setup.
+  @Test func anOlderBuildCanStillReadTheFile() throws {
+    struct OlderSettings: Decodable {
       let email: EmailSettings?
       let layout: LibraryLayout
       let activeDestination: DestinationKind
@@ -71,7 +71,7 @@ struct AppSettingsTests {
     let settings = AppSettings(
       email: .fixture, layout: .list, activeDestination: .usb, sort: .title, showsLogs: true,
       kindleAddresses: [KindleEmail(rawValue: "pw5@kindle.com")], bokoPath: "/opt/boko")
-    let old = try JSONDecoder().decode(Plan5Settings.self, from: JSONEncoder().encode(settings))
+    let old = try JSONDecoder().decode(OlderSettings.self, from: JSONEncoder().encode(settings))
     #expect(old.email == .fixture)
     #expect(old.layout == .list)
     #expect(old.activeDestination == .usb)
