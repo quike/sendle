@@ -5,6 +5,8 @@ import SwiftUI
 /// is near it (`isRailHovered`, which the library's scroll view sets).
 struct AlphabetRail: View {
   static let width: CGFloat = 16
+  /// What the full bar takes from the books: itself plus the grid's column spacing.
+  static let reservedWidth: CGFloat = width + 10
   private static let compactLetterHeight: CGFloat = 14
 
   let library: LibraryViewModel

@@ -351,7 +351,7 @@ struct LibraryContent: View {
                 }
               }
               .id(Self.top)
-              .padding(.trailing, fullRail ? AlphabetRail.width : 0)
+              .padding(.trailing, fullRail ? AlphabetRail.reservedWidth : 0)
               .padding(.bottom, library.selection.isEmpty ? 6 : 70)
             }
             .scrollIndicators(.never)
