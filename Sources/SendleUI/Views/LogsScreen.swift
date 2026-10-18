@@ -143,7 +143,13 @@ private struct LogList: View {
       .onChange(of: logs.revealRequests) {
         if let target = logs.scrollTarget { proxy.scrollTo(target, anchor: .top) }
       }
-      .onAppear { proxy.scrollTo(Self.bottom, anchor: .bottom) }
+      .onAppear {
+        if let target = logs.scrollTarget {
+          proxy.scrollTo(target, anchor: .top)
+        } else {
+          proxy.scrollTo(Self.bottom, anchor: .bottom)
+        }
+      }
     }
   }
 

@@ -142,7 +142,14 @@ public final class LogsViewModel {
     hiddenLevels = []
     refresh()
     scrollTarget = entries.last { $0.heading == subject }?.id
+    isAtBottom = false
     revealRequests += 1
+  }
+
+  /// Opens at the newest line, following new ones.
+  package func showNewest() {
+    scrollTarget = nil
+    isAtBottom = true
   }
 
   private func refilter() {

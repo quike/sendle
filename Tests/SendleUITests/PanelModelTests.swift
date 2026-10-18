@@ -641,6 +641,19 @@ struct PanelModelTests {
     panel.openLogs(revealing: .book(BookID(rawValue: "a")))
 
     #expect(panel.logs.scrollTarget == 1)
+    #expect(!panel.logs.isAtBottom)
+  }
+
+  @Test func theLogsButtonOpensAtTheNewestLines() async {
+    let (panel, _) = makePanel()
+    log.heading(.book(BookID(rawValue: "a")), .mail, "Moby-Dick · reader@kindle.com")
+    panel.openLogs(revealing: .book(BookID(rawValue: "a")))
+    panel.escape()
+
+    panel.openLogs()
+
+    #expect(panel.logs.scrollTarget == nil)
+    #expect(panel.logs.isAtBottom)
   }
 
   @Test func aTestThatFailedInSettingsOpensItsLogsOverTheSheet() async {

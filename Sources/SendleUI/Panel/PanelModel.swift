@@ -212,7 +212,7 @@ public final class PanelModel {
     if route != .logs { beforeLogs = route }
     route = .logs
     logs.start()
-    if let subject { logs.reveal(subject) }
+    if let subject { logs.reveal(subject) } else { logs.showNewest() }
   }
 
   package func closeLogs() {

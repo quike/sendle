@@ -175,6 +175,7 @@ struct LogsViewModelTests {
     #expect(model.isShowing(.info))
     #expect(model.scrollTarget == log.entries().last?.id)
     #expect(model.revealRequests == 1)
+    #expect(!model.isAtBottom)
   }
 
   @Test func followsNewLinesWhileOpen() async {
