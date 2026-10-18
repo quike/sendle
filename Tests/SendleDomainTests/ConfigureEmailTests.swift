@@ -5,7 +5,8 @@ import Testing
 struct ConfigureEmailTests {
   let settings = InMemorySettingsStore()
   let secrets = MemorySecretStore()
-  var configure: ConfigureEmail { ConfigureEmail(settings: settings, secrets: secrets) }
+  let log = FakeActivityLog()
+  var configure: ConfigureEmail { ConfigureEmail(settings: settings, secrets: secrets, log: log) }
 
   func input(
     kindle: String = "reader@kindle.com",
@@ -30,6 +31,26 @@ struct ConfigureEmailTests {
           kindleAddress: .fixture, senderAddress: "me@icloud.com", provider: .iCloud,
           server: SMTPServer(host: "smtp.mail.me.com", port: 587, security: .startTLS)))
     #expect(await secrets.passwords == ["me@icloud.com": "abcd-efgh-ijkl-mnop"])
+  }
+
+  @Test func keepsTheKindleAddressAmongTheSavedOnes() async throws {
+    let paperwhite = KindleEmail(rawValue: "pw5@kindle.com")
+    try await settings.update { $0.email = .fixture }
+
+    _ = try await configure(input(kindle: "pw5@kindle.com"))
+    _ = try await configure(input(kindle: "PW5@kindle.com"))
+
+    #expect(await settings.settings.savedKindleAddresses == [.fixture, paperwhite])
+    #expect(await settings.settings.email?.kindleAddress == KindleEmail(rawValue: "PW5@kindle.com"))
+  }
+
+  @Test func logsTheSavedSetupButNotThePassword() async throws {
+    _ = try await configure(input(password: "abcdefghijklmnop"))
+
+    #expect(
+      log.summary == [
+        "info APP Saved the email setup: me@gmail.com through smtp.gmail.com:465 to reader@kindle.com"
+      ])
   }
 
   @Test func acceptsAGmailAppPasswordPastedWithItsSpaces() async throws {
@@ -88,11 +109,13 @@ struct ConfigureEmailTests {
 
   @Test func reportsAStorageFailure() async {
     let configure = ConfigureEmail(
-      settings: InMemorySettingsStore(failure: .writeFailed("disk full")), secrets: secrets)
+      settings: InMemorySettingsStore(failure: .writeFailed("disk full")), secrets: secrets,
+      log: log)
 
     await #expect(throws: EmailSetupError.storage(.writeFailed("disk full"))) {
       try await configure(input())
     }
+    #expect(log.summary == ["error APP Couldn't save the email setup: disk full"])
   }
 
   @Test func aFailedSaveKeepsThePreviousSendersPassword() async {

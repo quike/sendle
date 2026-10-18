@@ -89,7 +89,7 @@ package final class EmailForm {
         saveError = nil
       case .storage(let failure):
         issues = []
-        saveError = "Couldn't save the settings: \(Self.detail(of: failure))"
+        saveError = "Couldn't save the settings: \(failure.detail)"
       }
       return false
     }
@@ -161,12 +161,5 @@ package final class EmailForm {
 
   private func trimmed(_ text: String) -> String {
     text.trimmingCharacters(in: .whitespacesAndNewlines)
-  }
-
-  private static func detail(of failure: StorageError) -> String {
-    switch failure {
-    case .writeFailed(let detail): detail
-    case .keychain(let status): "the Keychain refused it (\(status))"
-    }
   }
 }

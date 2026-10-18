@@ -66,10 +66,16 @@ public enum EmailSetupError: Error, Hashable, Sendable {
 public struct ConfigureEmail: Sendable {
   private let settings: any SettingsStore
   private let secrets: any SecretStore
+  private let log: any ActivityLog
 
-  public init(settings: any SettingsStore, secrets: any SecretStore) {
+  public init(
+    settings: any SettingsStore,
+    secrets: any SecretStore,
+    log: any ActivityLog = NoActivityLog()
+  ) {
     self.settings = settings
     self.secrets = secrets
+    self.log = log
   }
 
   /// Validates every field at once, then saves the password and settings.
@@ -98,10 +104,22 @@ public struct ConfigureEmail: Sendable {
       if !password.isEmpty {
         try await secrets.setPassword(password, for: sender)
       }
-      previous = try await settings.update { $0.email = email }
+      previous = try await settings.update { settings in
+        // The old active address stays among the saved ones.
+        settings.kindleAddresses = settings.savedKindleAddresses
+        if !settings.kindleAddresses.contains(where: kindle.matches) {
+          settings.kindleAddresses.append(kindle)
+        }
+        settings.email = email
+      }
     } catch {
+      log.error(.app, "Couldn't save the email setup: \(error.detail)")
       throw .storage(error)
     }
+    log.info(
+      .app,
+      "Saved the email setup: \(sender) through \(server.host):\(server.port) "
+        + "to \(kindle.rawValue)")
     // The setup is saved: a password left behind for the old sender is untidy, not a failure.
     if let oldSender = previous.email?.senderAddress, oldSender != sender {
       try? await secrets.removePassword(for: oldSender)
