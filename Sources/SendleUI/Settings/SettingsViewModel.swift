@@ -16,7 +16,6 @@ public final class SettingsViewModel {
   package private(set) var launchAtLoginError: String?
   package private(set) var jumpBar = JumpBarStyle.full
   package private(set) var showsLogs = false
-  package private(set) var hasEmailSetup = false
   package private(set) var kindleAddresses: [KindleEmail] = []
   package private(set) var activeKindleAddress: KindleEmail?
   package var newKindleAddress = ""
@@ -30,6 +29,8 @@ public final class SettingsViewModel {
   /// Told whenever a choice the panel shows changes: the A–Z bar, logs, the Kindle address.
   @ObservationIgnored package var onChange: (@MainActor () async -> Void)?
   @ObservationIgnored private var unmark: Task<Void, Never>?
+  /// The email setup as saved; the form may hold edits that aren't.
+  private var savedEmail: EmailSettings?
 
   private let settings: any SettingsStore
   private let addresses: ManageKindleAddresses
@@ -81,6 +82,8 @@ public final class SettingsViewModel {
     bokoError = nil
   }
 
+  package var hasEmailSetup: Bool { savedEmail != nil }
+
   // MARK: Pages and search
 
   package func show(_ section: SettingsSection?) {
@@ -117,8 +120,8 @@ public final class SettingsViewModel {
       let others = kindleAddresses.count - 1
       return others > 0 ? "\(active.rawValue) · \(others + 1) saved" : active.rawValue
     case .sender:
-      guard hasEmailSetup else { return "Not set up" }
-      return "\(form.provider.pickerName) · \(form.senderAddress)"
+      guard let savedEmail else { return "Not set up" }
+      return "\(savedEmail.provider.pickerName) · \(savedEmail.senderAddress)"
     case .usb:
       return bokoTitle
     }
@@ -257,7 +260,7 @@ public final class SettingsViewModel {
   private func show(_ saved: AppSettings) {
     jumpBar = saved.jumpBar
     showsLogs = saved.showsLogs
-    hasEmailSetup = saved.email != nil
+    savedEmail = saved.email
     kindleAddresses = saved.savedKindleAddresses
     activeKindleAddress = saved.email.flatMap { saved.savedSpelling(of: $0.kindleAddress) }
   }

@@ -80,6 +80,20 @@ struct SettingsViewModelTests {
     #expect(model.summary(of: .sender) == "Not set up")
   }
 
+  @Test func sumsUpTheSavedSenderUntilTheEditsAreSaved() async {
+    let model = makeModel()
+    await model.open(at: .sender)
+    model.form.provider = .fastmail
+    model.form.senderAddress = "me@fastmail.com"
+    model.form.password = "abcdefghijklmnop"
+
+    model.show(nil)
+    #expect(model.summary(of: .sender) == "Gmail · me@gmail.com")
+
+    #expect(await model.save())
+    #expect(model.summary(of: .sender) == "Fastmail · me@fastmail.com")
+  }
+
   @Test func goesToASectionAndBack() async {
     let model = makeModel()
     await model.open(at: nil)
