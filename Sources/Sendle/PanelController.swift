@@ -168,10 +168,12 @@ extension PanelController: SystemActions {
   }
 
   func chooseProgram() async -> URL? {
+    guard !isChoosingFile else { return nil }
     isChoosingFile = true
     defer {
       isChoosingFile = false
-      window.makeKeyAndOrderFront(nil)
+      // A click elsewhere may have closed the panel while the picker was open.
+      if isVisible { window.makeKeyAndOrderFront(nil) }
     }
     let picker = NSOpenPanel()
     picker.canChooseFiles = true
