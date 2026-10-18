@@ -42,7 +42,8 @@ struct EmailDeliveryChannelTests {
   func channel(
     _ transport: ScriptedSMTPTransport,
     email: EmailSettings = .fixture,
-    servers: OSAllocatedUnfairLock<[SMTPServer]> = OSAllocatedUnfairLock(initialState: [])
+    servers: OSAllocatedUnfairLock<[SMTPServer]> = OSAllocatedUnfairLock(initialState: []),
+    log: FakeActivityLog = FakeActivityLog()
   ) -> EmailDeliveryChannel {
     EmailDeliveryChannel(
       email: email, recipient: .fixture, password: "app-password",
@@ -50,17 +51,19 @@ struct EmailDeliveryChannelTests {
         servers.withLock { $0.append(server) }
         return transport
       },
-      now: { Date(timeIntervalSince1970: 1_792_159_500) })
+      now: { Date(timeIntervalSince1970: 1_792_159_500) }, log: log)
   }
 
   func deliver(
     _ file: PreparedFile,
     with transport: ScriptedSMTPTransport,
-    email: EmailSettings = .fixture
+    email: EmailSettings = .fixture,
+    log: FakeActivityLog = FakeActivityLog()
   ) async -> SendFailure? {
     do {
-      try await channel(transport, email: email).deliver(file, named: "Moby-Dick - Herman Melville")
-      { _ in }
+      try await channel(transport, email: email, log: log).deliver(
+        file, named: "Moby-Dick - Herman Melville"
+      ) { _ in }
       return nil
     } catch {
       return error
@@ -237,7 +240,39 @@ struct EmailDeliveryChannelTests {
 
     #expect(failure == .mailSetup("The server refused the sign-in (501)."))
     #expect(echo.logDescription == "reply 535 at authentication")
-    #expect(other.logDescription == String(describing: other))
+    #expect(other.logDescription == "reply 550 No at recipient")
+  }
+
+  // MARK: Logs
+
+  @Test func logsTheConversationWithoutTheCredentials() async throws {
+    let log = FakeActivityLog()
+
+    #expect(await deliver(try file(), with: ScriptedSMTPTransport(accepting()), log: log) == nil)
+
+    #expect(log.summary.first == "info MAIL Connecting to smtp.gmail.com:465 with TLS")
+    #expect(log.summary.contains("debug MAIL C: AUTH PLAIN <redacted>"))
+    #expect(log.summary.contains("debug MAIL S: 354 Go ahead"))
+    #expect(
+      log.summary.suffix(3) == [
+        "info MAIL smtp.gmail.com accepted the message", "debug MAIL C: QUIT",
+        "debug MAIL S: 221 Bye",
+      ])
+    let everything = log.summary.joined(separator: "\n")
+    #expect(!everything.contains(plainToken))
+    #expect(!everything.contains("app-password"))
+  }
+
+  @Test func logsARefusalAsAnError() async throws {
+    var reads = accepting()
+    reads[4] = .code(550, "5.1.1 No such user")
+    let log = FakeActivityLog()
+
+    _ = await deliver(try file(), with: ScriptedSMTPTransport(reads), log: log)
+
+    #expect(log.summary.contains("error MAIL S: 550 5.1.1 No such user"))
+    #expect(
+      log.summary.last == "error MAIL SMTP stopped: reply 550 5.1.1 No such user at recipient")
   }
 
   @Test func neverSendsThePasswordWithoutTLS() async throws {

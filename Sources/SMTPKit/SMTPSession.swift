@@ -22,19 +22,25 @@ public actor SMTPSession {
   private let startTLS: Bool
   private let clientName: String
   private let timeouts: SMTPTimeouts
+  private let transcript: SMTPTranscript?
   private var isSecure = false
+  /// What the server must not repeat into the transcript while signing in.
+  private var secrets: [String] = []
 
-  /// `clientName` is what EHLO announces; an address literal is valid for any Mac.
+  /// `clientName` is what EHLO announces; an address literal is valid for any Mac. `transcript`
+  /// hears every command and reply, with the credentials and the message left out.
   public init(
     transport: any SMTPTransport,
     startTLS: Bool,
     clientName: String = "[127.0.0.1]",
-    timeouts: SMTPTimeouts = .standard
+    timeouts: SMTPTimeouts = .standard,
+    transcript: SMTPTranscript? = nil
   ) {
     self.transport = transport
     self.startTLS = startTLS
     self.clientName = clientName
     self.timeouts = timeouts
+    self.transcript = transcript
   }
 
   /// The greeting and EHLO, then STARTTLS and EHLO again when the session was made for it.
@@ -53,13 +59,21 @@ public actor SMTPSession {
   /// AUTH PLAIN, or AUTH LOGIN when that is all the server offers.
   public func authenticate(username: String, password: String) async throws(SMTPError) {
     guard isSecure || !startTLS else { throw .tlsUnavailable }
+    let token = Data("\0\(username)\0\(password)".utf8).base64EncodedString()
+    secrets = [token, Self.base64(username), Self.base64(password), password].filter {
+      $0.count >= 4
+    }
+    defer { secrets = [] }
     if capabilities.authMechanisms.contains("PLAIN") {
-      let token = Data("\0\(username)\0\(password)".utf8).base64EncodedString()
-      try await command("AUTH PLAIN \(token)", expecting: [235], at: .authentication)
+      try await command(
+        "AUTH PLAIN \(token)", shown: "AUTH PLAIN <redacted>", expecting: [235],
+        at: .authentication)
     } else if capabilities.authMechanisms.contains("LOGIN") {
       try await command("AUTH LOGIN", expecting: [334], at: .authentication)
-      try await command(Self.base64(username), expecting: [334], at: .authentication)
-      try await command(Self.base64(password), expecting: [235], at: .authentication)
+      try await command(
+        Self.base64(username), shown: "<redacted>", expecting: [334], at: .authentication)
+      try await command(
+        Self.base64(password), shown: "<redacted>", expecting: [235], at: .authentication)
     } else {
       throw .authenticationUnavailable
     }
@@ -79,6 +93,7 @@ public actor SMTPSession {
       try await command("RCPT TO:<\(recipient)>", expecting: [250, 251], at: .recipient)
     }
     try await command("DATA", expecting: [354], at: .data)
+    note(.client, "<message, \(message.count) bytes>")
     let data = MessageData.terminated(message)
     // About a hundred writes: progress moves in 1% steps without a call per line.
     let chunk = max(16_384, data.count / 100)
@@ -104,8 +119,10 @@ public actor SMTPSession {
   public func quit() async {
     let timeout = Duration.seconds(5)
     do {
+      note(.client, "QUIT")
       try await transport.write(Data("QUIT\r\n".utf8), timeout: timeout)
-      _ = try await transport.readReply(timeout: timeout)
+      let reply = try await transport.readReply(timeout: timeout)
+      note(.server, reply.transcript, code: reply.code)
     } catch {}
     await transport.close()
   }
@@ -122,13 +139,16 @@ public actor SMTPSession {
     capabilities = SMTPCapabilities(ehlo: reply)
   }
 
+  /// `shown` stands in for `line` in the transcript.
   @discardableResult
   private func command(
     _ line: String,
+    shown: String? = nil,
     expecting codes: Set<Int>,
     at stage: SMTPStage
   ) async throws(SMTPError) -> SMTPReply {
     if Task.isCancelled { throw Self.cancellation(at: stage) }
+    note(.client, shown ?? line)
     try await run(stage) { () throws(SMTPTransportError) in
       try await transport.write(Data((line + "\r\n").utf8), timeout: timeouts.step)
     }
@@ -145,8 +165,16 @@ public actor SMTPSession {
     let reply = try await run(stage) { () throws(SMTPTransportError) in
       try await transport.readReply(timeout: timeout ?? timeouts.step)
     }
+    note(.server, reply.transcript, code: reply.code)
     guard codes.contains(reply.code) else { throw .reply(reply, stage: stage) }
     return reply
+  }
+
+  /// A server can echo what it was sent, so its replies lose the credentials too.
+  private func note(_ direction: SMTPTranscriptLine.Direction, _ text: String, code: Int? = nil) {
+    guard let transcript else { return }
+    let hidden = secrets.reduce(text) { $0.replacingOccurrences(of: $1, with: "<redacted>") }
+    transcript(SMTPTranscriptLine(direction: direction, text: hidden, code: code))
   }
 
   private func run<T>(

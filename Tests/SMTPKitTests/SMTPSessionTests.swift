@@ -2,6 +2,7 @@ import Foundation
 import SMTPKit
 import SendleTestSupport
 import Testing
+import os
 
 @Suite(.timeLimit(.minutes(1)))
 struct SMTPSessionTests {
@@ -13,10 +14,26 @@ struct SMTPSessionTests {
   /// "\0me@gmail.com\0secret"
   let plainToken = "AG1lQGdtYWlsLmNvbQBzZWNyZXQ="
 
-  func session(_ transport: ScriptedSMTPTransport, startTLS: Bool = false) -> SMTPSession {
+  func session(
+    _ transport: ScriptedSMTPTransport,
+    startTLS: Bool = false,
+    transcript: SMTPTranscript? = nil
+  ) -> SMTPSession {
     SMTPSession(
       transport: transport, startTLS: startTLS,
-      timeouts: SMTPTimeouts(step: .seconds(30), endOfMessage: .seconds(120)))
+      timeouts: SMTPTimeouts(step: .seconds(30), endOfMessage: .seconds(120)),
+      transcript: transcript)
+  }
+
+  /// Collects the transcript as "C: …" and "S: …" lines.
+  final class TranscriptLines: Sendable {
+    private let lines = OSAllocatedUnfairLock<[String]>(initialState: [])
+
+    var all: [String] { lines.withLock { $0 } }
+
+    func record(_ line: SMTPTranscriptLine) {
+      lines.withLock { $0.append("\(line.direction == .client ? "C" : "S"): \(line.text)") }
+    }
   }
 
   func sendAll(_ session: SMTPSession) async throws(SMTPError) {
@@ -55,6 +72,76 @@ struct SMTPSessionTests {
     #expect(transport.events.first == .open)
     #expect(transport.events.last == .close)
     #expect(await session.capabilities.sizeLimit == 35_882_577)
+  }
+
+  // MARK: Transcript
+
+  @Test func transcribesTheConversationButNotTheMessage() async throws {
+    let lines = TranscriptLines()
+    let session = session(
+      ScriptedSMTPTransport([
+        greeting, ehlo, .code(235, "Accepted"), .code(250, "OK"), .code(250, "OK"),
+        .code(354, "Go ahead"), .code(250, "OK queued"), .code(221, "Bye"),
+      ]), transcript: lines.record)
+
+    try await sendAll(session)
+    await session.quit()
+
+    #expect(
+      lines.all == [
+        "S: 220 smtp.example.com ESMTP", "C: EHLO [127.0.0.1]",
+        "S: 250-smtp.example.com\n250-SIZE 35882577\n250 AUTH LOGIN PLAIN XOAUTH2",
+        "C: AUTH PLAIN <redacted>", "S: 235 Accepted",
+        "C: MAIL FROM:<me@gmail.com> SIZE=\(message.count)", "S: 250 OK",
+        "C: RCPT TO:<reader@kindle.com>", "S: 250 OK", "C: DATA", "S: 354 Go ahead",
+        "C: <message, \(message.count) bytes>", "S: 250 OK queued", "C: QUIT", "S: 221 Bye",
+      ])
+  }
+
+  @Test func hidesTheNameAndPasswordOfAuthLogin() async throws {
+    let lines = TranscriptLines()
+    let session = session(
+      ScriptedSMTPTransport([
+        greeting, .code(250, "smtp.example.com", "AUTH LOGIN"), .code(334, "VXNlcm5hbWU6"),
+        .code(334, "UGFzc3dvcmQ6"), .code(235, "Accepted"),
+      ]), transcript: lines.record)
+
+    try await session.connect()
+    try await session.authenticate(username: "me@gmail.com", password: "secret")
+
+    #expect(
+      Array(lines.all.dropFirst(3)) == [
+        "C: AUTH LOGIN", "S: 334 VXNlcm5hbWU6", "C: <redacted>", "S: 334 UGFzc3dvcmQ6",
+        "C: <redacted>", "S: 235 Accepted",
+      ])
+  }
+
+  @Test func hidesCredentialsAServerEchoesWhenItRefusesTheSignIn() async {
+    let lines = TranscriptLines()
+    let session = session(
+      ScriptedSMTPTransport([
+        greeting, ehlo, .code(535, "Bad AUTH PLAIN \(plainToken) for secret"),
+      ]), transcript: lines.record)
+
+    await #expect(throws: SMTPError.self) { try await sendAll(session) }
+
+    #expect(lines.all.last == "S: 535 Bad AUTH PLAIN <redacted> for <redacted>")
+    #expect(!lines.all.joined().contains("secret"))
+  }
+
+  @Test func transcribesTheReplyItStopsAt() async {
+    let lines = TranscriptLines()
+    let session = session(
+      ScriptedSMTPTransport([
+        greeting, ehlo, .code(235, "Accepted"), .code(553, "5.7.1 Sender address rejected"),
+      ]), transcript: lines.record)
+
+    await #expect(throws: SMTPError.self) { try await sendAll(session) }
+
+    #expect(
+      lines.all.suffix(2) == [
+        "C: MAIL FROM:<me@gmail.com> SIZE=\(message.count)", "S: 553 5.7.1 Sender address rejected",
+      ])
   }
 
   @Test func upgradesToTLSBeforeSigningIn() async throws {

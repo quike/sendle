@@ -1,9 +1,6 @@
 import Foundation
 import SMTPKit
 import SendleDomain
-import os
-
-private let logger = Logger(subsystem: "io.github.quike.Sendle", category: "mail")
 
 /// Emails one file to a Kindle address through the sender's SMTP server.
 public struct EmailDeliveryChannel: DeliveryChannel {
@@ -22,6 +19,7 @@ public struct EmailDeliveryChannel: DeliveryChannel {
   private let makeTransport: MakeTransport
   private let timeouts: SMTPTimeouts
   private let now: @Sendable () -> Date
+  private let log: any ActivityLog
 
   public init(
     email: EmailSettings,
@@ -29,7 +27,8 @@ public struct EmailDeliveryChannel: DeliveryChannel {
     password: String,
     makeTransport: @escaping MakeTransport = streamTask,
     timeouts: SMTPTimeouts = .standard,
-    now: @escaping @Sendable () -> Date = { Date() }
+    now: @escaping @Sendable () -> Date = { Date() },
+    log: any ActivityLog = NoActivityLog()
   ) {
     self.email = email
     self.recipient = recipient
@@ -37,6 +36,7 @@ public struct EmailDeliveryChannel: DeliveryChannel {
     self.makeTransport = makeTransport
     self.timeouts = timeouts
     self.now = now
+    self.log = log
   }
 
   public func deliver(
@@ -52,9 +52,14 @@ public struct EmailDeliveryChannel: DeliveryChannel {
         data: data),
       date: now()
     ).encoded()
+    let server = email.server
     let session = SMTPSession(
-      transport: makeTransport(email.server), startTLS: email.server.security == .startTLS,
-      timeouts: timeouts)
+      transport: makeTransport(server), startTLS: server.security == .startTLS,
+      timeouts: timeouts, transcript: Self.transcript(to: log))
+    log.info(
+      .mail,
+      "Connecting to \(server.host):\(server.port) with "
+        + (server.security == .implicitTLS ? "TLS" : "STARTTLS"))
     do throws(SendFailure) {
       try await converse(in: session, message: message, fileBytes: Int64(data.count), progress)
     } catch {
@@ -62,7 +67,18 @@ public struct EmailDeliveryChannel: DeliveryChannel {
       await session.close()
       throw error
     }
+    log.info(.mail, "\(server.host) accepted the message")
     await session.quit()
+  }
+
+  /// Commands and replies are Debug, except a reply that refuses something.
+  private static func transcript(to log: any ActivityLog) -> SMTPTranscript {
+    { line in
+      let isRefusal = (line.code ?? 0) >= 400
+      log.record(
+        isRefusal ? .error : .debug, .mail,
+        (line.direction == .client ? "C: " : "S: ") + line.text, heading: nil)
+    }
   }
 
   private func converse(
@@ -73,6 +89,8 @@ public struct EmailDeliveryChannel: DeliveryChannel {
   ) async throws(SendFailure) {
     try await smtp { () async throws(SMTPError) in try await session.connect() }
     if let limit = await session.capabilities.sizeLimit, message.count > limit {
+      log.warning(
+        .mail, "The message is \(message.count) bytes; \(email.server.host) takes \(limit) at most")
       let overhead = Int64(message.count) - Base64Size.encoded(fileBytes)
       throw .tooLarge(
         bytes: fileBytes, limit: Base64Size.largestInput(fitting: Int64(limit) - overhead))
@@ -90,7 +108,7 @@ public struct EmailDeliveryChannel: DeliveryChannel {
     do {
       try await step()
     } catch {
-      logger.error("SMTP failed: \(error.logDescription, privacy: .private)")
+      log.error(.mail, "SMTP stopped: \(error.logDescription)")
       throw SendFailure(error, provider: email.provider, host: email.server.host)
     }
   }

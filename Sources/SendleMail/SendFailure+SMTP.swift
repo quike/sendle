@@ -38,9 +38,17 @@ extension SendFailure {
 extension SMTPError {
   /// Keeps only the code of a sign-in reply, as `SendFailure.init` does.
   package var logDescription: String {
-    if case .reply(let reply, .authentication) = self {
-      return "reply \(reply.code) at authentication"
+    switch self {
+    case .connection(let detail, let stage): "connection failed at \(stage.rawValue): \(detail)"
+    case .timedOut(let stage): "no answer in time at \(stage.rawValue)"
+    case .reply(let reply, .authentication): "reply \(reply.code) at authentication"
+    case .reply(let reply, let stage): "reply \(reply) at \(stage.rawValue)"
+    case .malformedReply(let stage): "unreadable reply at \(stage.rawValue)"
+    case .tlsUnavailable: "the server offers no STARTTLS"
+    case .authenticationUnavailable: "the server offers neither AUTH PLAIN nor AUTH LOGIN"
+    case .invalidAddress: "an address has spaces, control characters or angle brackets"
+    case .untrustedServer(let detail): "TLS failed: \(detail)"
+    case .cancelled: "cancelled"
     }
-    return String(describing: self)
   }
 }

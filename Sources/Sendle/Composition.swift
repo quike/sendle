@@ -28,7 +28,9 @@ struct Composition {
     let staging = FileSystemStagingArea()
     let converter = BokoConverter()
     let channels =
-      override ?? DeliveryChannels(email: EmailChannelFactory(settings: settings, secrets: secrets))
+      override
+      ?? DeliveryChannels(
+        email: EmailChannelFactory(settings: settings, secrets: secrets, log: log))
     let configure = ConfigureEmail(settings: settings, secrets: secrets, log: log)
     let sendTest = SendTestEmail(settings: settings, channels: channels, staging: staging)
     let history = JSONSendHistoryStore(directory: data)
