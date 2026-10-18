@@ -38,6 +38,7 @@ enum Snapshot {
         await panel.library.setLayout(layout)
         await write(window, "library-\(layout.rawValue).png", to: folder)
       }
+      let layout = panel.library.layout
       await panel.library.setSort(.title)
       await panel.library.setLayout(.list)
       panel.library.jump(to: "M")
@@ -50,6 +51,8 @@ enum Snapshot {
       await panel.library.setLayout(.grid)
       panel.library.jump(to: "W")
       await write(window, "library-az-grid.png", to: folder)
+      await panel.library.setSort(.recent)
+      await panel.library.setLayout(layout)
       panel.library.selectAll()
       await write(window, "library-selected.png", to: folder)
       panel.sendSelection()
