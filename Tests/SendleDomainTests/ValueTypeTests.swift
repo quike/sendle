@@ -13,6 +13,11 @@ struct KindleEmailTests {
   func rejectsOtherAddresses(address: String) {
     #expect(!KindleEmail(rawValue: address).isAmazonAddress)
   }
+
+  @Test func addressesMatchWhateverTheirCase() {
+    #expect(KindleEmail(rawValue: "Reader@Kindle.COM").matches(.fixture))
+    #expect(!KindleEmail(rawValue: "reader2@kindle.com").matches(.fixture))
+  }
 }
 
 struct EmailAddressTests {

@@ -12,6 +12,11 @@ public struct KindleEmail: RawRepresentable, Hashable, Sendable, Codable {
     let address = rawValue.lowercased()
     return address.hasSuffix("@kindle.com") || address.hasSuffix("@kindle.cn")
   }
+
+  /// The same address, whatever its case: Amazon's addresses are case-insensitive.
+  public func matches(_ other: KindleEmail) -> Bool {
+    rawValue.caseInsensitiveCompare(other.rawValue) == .orderedSame
+  }
 }
 
 /// A Kindle mounted as a drive.
