@@ -144,6 +144,20 @@ struct SettingsViewModelTests {
     #expect(model.summary(of: .kindle) == "reader@kindle.com · 2 saved")
   }
 
+  @Test func marksTheActiveAddressInItsSavedSpelling() async {
+    let pw5 = KindleEmail(rawValue: "pw5@kindle.com")
+    let model = makeModel(
+      InMemorySettingsStore(
+        AppSettings(
+          email: .fixture.with(kindleAddress: KindleEmail(rawValue: "PW5@Kindle.com")),
+          kindleAddresses: [.fixture, pw5])))
+
+    await model.open(at: .kindle)
+
+    #expect(model.kindleAddresses == [.fixture, pw5])
+    #expect(model.activeKindleAddress == pw5)
+  }
+
   @Test func addsAnAddressAndMakesItActive() async {
     let model = makeModel()
     var changes = 0

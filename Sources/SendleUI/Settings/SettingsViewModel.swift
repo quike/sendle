@@ -259,13 +259,12 @@ public final class SettingsViewModel {
     showsLogs = saved.showsLogs
     hasEmailSetup = saved.email != nil
     kindleAddresses = saved.savedKindleAddresses
-    activeKindleAddress = saved.email?.kindleAddress
+    activeKindleAddress = saved.email.flatMap { saved.savedSpelling(of: $0.kindleAddress) }
   }
 
   private func reloadAddresses() async {
-    let saved = await settings.load()
-    show(saved)
-    if let active = saved.email?.kindleAddress { form.kindleAddress = active.rawValue }
+    show(await settings.load())
+    if let activeKindleAddress { form.kindleAddress = activeKindleAddress.rawValue }
     await onChange?()
   }
 

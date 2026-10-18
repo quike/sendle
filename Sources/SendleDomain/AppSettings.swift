@@ -76,4 +76,17 @@ public struct AppSettings: Hashable, Sendable, Codable {
     else { return kindleAddresses }
     return [active] + kindleAddresses
   }
+
+  /// How `address` is spelled among the saved Kindle addresses, whatever case it was typed in.
+  public func savedSpelling(of address: KindleEmail) -> KindleEmail? {
+    savedKindleAddresses.first(where: address.matches)
+  }
+
+  /// Saves `address` unless it is saved already, and returns its saved spelling.
+  public mutating func saveKindleAddress(_ address: KindleEmail) -> KindleEmail {
+    kindleAddresses = savedKindleAddresses
+    if let saved = savedSpelling(of: address) { return saved }
+    kindleAddresses.append(address)
+    return address
+  }
 }

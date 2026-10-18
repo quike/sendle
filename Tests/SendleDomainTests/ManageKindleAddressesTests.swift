@@ -24,6 +24,17 @@ struct ManageKindleAddressesTests {
 
     #expect(await settings.settings.email?.kindleAddress == .fixture)
     #expect(await settings.settings.savedKindleAddresses == [.fixture, paperwhite])
+    #expect(log.summary.last == "info APP reader@kindle.com is now the active Kindle address")
+  }
+
+  @Test func activatingAnAddressInAnotherCaseKeepsTheSavedSpelling() async throws {
+    _ = try await addresses.add("pw5@kindle.com")
+
+    try await addresses.activate(KindleEmail(rawValue: "PW5@Kindle.com"))
+
+    #expect(await settings.settings.email?.kindleAddress == paperwhite)
+    #expect(await settings.settings.savedKindleAddresses == [.fixture, paperwhite])
+    #expect(log.summary.last == "info APP pw5@kindle.com is now the active Kindle address")
   }
 
   @Test func warnsAboutAnAddressAmazonWontDeliverTo() async throws {
@@ -37,12 +48,20 @@ struct ManageKindleAddressesTests {
     #expect(await settings.settings.savedKindleAddresses == [.fixture])
   }
 
-  @Test func needsAnEmailSetupFirst() async {
-    let empty = ManageKindleAddresses(settings: InMemorySettingsStore(), log: log)
+  @Test func needsAnEmailSetupFirstAndLeavesTheFileAlone() async {
+    let empty = ManageKindleAddresses(
+      settings: InMemorySettingsStore(failure: .writeFailed("read-only")), log: log)
 
     await #expect(throws: KindleAddressError.notConfigured) {
       try await empty.add("pw5@kindle.com")
     }
+    await #expect(throws: KindleAddressError.notConfigured) {
+      try await empty.activate(paperwhite)
+    }
+    await #expect(throws: KindleAddressError.notConfigured) {
+      try await empty.remove(paperwhite)
+    }
+    #expect(log.summary.isEmpty)
   }
 
   @Test func activatesASavedAddress() async throws {
@@ -65,6 +84,20 @@ struct ManageKindleAddressesTests {
 
     #expect(await settings.settings.savedKindleAddresses == [paperwhite])
     #expect(log.summary.last == "info APP Removed reader@kindle.com from the Kindle addresses")
+  }
+
+  @Test func theActiveAddressStaysWhateverItsCase() async throws {
+    await #expect(throws: KindleAddressError.active) {
+      try await addresses.remove(KindleEmail(rawValue: "READER@kindle.com"))
+    }
+    #expect(await settings.settings.savedKindleAddresses == [.fixture])
+  }
+
+  @Test func removingAnAddressThatIsNotSavedLogsNothing() async throws {
+    try await addresses.remove(paperwhite)
+
+    #expect(await settings.settings.savedKindleAddresses == [.fixture])
+    #expect(log.summary.isEmpty)
   }
 
   @Test func saysWhenTheAddressesCouldNotBeSaved() async {

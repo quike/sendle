@@ -97,8 +97,7 @@ public struct ConfigureEmail: Sendable {
     }
     guard issues.isEmpty, let server else { throw .invalid(issues) }
 
-    let email = EmailSettings(
-      kindleAddress: kindle, senderAddress: sender, provider: input.provider, server: server)
+    let provider = input.provider
     let previous: AppSettings
     do throws(StorageError) {
       if !password.isEmpty {
@@ -106,20 +105,19 @@ public struct ConfigureEmail: Sendable {
       }
       previous = try await settings.update { settings in
         // The old active address stays among the saved ones.
-        settings.kindleAddresses = settings.savedKindleAddresses
-        if !settings.kindleAddresses.contains(where: kindle.matches) {
-          settings.kindleAddresses.append(kindle)
-        }
-        settings.email = email
+        let active = settings.saveKindleAddress(kindle)
+        settings.email = EmailSettings(
+          kindleAddress: active, senderAddress: sender, provider: provider, server: server)
       }
     } catch {
       log.error(.app, "Couldn't save the email setup: \(error.detail)")
       throw .storage(error)
     }
+    let active = previous.savedSpelling(of: kindle) ?? kindle
     log.info(
       .app,
       "Saved the email setup: \(sender) through \(server.host):\(server.port) "
-        + "to \(kindle.rawValue)")
+        + "to \(active.rawValue)")
     // The setup is saved: a password left behind for the old sender is untidy, not a failure.
     if let oldSender = previous.email?.senderAddress, oldSender != sender {
       try? await secrets.removePassword(for: oldSender)

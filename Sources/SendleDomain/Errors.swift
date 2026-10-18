@@ -41,6 +41,14 @@ public enum SendFailure: Error, Hashable, Sendable {
 public enum StorageError: Error, Hashable, Sendable {
   case writeFailed(String)
   case keychain(status: Int32)
+
+  /// What went wrong, in a few words for the logs.
+  public var detail: String {
+    switch self {
+    case .writeFailed(let detail): detail
+    case .keychain(let status): "the Keychain refused it (\(status))"
+    }
+  }
 }
 
 extension LibraryError {

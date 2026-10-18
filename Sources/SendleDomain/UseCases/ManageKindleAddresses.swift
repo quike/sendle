@@ -23,76 +23,50 @@ public struct ManageKindleAddresses: Sendable {
   public func add(_ text: String) async throws(KindleAddressError) -> [EmailSetupWarning] {
     let address = KindleEmail(rawValue: text.trimmingCharacters(in: .whitespacesAndNewlines))
     guard EmailAddress.isPlausible(address.rawValue) else { throw .invalidAddress }
-    let updated = try await change { settings in
-      var saved = settings.savedKindleAddresses
-      let active = saved.first(where: address.matches) ?? address
-      if !saved.contains(where: address.matches) { saved.append(address) }
-      settings.kindleAddresses = saved
-      settings.email = settings.email?.with(kindleAddress: active)
+    let before = try await makeActive(address)
+    if let saved = before.savedSpelling(of: address) {
+      log.info(.app, "\(saved.rawValue) is now the active Kindle address")
+    } else {
+      log.info(.app, "Saved \(address.rawValue) and made it the active Kindle address")
     }
-    log.info(.app, "Saved \(updated.rawValue) and made it the active Kindle address")
-    return updated.isAmazonAddress ? [] : [.kindleAddressNotAmazon]
+    return address.isAmazonAddress ? [] : [.kindleAddressNotAmazon]
   }
 
   public func activate(_ address: KindleEmail) async throws(KindleAddressError) {
-    try await change { settings in
-      settings.kindleAddresses = settings.savedKindleAddresses
-      if !settings.kindleAddresses.contains(where: address.matches) {
-        settings.kindleAddresses.append(address)
-      }
-      settings.email = settings.email?.with(kindleAddress: address)
-    }
-    log.info(.app, "\(address.rawValue) is now the active Kindle address")
+    let before = try await makeActive(address)
+    let active = before.savedSpelling(of: address) ?? address
+    log.info(.app, "\(active.rawValue) is now the active Kindle address")
   }
 
   public func remove(_ address: KindleEmail) async throws(KindleAddressError) {
-    let current = await settings.load()
-    guard current.email.map({ !$0.kindleAddress.matches(address) }) ?? true else {
+    guard await settings.load().email?.kindleAddress.matches(address) != true else {
       throw .active
     }
-    try await change { settings in
-      guard settings.email.map({ !$0.kindleAddress.matches(address) }) ?? true else { return }
+    let before = try await change { settings in
       settings.kindleAddresses = settings.savedKindleAddresses.filter { !$0.matches(address) }
     }
-    log.info(.app, "Removed \(address.rawValue) from the Kindle addresses")
+    guard let removed = before.savedSpelling(of: address) else { return }
+    log.info(.app, "Removed \(removed.rawValue) from the Kindle addresses")
   }
 
-  /// Applies `change` while an email setup exists, and returns the active address after it.
-  @discardableResult
+  /// Makes `address` active in its saved spelling, and returns the settings from before.
+  private func makeActive(_ address: KindleEmail) async throws(KindleAddressError) -> AppSettings {
+    try await change { settings in
+      let saved = settings.saveKindleAddress(address)
+      settings.email = settings.email?.with(kindleAddress: saved)
+    }
+  }
+
+  /// Applies `update` while an email setup exists, and returns the settings from before it.
   private func change(
-    _ change: @escaping @Sendable (inout AppSettings) -> Void
-  ) async throws(KindleAddressError) -> KindleEmail {
-    let previous: AppSettings
+    _ update: @Sendable (inout AppSettings) -> Void
+  ) async throws(KindleAddressError) -> AppSettings {
+    guard await settings.load().email != nil else { throw .notConfigured }
     do throws(StorageError) {
-      previous = try await settings.update { settings in
-        guard settings.email != nil else { return }
-        change(&settings)
-      }
+      return try await settings.update(update)
     } catch {
       log.error(.app, "Couldn't save the Kindle addresses: \(error.detail)")
       throw .storage(error)
-    }
-    guard previous.email != nil, let active = await settings.load().email?.kindleAddress else {
-      throw .notConfigured
-    }
-    return active
-  }
-}
-
-extension EmailSettings {
-  public func with(kindleAddress: KindleEmail) -> EmailSettings {
-    EmailSettings(
-      kindleAddress: kindleAddress, senderAddress: senderAddress, provider: provider,
-      server: server)
-  }
-}
-
-extension StorageError {
-  /// What went wrong, in a few words for the logs.
-  public var detail: String {
-    switch self {
-    case .writeFailed(let detail): detail
-    case .keychain(let status): "the Keychain refused it (\(status))"
     }
   }
 }

@@ -51,4 +51,10 @@ public struct EmailSettings: Hashable, Sendable, Codable {
     self.provider = provider
     self.server = server
   }
+
+  public func with(kindleAddress: KindleEmail) -> EmailSettings {
+    EmailSettings(
+      kindleAddress: kindleAddress, senderAddress: senderAddress, provider: provider,
+      server: server)
+  }
 }

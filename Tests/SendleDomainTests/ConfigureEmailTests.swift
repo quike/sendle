@@ -33,7 +33,7 @@ struct ConfigureEmailTests {
     #expect(await secrets.passwords == ["me@icloud.com": "abcd-efgh-ijkl-mnop"])
   }
 
-  @Test func keepsTheKindleAddressAmongTheSavedOnes() async throws {
+  @Test func keepsTheKindleAddressAmongTheSavedOnesInItsSavedSpelling() async throws {
     let paperwhite = KindleEmail(rawValue: "pw5@kindle.com")
     try await settings.update { $0.email = .fixture }
 
@@ -41,7 +41,11 @@ struct ConfigureEmailTests {
     _ = try await configure(input(kindle: "PW5@kindle.com"))
 
     #expect(await settings.settings.savedKindleAddresses == [.fixture, paperwhite])
-    #expect(await settings.settings.email?.kindleAddress == KindleEmail(rawValue: "PW5@kindle.com"))
+    #expect(await settings.settings.email?.kindleAddress == paperwhite)
+    #expect(
+      log.summary.last
+        == "info APP Saved the email setup: me@gmail.com through smtp.gmail.com:465 to pw5@kindle.com"
+    )
   }
 
   @Test func logsTheSavedSetupButNotThePassword() async throws {
