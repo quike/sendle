@@ -14,6 +14,7 @@ struct SendBooksTests {
     let history: InMemorySendHistoryStore
     let sleeps = Recorder<Duration>()
     let now = Date(timeIntervalSince1970: 1_800_000_000)
+    let log = FakeActivityLog()
 
     init(
       channel: FakeDeliveryChannel = FakeDeliveryChannel(),
@@ -37,7 +38,7 @@ struct SendBooksTests {
       return SendBooks(
         channels: channels, preparer: preparer, converter: converter, staging: staging,
         history: history, now: { now }, retryDelay: .seconds(2),
-        sleep: { await sleeps.record($0) })
+        sleep: { await sleeps.record($0) }, log: log)
     }
 
     func send(_ books: [Book], to destination: Destination) async -> [SendEvent] {
@@ -69,6 +70,67 @@ struct SendBooksTests {
       await harness.history.records() == [
         SendRecord(bookID: book.id, destination: .email, date: harness.now, outcome: .sent)
       ])
+  }
+
+  // MARK: Logs
+
+  @Test func logsEachBooksStoryUnderItsHeading() async {
+    let harness = Harness(preparer: FakeEPUBPreparer(fixes: [.addedLanguage, .removedEmptyImages]))
+    let book = Book.fixture()
+
+    _ = await harness.send([book], to: email)
+
+    #expect(
+      harness.log.summary == [
+        "info MAIL Moby-Dick · reader@kindle.com",
+        "debug MAIL Plan: prepare the EPUB, then deliver it",
+        "info EPUB Fixed the EPUB: added its language, removed images without a source",
+        "info MAIL Sent",
+      ])
+    #expect(harness.log.entries().first?.heading == .book(book.id))
+  }
+
+  @Test func logsAConversionForUSB() async {
+    let harness = Harness()
+
+    _ = await harness.send([.fixture()], to: .usb(.fixture(name: "Paperwhite")))
+
+    #expect(
+      harness.log.summary == [
+        "info USB Moby-Dick · Paperwhite (USB)",
+        "debug USB Plan: prepare the EPUB, convert it to AZW3, then deliver it",
+        "debug EPUB The EPUB needed no fixes", "info USB On the Kindle",
+      ])
+  }
+
+  @Test func logsWhyABookCannotGo() async {
+    let harness = Harness()
+
+    _ = await harness.send([.fixture(availability: .protected)], to: email)
+
+    #expect(harness.log.summary.last == "warning MAIL Not sent: protected by DRM")
+  }
+
+  @Test func logsAFailureAsAnError() async {
+    let harness = Harness(channel: FakeDeliveryChannel(.fail(.rejected("550 No such user"))))
+
+    _ = await harness.send([.fixture(format: .pdf)], to: email)
+
+    #expect(
+      harness.log.summary.last
+        == "error MAIL Not sent: the mail server refused it: 550 No such user")
+  }
+
+  @Test func logsTheRetry() async {
+    let harness = Harness(
+      channel: FakeDeliveryChannel(.fail(.connectionFailed(host: "smtp.gmail.com")), .succeed))
+
+    _ = await harness.send([.fixture(format: .pdf)], to: email)
+
+    #expect(
+      harness.log.summary.contains(
+        "warning MAIL Couldn't reach smtp.gmail.com; trying again in 2 seconds"))
+    #expect(harness.log.summary.last == "info MAIL Sent")
   }
 
   @Test func cleansUpTheStagingFolderAfterEverySend() async {

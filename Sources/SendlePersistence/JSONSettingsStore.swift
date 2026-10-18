@@ -6,8 +6,12 @@ public actor JSONSettingsStore: SettingsStore {
   private let now: @Sendable () -> Date
   private var quarantined: URL?
 
-  public init(directory: URL, now: @escaping @Sendable () -> Date = { Date() }) {
-    file = JSONFile(url: directory.appending(path: "settings.json"))
+  public init(
+    directory: URL,
+    now: @escaping @Sendable () -> Date = { Date() },
+    log: any ActivityLog = NoActivityLog()
+  ) {
+    file = JSONFile(url: directory.appending(path: "settings.json"), log: log)
     self.now = now
   }
 

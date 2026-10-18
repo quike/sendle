@@ -1,11 +1,9 @@
 import Foundation
 import SendleDomain
-import os
-
-private let logger = Logger(subsystem: "io.github.quike.Sendle", category: "persistence")
 
 struct JSONFile<Value: Codable>: Sendable {
   let url: URL
+  let log: any ActivityLog
 
   /// The stored value, or nil when there is none. A file that can't be read or decoded is moved
   /// aside first, so the next save never overwrites the user's data; `onQuarantine` gets its new URL.
@@ -33,8 +31,7 @@ struct JSONFile<Value: Codable>: Sendable {
         at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
       try Self.encoder().encode(value).write(to: url, options: .atomic)
     } catch {
-      let file = url.lastPathComponent
-      logger.error("Could not save \(file, privacy: .public): \(error.localizedDescription)")
+      log.error(.app, "Couldn't save \(url.lastPathComponent): \(error.localizedDescription)")
       throw .writeFailed(error.localizedDescription)
     }
   }
@@ -50,12 +47,12 @@ struct JSONFile<Value: Codable>: Sendable {
     let name = url.lastPathComponent
     do {
       try FileManager.default.moveItem(at: url, to: target)
-      logger.warning("Moved unreadable \(name, privacy: .public) to \(target.lastPathComponent)")
+      log.warning(
+        .app, "\(name) couldn't be read, so Sendle moved it to \(target.lastPathComponent)")
       return target
     } catch {
       // Only an unwritable folder stops the move, and then saving fails too: nothing is overwritten.
-      logger.error(
-        "Could not move unreadable \(name, privacy: .public): \(error.localizedDescription)")
+      log.error(.app, "Couldn't move the unreadable \(name) aside: \(error.localizedDescription)")
       return nil
     }
   }

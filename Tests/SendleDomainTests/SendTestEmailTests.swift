@@ -22,6 +22,32 @@ struct SendTestEmailTests {
     #expect(staging.snapshot.removed == staging.snapshot.made)
   }
 
+  @Test func logsTheTestUnderItsOwnHeading() async throws {
+    let log = FakeActivityLog()
+    let sendTest = SendTestEmail(
+      settings: InMemorySettingsStore(AppSettings(email: .fixture)),
+      channels: FakeDeliveryChannelFactory(), staging: FakeStagingArea(), log: log)
+
+    try await sendTest()
+
+    #expect(log.summary == ["info MAIL Send test · reader@kindle.com", "info MAIL Send test sent"])
+    #expect(log.entries().first?.heading == .sendTest)
+  }
+
+  @Test func logsAFailedTest() async {
+    let log = FakeActivityLog()
+    let sendTest = SendTestEmail(
+      settings: InMemorySettingsStore(AppSettings(email: .fixture)),
+      channels: FakeDeliveryChannelFactory(
+        channel: FakeDeliveryChannel(.fail(.authenticationFailed(.gmail)))),
+      staging: FakeStagingArea(), log: log)
+
+    await #expect(throws: SendFailure.self) { try await sendTest() }
+
+    #expect(
+      log.summary.last == "error MAIL Send test failed: the mail server didn't accept the password")
+  }
+
   @Test func needsTheEmailSetupFirst() async {
     let sendTest = SendTestEmail(
       settings: InMemorySettingsStore(), channels: FakeDeliveryChannelFactory(),

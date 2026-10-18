@@ -24,6 +24,18 @@ struct JSONSettingsStoreTests {
     #expect(await JSONSettingsStore(directory: directory).load() == settings)
   }
 
+  @Test func logsASaveThatFailed() async throws {
+    let log = FakeActivityLog()
+    let blocked = directory.appending(path: "file-not-folder")
+    try Data().write(to: blocked)
+
+    await #expect(throws: StorageError.self) {
+      try await JSONSettingsStore(directory: blocked, log: log).update { $0.layout = .list }
+    }
+
+    #expect(log.summary.contains { $0.hasPrefix("error APP Couldn't save settings.json: ") })
+  }
+
   @Test func createsTheDataFolderOnFirstSave() async throws {
     let nested = directory.appending(path: "not/yet/there")
     try await JSONSettingsStore(directory: nested).update { $0 = .defaults }
@@ -35,9 +47,15 @@ struct JSONSettingsStoreTests {
     let file = directory.appending(path: "settings.json")
     try Data("{ not json".utf8).write(to: file)
     let now = now
+    let log = FakeActivityLog()
 
-    let settings = await JSONSettingsStore(directory: directory, now: { now }).load()
+    let settings = await JSONSettingsStore(directory: directory, now: { now }, log: log).load()
 
+    #expect(
+      log.summary == [
+        "warning APP settings.json couldn't be read, so Sendle moved it to "
+          + "settings.corrupt-1800000000.json"
+      ])
     #expect(settings == .defaults)
     #expect(!FileManager.default.fileExists(atPath: file.path()))
     let kept = directory.appending(path: "settings.corrupt-1800000000.json")

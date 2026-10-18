@@ -18,6 +18,38 @@ struct LoadLibraryTests {
     #expect(books.first { $0.id == locked.id }?.availability == .protected)
   }
 
+  @Test func logsWhatItReadOnlyWhenThatChanges() async throws {
+    let library = FakeBooksLibrary(
+      .success([
+        .fixture(id: "a"), .fixture(id: "b"), .fixture(id: "c", availability: .inCloudOnly),
+      ]))
+    let log = FakeActivityLog()
+    let load = LoadLibrary(
+      library: library, inspector: StubProtectionInspector(protectedIDs: [BookID(rawValue: "b")]),
+      log: log)
+
+    _ = try await load()
+    _ = try await load()
+    library.result = .success([.fixture(id: "a")])
+    _ = try await load()
+
+    #expect(log.summary.count == 2)
+    #expect(log.summary[0].hasPrefix("info LIB Read 3 books (1 protected, 1 only in iCloud) in "))
+    #expect(log.summary[1].hasPrefix("info LIB Read 1 book in "))
+  }
+
+  @Test func logsWhyTheLibraryCouldNotBeRead() async {
+    let log = FakeActivityLog()
+    let load = LoadLibrary(
+      library: FakeBooksLibrary(.failure(.accessDenied)), inspector: StubProtectionInspector(),
+      log: log)
+
+    _ = try? await load()
+
+    #expect(
+      log.summary == ["error LIB Couldn't read the Books library: Sendle has no Full Disk Access"])
+  }
+
   @Test func keepsTheReasonForBooksThatAreNotOnThisMac() async throws {
     let cloud = Book.fixture(id: "cloud", availability: .inCloudOnly)
     let load = LoadLibrary(

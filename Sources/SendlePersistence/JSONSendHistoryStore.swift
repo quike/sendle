@@ -11,9 +11,10 @@ public actor JSONSendHistoryStore: SendHistoryStore {
   public init(
     directory: URL,
     limit: Int = defaultLimit,
-    now: @escaping @Sendable () -> Date = { Date() }
+    now: @escaping @Sendable () -> Date = { Date() },
+    log: any ActivityLog = NoActivityLog()
   ) {
-    file = JSONFile(url: directory.appending(path: "history.json"))
+    file = JSONFile(url: directory.appending(path: "history.json"), log: log)
     self.limit = limit
     self.now = now
   }

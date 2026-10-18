@@ -23,7 +23,7 @@ struct Composition {
   ) {
     let data = DataDirectory.url()
     let log = MemoryActivityLog()
-    let settings = JSONSettingsStore(directory: data)
+    let settings = JSONSettingsStore(directory: data, log: log)
     let secrets = KeychainSecretStore()
     let staging = FileSystemStagingArea()
     let converter = BokoConverter(log: log)
@@ -32,11 +32,13 @@ struct Composition {
       ?? DeliveryChannels(
         email: EmailChannelFactory(settings: settings, secrets: secrets, log: log), log: log)
     let configure = ConfigureEmail(settings: settings, secrets: secrets, log: log)
-    let sendTest = SendTestEmail(settings: settings, channels: channels, staging: staging)
-    let history = JSONSendHistoryStore(directory: data)
+    let sendTest = SendTestEmail(
+      settings: settings, channels: channels, staging: staging, log: log)
+    let history = JSONSendHistoryStore(directory: data, log: log)
     let library = LibraryViewModel(
       loadLibrary: LoadLibrary(
-        library: AppleBooksLibrary(location: .standard()), inspector: EPUBProtectionInspector()),
+        library: AppleBooksLibrary(location: .standard()), inspector: EPUBProtectionInspector(),
+        log: log),
       observeDestinations: ObserveDestinations(
         monitor: kindles ?? KindleVolumeMonitor(log: log), settings: settings),
       settings: settings,
@@ -57,7 +59,7 @@ struct Composition {
       queue: SendQueueViewModel(
         sendBooks: SendBooks(
           channels: channels, preparer: KindleEPUBPreparer(), converter: converter,
-          staging: staging, history: history)),
+          staging: staging, history: history, log: log)),
       ejector: VolumeEjector(log: log))
     self.settings = settings
     chooseTool = ChooseConverterTool(settings: settings, choice: converter, log: log)
