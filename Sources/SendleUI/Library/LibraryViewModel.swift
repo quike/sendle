@@ -18,12 +18,21 @@ public final class LibraryViewModel {
   package private(set) var books: [Book] = []
   package private(set) var needsAccess = false
   package var query = "" {
-    didSet { selection.keep(in: items) }
+    didSet { refreshItems() }
   }
   package var filter = LibraryFilter.all {
-    didSet { selection.keep(in: items) }
+    didSet { refreshItems() }
   }
   package private(set) var layout = LibraryLayout.grid
+  package private(set) var sort = LibrarySort.recent
+  package private(set) var jumpBar = JumpBarStyle.full
+  /// The books the filter and search show, in the sort's order. Built once per change: with
+  /// hundreds of books, building them on every read slowed each render.
+  package private(set) var items: [BookItemViewModel] = []
+  /// The newest books on screen, whatever the sort, for the shelf.
+  package private(set) var recentItems: [BookItemViewModel] = []
+  /// The A–Z bar's letters, while sorted by title or author.
+  package private(set) var index: AlphabetIndex?
   package private(set) var destinations: [Destination] = []
   package private(set) var hasKindleEmail = false
   package private(set) var preferredDestination = DestinationKind.email
@@ -66,15 +75,6 @@ public final class LibraryViewModel {
     self.now = now
   }
 
-  package var items: [BookItemViewModel] {
-    LibraryItems.make(
-      books: books, sends: sends, filter: filter, query: query,
-      destination: activeDestination?.kind ?? preferredDestination,
-      converterAvailable: converterAvailable, now: now())
-  }
-
-  package var recentItems: [BookItemViewModel] { Array(items.prefix(8)) }
-
   package var summary: String {
     let sendable = books.filter { $0.availability == .ready }.count
     return "\(books.count) \(books.count == 1 ? "book" : "books") · \(sendable) sendable"
@@ -110,9 +110,12 @@ public final class LibraryViewModel {
   package func start() async {
     let saved = await settings.load()
     layout = saved.layout
+    sort = saved.sort
+    jumpBar = saved.jumpBar
     preferredDestination = saved.activeDestination
     hasKindleEmail = saved.email != nil
     converterAvailable = converter.isAvailable
+    refreshItems()
     let updates = observeDestinations()
     destinationUpdates = Task { [weak self] in
       for await destinations in updates {
@@ -149,13 +152,15 @@ public final class LibraryViewModel {
 
   package func refreshHistory() async {
     sends = LibraryItems.latestSends(in: await history.records())
-    selection.keep(in: items)
+    refreshItems()
   }
 
   /// A new Kindle email shows at once; the destination stream only re-reads it when a Kindle moves.
   package func refreshSettings() async {
-    let email = await settings.load().email?.kindleAddress
+    let saved = await settings.load()
+    let email = saved.email?.kindleAddress
     hasKindleEmail = email != nil
+    jumpBar = saved.jumpBar
     show(ObserveDestinations.destinations(email: email, volumes: volumes))
   }
 
@@ -167,9 +172,16 @@ public final class LibraryViewModel {
     await save { $0.layout = layout }
   }
 
+  package func setSort(_ sort: LibrarySort) async {
+    guard sort != self.sort else { return }
+    self.sort = sort
+    refreshItems()
+    await save { $0.sort = sort }
+  }
+
   package func activate(_ kind: DestinationKind) async {
     preferredDestination = kind
-    selection.keep(in: items)
+    refreshItems()
     await save { $0.activeDestination = kind }
   }
 
@@ -218,7 +230,7 @@ public final class LibraryViewModel {
         state = .failed(problem)
       }
     }
-    selection.keep(in: items)
+    refreshItems()
   }
 
   private func show(_ destinations: [Destination]) {
@@ -226,6 +238,18 @@ public final class LibraryViewModel {
     volumes = destinations.compactMap {
       if case .usb(let volume) = $0 { volume } else { nil }
     }
+    refreshItems()
+  }
+
+  /// Rebuilds what the layouts show, and drops selected books that are no longer among it.
+  private func refreshItems() {
+    let newestFirst = LibraryItems.make(
+      books: books, sends: sends, filter: filter, query: query,
+      destination: activeDestination?.kind ?? preferredDestination,
+      converterAvailable: converterAvailable, now: now())
+    items = LibraryOrder.sorted(newestFirst, by: sort, book: \.book)
+    recentItems = Array(newestFirst.prefix(8))
+    index = sort == .recent ? nil : AlphabetIndex(books: items.map(\.book), sort: sort)
     selection.keep(in: items)
   }
 

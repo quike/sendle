@@ -3,6 +3,7 @@ import SendleDomain
 import SendleTestSupport
 import SendleUI
 import Testing
+import os
 
 @MainActor
 @Suite(.timeLimit(.minutes(1)))
@@ -394,5 +395,92 @@ struct LibraryViewModelTests {
     await model.appear()
 
     #expect(model.recentItems.map(\.id.rawValue) == ["0", "1", "2", "3", "4", "5", "6", "7"])
+  }
+
+  // MARK: Sort and A–Z
+
+  func titled(_ titles: [String]) -> [Book] {
+    titles.enumerated().map { offset, title in
+      .fixture(
+        id: title, title: title, addedAt: Date(timeIntervalSince1970: TimeInterval(1_000 - offset))
+      )
+    }
+  }
+
+  @Test func sortsByTitleAndRemembersIt() async {
+    library.result = .success(titled(["Moby-Dick", "Emma", "Candide"]))
+    let (model, settings) = makeModel()
+    await model.appear()
+    #expect(model.items.map(\.title) == ["Moby-Dick", "Emma", "Candide"])
+    #expect(model.index == nil)
+
+    await model.setSort(.title)
+
+    #expect(model.items.map(\.title) == ["Candide", "Emma", "Moby-Dick"])
+    #expect(model.index?.lettersWithBooks == ["C", "E", "M"])
+    #expect(await settings.settings.sort == .title)
+  }
+
+  @Test func startsWithTheRememberedSortAndJumpBar() async {
+    let (model, _) = makeModel(AppSettings(sort: .author, jumpBar: .compact))
+
+    await model.start()
+
+    #expect(model.sort == .author)
+    #expect(model.jumpBar == .compact)
+  }
+
+  @Test func followsAJumpBarChangeFromSettings() async throws {
+    let (model, settings) = makeModel()
+    await model.start()
+
+    try await settings.update { $0.jumpBar = .compact }
+    await model.refreshSettings()
+
+    #expect(model.jumpBar == .compact)
+  }
+
+  @Test func indexesOnlyTheBooksTheSearchShows() async {
+    library.result = .success(titled(["Moby-Dick", "Emma", "Candide"]))
+    let (model, _) = makeModel(AppSettings(email: .fixture, sort: .title))
+    await model.start()
+    await model.appear()
+
+    model.query = "e"
+
+    #expect(model.items.map(\.title) == ["Candide", "Emma", "Moby-Dick"])
+    model.query = "mm"
+    #expect(model.index?.lettersWithBooks == ["E"])
+  }
+
+  @Test func theShelfShowsTheNewestBooksWhateverTheSort() async {
+    library.result = .success(titled(["Moby-Dick", "Emma", "Candide"]))
+    let (model, _) = makeModel(AppSettings(email: .fixture, sort: .title))
+    await model.start()
+    await model.appear()
+
+    #expect(model.recentItems.map(\.title) == ["Moby-Dick", "Emma", "Candide"])
+  }
+
+  /// With 500 books, building the items on every read made each render slow.
+  @Test func buildsTheItemsOncePerChange() async {
+    let builds = OSAllocatedUnfairLock(initialState: 0)
+    let settings = InMemorySettingsStore(AppSettings(email: .fixture))
+    let model = LibraryViewModel(
+      loadLibrary: LoadLibrary(library: library, inspector: StubProtectionInspector()),
+      observeDestinations: ObserveDestinations(monitor: monitor, settings: settings),
+      settings: settings, history: history, converter: FakeFormatConverter(isAvailable: false),
+      now: {
+        builds.withLock { $0 += 1 }
+        return Date(timeIntervalSince1970: 1_800_000_000)
+      })
+    await model.appear()
+    let afterLoading = builds.withLock { $0 }
+
+    for _ in 0..<10 { _ = model.items.count + model.recentItems.count }
+    #expect(builds.withLock { $0 } == afterLoading)
+
+    model.query = "moby"
+    #expect(builds.withLock { $0 } == afterLoading + 1)
   }
 }
