@@ -44,8 +44,7 @@ public struct LoadLibrary: Sendable {
       }
     let report = Self.summary(of: marked)
     if lastReport.replace(with: report) {
-      let elapsed = (clock.now - start).formatted(.units(allowed: [.seconds, .milliseconds]))
-      log.info(.library, "\(report) in \(elapsed)")
+      log.info(.library, "\(report) in \(Elapsed.text(clock.now - start))")
     }
     return marked
   }

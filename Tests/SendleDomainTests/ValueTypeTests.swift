@@ -62,6 +62,13 @@ struct ByteCountTests {
   }
 }
 
+struct ElapsedTests {
+  @Test func writesSecondsWithOneDecimalInEnglish() {
+    #expect(Elapsed.text(.milliseconds(87)) == "0.1 s")
+    #expect(Elapsed.text(.milliseconds(12_345)) == "12.3 s")
+  }
+}
+
 struct FileFormatTests {
   @Test func mimeTypesMatchWhatAmazonExpects() {
     #expect(FileFormat.epub.mimeType == "application/epub+zip")

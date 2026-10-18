@@ -35,7 +35,7 @@ struct LoadLibraryTests {
 
     #expect(log.summary.count == 2)
     #expect(log.summary[0].hasPrefix("info LIB Read 3 books (1 protected, 1 only in iCloud) in "))
-    #expect(log.summary[1].hasPrefix("info LIB Read 1 book in "))
+    #expect(log.summary[1].wholeMatch(of: /info LIB Read 1 book in \d+\.\d s/) != nil)
   }
 
   @Test func logsWhyTheLibraryCouldNotBeRead() async {

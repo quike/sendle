@@ -64,7 +64,7 @@ public final class BokoConverter: FormatConverter, ToolChoice {
     let start = clock.now
     let outcome = try await Command.run(
       tool, ["convert", file.url.path, output.path], log: printed, timeout: timeout)
-    let elapsed = Self.seconds(clock.now - start)
+    let elapsed = Elapsed.text(clock.now - start)
     if let text = Self.output(in: printed) { log.debug(.boko, text) }
     switch outcome {
     case .cancelled:
@@ -107,12 +107,6 @@ public final class BokoConverter: FormatConverter, ToolChoice {
     let text = (try? String(contentsOf: file, encoding: .utf8))?
       .trimmingCharacters(in: .whitespacesAndNewlines)
     return text?.isEmpty == false ? text : nil
-  }
-
-  private static func seconds(_ duration: Duration) -> String {
-    let parts = duration.components
-    let value = Double(parts.seconds) + Double(parts.attoseconds) / 1e18
-    return String(format: "%.1f s", value)
   }
 
   /// English in every language, like the rest of Sendle's copy.
