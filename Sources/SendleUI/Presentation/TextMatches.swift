@@ -1,6 +1,6 @@
 import Foundation
 
-/// How the log search finds words: ignoring case and accents.
+/// How searches find words: ignoring case and accents.
 package enum TextMatches {
   private static let options: String.CompareOptions = [.caseInsensitive, .diacriticInsensitive]
 

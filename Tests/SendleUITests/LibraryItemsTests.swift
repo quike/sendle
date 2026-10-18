@@ -157,6 +157,29 @@ struct LibraryItemsTests {
     #expect(!item.canSend)
   }
 
+  @Test func spokenRoutesCoverTheSendsTheDetailDoesNotName() throws {
+    let cloud = Book.fixture(availability: .inCloudOnly)
+    let both = [sent(moby, daysAgo: 3), sent(moby, daysAgo: 2, by: .usb)]
+    let afterUSB = [sent(moby, daysAgo: 2, by: .usb), sent(moby, daysAgo: 1, .unconfirmed)]
+
+    let blocked = try #require(items([cloud], sends: [sent(cloud, daysAgo: 2)]).first)
+    let warned = try #require(items([moby], sends: afterUSB).first)
+    let bothWays = try #require(
+      items([moby], sends: both + [sent(moby, daysAgo: 1, .unconfirmed)]).first)
+
+    #expect(blocked.spokenRoutes == "Sent by email before")
+    #expect(warned.spokenRoutes == "Sent over USB before")
+    #expect(bothWays.spokenRoutes == "Sent by email and over USB before")
+  }
+
+  @Test func spokenRoutesStayQuietWhenTheDetailSaysIt() throws {
+    let sentItem = try #require(items([moby], sends: [sent(moby, daysAgo: 1)]).first)
+    let neverSent = try #require(items([moby]).first)
+
+    #expect(sentItem.spokenRoutes == nil)
+    #expect(neverSent.spokenRoutes == nil)
+  }
+
   @Test(arguments: [Availability.protected, .inCloudOnly, .missing])
   func explainsWhyABookCannotBeSent(availability: Availability) throws {
     let book = Book.fixture(availability: availability)

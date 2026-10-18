@@ -102,7 +102,7 @@ public final class LibraryViewModel {
       ?? destinations.first
   }
 
-  /// The kind whose colour the library wears: the active destination's, or the saved choice.
+  /// The kind the library plans its books for and wears the colour of: the active destination's, or the saved choice.
   package var activeKind: DestinationKind { activeDestination?.kind ?? preferredDestination }
 
   /// Covers carry their format only where the filter lets formats mix.

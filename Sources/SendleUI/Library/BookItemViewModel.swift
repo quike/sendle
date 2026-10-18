@@ -19,6 +19,8 @@ package struct BookItemViewModel: Identifiable, Hashable, Sendable {
   package let tone: Tone
   /// Where the book was sent for sure.
   package let routes: [DestinationKind]
+  /// The earlier sends VoiceOver can't see as marks, when the detail doesn't already name them.
+  package let spokenRoutes: String?
   package let canSend: Bool
 
   package var id: BookID { book.id }
@@ -35,6 +37,7 @@ package struct BookItemViewModel: Identifiable, Hashable, Sendable {
     byline = book.author ?? "Unknown author"
     badge = book.isStorePurchase ? "STORE" : book.format.rawValue.uppercased()
     routes = sends?.routes ?? []
+    let sentWording = Self.sentWording(of: routes)
     switch FormatPolicy.plan(for: book, to: destination, converterAvailable: converterAvailable) {
     case .blocked(let reason, _):
       detail = ProblemPresenter.problem(for: reason).title
@@ -45,9 +48,7 @@ package struct BookItemViewModel: Identifiable, Hashable, Sendable {
         detail = "May have been sent · check your Kindle"
         tone = .warning
       } else if let sends {
-        let how = sends.routes.map { $0 == .email ? "by email" : "over USB" }
-          .joined(separator: " and ")
-        detail = "Sent \(how) · \(Formatting.age(of: sends.latest.date, now: now))"
+        detail = "\(sentWording) · \(Formatting.age(of: sends.latest.date, now: now))"
         tone = .sent
       } else {
         detail = book.sizeBytes.map { Formatting.size($0) } ?? ""
@@ -55,5 +56,16 @@ package struct BookItemViewModel: Identifiable, Hashable, Sendable {
       }
       canSend = true
     }
+    spokenRoutes = routes.isEmpty || tone == .sent ? nil : "\(sentWording) before"
+  }
+
+  private static func sentWording(of routes: [DestinationKind]) -> String {
+    let ways = routes.map { kind in
+      switch kind {
+      case .email: "by email"
+      case .usb: "over USB"
+      }
+    }
+    return "Sent \(ways.joined(separator: " and "))"
   }
 }

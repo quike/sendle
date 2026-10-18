@@ -241,7 +241,6 @@ struct BookCover: View {
     let slot = panel.covers.slot(for: book, size: size)
     let isSelected = item.map { panel.library.selection.contains($0.id) } ?? false
     let isHovered = item.map { panel.library.hovered == $0.id } ?? false
-    let tint = Theme.tint(for: panel.library.activeKind)
     let isUnavailable = book.availability != .ready
     let shape = UnevenRoundedRectangle(
       topLeadingRadius: 5, bottomLeadingRadius: 5, bottomTrailingRadius: 7, topTrailingRadius: 7,
@@ -252,7 +251,9 @@ struct BookCover: View {
         if let data = slot.data, let image = NSImage(data: data) {
           Image(nsImage: image).resizable().scaledToFill()
         } else {
-          TitleCardView(book: book, titleSize: size == .large ? titleSize : nil)
+          TitleCardView(
+            book: book, titleSize: size == .large ? titleSize : nil,
+            bottomInset: showsFormat && item != nil ? 16 : 0)
         }
       }
       .clipShape(shape)
@@ -277,17 +278,20 @@ struct BookCover: View {
         }
       }
       .overlay(alignment: .topLeading) {
-        if isSelected { CoverMark(symbol: "checkmark", color: tint).padding(5) }
+        if isSelected {
+          CoverMark(symbol: "checkmark", color: Theme.tint(for: panel.library.activeKind))
+            .padding(5)
+        }
       }
       .overlay {
         if isSelected {
           RoundedRectangle(cornerRadius: 9, style: .continuous)
-            .strokeBorder(tint, lineWidth: 2)
+            .strokeBorder(Theme.tint(for: panel.library.activeKind), lineWidth: 2)
             .padding(-4)
         }
       }
       .overlay(alignment: .bottomLeading) {
-        if showsFormat, let item { FormatBubble(text: item.badge).padding(6) }
+        if showsFormat, let item { FormatBadge(text: item.badge, onCover: true).padding(6) }
       }
       .overlay(alignment: .bottomTrailing) {
         if isHovered, let item, item.canSend, size == .large {
@@ -317,25 +321,13 @@ private struct CoverMark: View {
   }
 }
 
-private struct FormatBubble: View {
-  let text: String
-
-  var body: some View {
-    Text(text)
-      .font(.system(size: 8.5, weight: .bold))
-      .kerning(0.3)
-      .foregroundStyle(Color.white.opacity(0.9))
-      .padding(.horizontal, 5)
-      .padding(.vertical, 1)
-      .background(Theme.background.opacity(0.72), in: RoundedRectangle(cornerRadius: 5))
-  }
-}
-
 /// A generated cover for books without one, in colours that stay put across launches.
 struct TitleCardView: View {
   let book: Book
   /// Nil leaves the title off, for covers too small to read it.
   let titleSize: CGFloat?
+  /// Room kept clear at the bottom, for what sits over the card.
+  var bottomInset: CGFloat = 0
 
   var body: some View {
     let colors = Theme.coverGradients[
@@ -351,6 +343,7 @@ struct TitleCardView: View {
           .lineLimit(4)
           .minimumScaleFactor(0.7)
           .padding(titleSize < 10 ? 5 : 7)
+          .padding(.bottom, bottomInset)
       }
     }
   }
@@ -381,7 +374,7 @@ extension View {
   /// per book, whose actions select it or send it.
   func bookInteractions(_ panel: PanelModel, _ item: BookItemViewModel) -> some View {
     let library = panel.library
-    let details = [item.badge, item.detail].filter { !$0.isEmpty }
+    let details = [item.badge, item.detail, item.spokenRoutes ?? ""].filter { !$0.isEmpty }
     return contentShape(Rectangle())
       .onTapGesture { panel.click(item.id, .current) }
       .onHover { inside in

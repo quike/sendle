@@ -76,15 +76,19 @@ struct SectionLabel: View {
 
 struct FormatBadge: View {
   let text: String
+  /// Darker and brighter, to read over a cover.
+  var onCover = false
 
   var body: some View {
     Text(text)
       .font(.system(size: 8.5, weight: .bold))
       .kerning(0.3)
-      .foregroundStyle(Color.white.opacity(0.7))
+      .foregroundStyle(Color.white.opacity(onCover ? 0.9 : 0.7))
       .padding(.horizontal, 5)
       .padding(.vertical, 1)
-      .background(Color.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 5))
+      .background(
+        onCover ? Theme.background.opacity(0.72) : Color.white.opacity(0.08),
+        in: RoundedRectangle(cornerRadius: 5))
   }
 }
 

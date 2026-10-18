@@ -75,8 +75,10 @@ struct DestinationChips: View {
   private func chips(_ library: LibraryViewModel) -> some View {
     HStack(spacing: 6) {
       if !library.isKindlePluggedIn {
-        Chip(title: "No Kindle plugged in", symbol: "cable.connector", isActive: false)
-          .help("Plug in a Kindle with its USB cable to copy books to it")
+        Chip(
+          title: "No Kindle plugged in", symbol: DestinationKind.usb.symbol, isActive: false
+        )
+        .help("Plug in a Kindle with its USB cable to copy books to it")
       }
       ForEach(library.destinations, id: \.self) { destination in
         Button {
