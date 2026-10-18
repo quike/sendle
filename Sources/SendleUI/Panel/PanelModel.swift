@@ -335,10 +335,7 @@ public final class PanelModel {
 
   /// Return saves the sheet, moves the setup on, sends the selection or leaves a finished queue.
   private func confirm() -> Bool {
-    if isShowingSettings {
-      Task { await saveSettings() }
-      return true
-    }
+    if isShowingSettings { return confirmSettings() }
     switch route {
     case .setup:
       switch setup.step {
@@ -353,6 +350,22 @@ public final class PanelModel {
       guard !queue.isRunning else { return false }
       finishQueue()
     case .logs:
+      return false
+    }
+    return true
+  }
+
+  /// Return saves the sender, adds a typed Kindle address, or opens the first search result.
+  private func confirmSettings() -> Bool {
+    switch settings.section {
+    case .sender? where settings.hasEmailSetup:
+      Task { await saveSettings() }
+    case .kindle? where !settings.newKindleAddress.isEmpty:
+      Task { await settings.addKindleAddress() }
+    case nil:
+      guard let first = settings.results.first else { return false }
+      settings.choose(first)
+    default:
       return false
     }
     return true

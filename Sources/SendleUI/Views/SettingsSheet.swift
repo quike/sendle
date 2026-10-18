@@ -429,7 +429,6 @@ private struct AddKindleAddressRow: View {
       )
       .textFieldStyle(.plain)
       .font(.system(size: 12))
-      .onSubmit { Task { await settings.addKindleAddress() } }
       if !settings.newKindleAddress.isEmpty {
         Button("Add") { Task { await settings.addKindleAddress() } }
           .buttonStyle(SecondaryButtonStyle())

@@ -397,10 +397,35 @@ struct PanelModelTests {
     #expect(await settings.settings.email == .fixture)
 
     await panel.openSettings(.kindle)
-    panel.settings.form.kindleAddress = "other@kindle.com"
+    panel.settings.newKindleAddress = "other@kindle.com"
+    #expect(panel.handle(KeyInput(.returnKey, isEditingText: true)))
+    #expect(await eventually { panel.settings.activeKindleAddress?.rawValue == "other@kindle.com" })
+    #expect(panel.isShowingSettings)
+    #expect(await settings.settings.email?.kindleAddress.rawValue == "other@kindle.com")
+  }
+
+  @Test func returnInSettingsDoesWhatThePageIsFor() async {
+    let (panel, settings) = makePanel()
+    await panel.launch()
+
+    await panel.openSettings()
+    panel.settings.query = "pass"
+    #expect(panel.handle(KeyInput(.returnKey, isEditingText: true)))
+    #expect(panel.settings.section == .sender)
+
+    panel.settings.form.senderAddress = "new@gmail.com"
+    panel.settings.form.password = "abcdefghijklmnop"
     #expect(panel.handle(KeyInput(.returnKey, isEditingText: true)))
     #expect(await eventually { !panel.isShowingSettings })
-    #expect(await settings.settings.email?.kindleAddress.rawValue == "other@kindle.com")
+    #expect(await settings.settings.email?.senderAddress == "new@gmail.com")
+
+    await panel.openSettings(.general)
+    #expect(!panel.handle(KeyInput(.returnKey)))
+    await panel.openSettings(.kindle)
+    #expect(!panel.handle(KeyInput(.returnKey)))
+    await panel.openSettings()
+    #expect(!panel.handle(KeyInput(.returnKey)))
+    #expect(panel.isShowingSettings)
   }
 
   @Test func returnLeavesTheKeyAloneWithNothingToSend() async {
