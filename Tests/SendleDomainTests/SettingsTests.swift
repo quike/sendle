@@ -38,7 +38,7 @@ struct AppSettingsTests {
   @Test func roundTripsThroughJSON() throws {
     let settings = AppSettings(
       email: .fixture, layout: .shelf, activeDestination: .usb, sort: .author,
-      jumpBar: .compact, showsLogs: true,
+      jumpBar: .compact, showsFormat: false, showsLogs: true,
       kindleAddresses: [.fixture, KindleEmail(rawValue: "pw5@kindle.com")],
       bokoPath: "/Users/reader/bin/boko")
     let data = try JSONEncoder().encode(settings)
@@ -56,6 +56,7 @@ struct AppSettingsTests {
     #expect(settings.layout == .list)
     #expect(settings.sort == .recent)
     #expect(settings.jumpBar == .full)
+    #expect(settings.showsFormat)
     #expect(!settings.showsLogs)
     #expect(settings.bokoPath == nil)
     #expect(settings.savedKindleAddresses == [.fixture])
@@ -91,6 +92,12 @@ struct AppSettingsTests {
       .savedKindleAddresses == [other, KindleEmail(rawValue: "READER@kindle.com")])
   }
 
+  @Test func showsFormatDefaultsToOn() throws {
+    #expect(AppSettings().showsFormat)
+    let settings = try JSONDecoder().decode(AppSettings.self, from: Data("{}".utf8))
+    #expect(settings.showsFormat)
+  }
+
   @Test func missingKeysFallBackToDefaults() throws {
     let settings = try JSONDecoder().decode(AppSettings.self, from: Data("{}".utf8))
     #expect(settings == .defaults)
@@ -99,7 +106,7 @@ struct AppSettingsTests {
   @Test func unknownValuesFromNewerVersionsFallBackToDefaults() throws {
     let json = #"""
       {"layout": "carousel", "activeDestination": "bluetooth", "sort": "rating",
-      "jumpBar": "huge", "showsLogs": "yes", "kindleAddresses": 7, "bokoPath": false}
+      "jumpBar": "huge", "showsFormat": "yes", "showsLogs": "yes", "kindleAddresses": 7, "bokoPath": false}
       """#
     let settings = try JSONDecoder().decode(AppSettings.self, from: Data(json.utf8))
     #expect(settings == .defaults)

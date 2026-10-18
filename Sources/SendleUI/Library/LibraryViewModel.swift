@@ -32,6 +32,7 @@ public final class LibraryViewModel {
   package private(set) var layout = LibraryLayout.grid
   package private(set) var sort = LibrarySort.recent
   package private(set) var jumpBar = JumpBarStyle.full
+  package private(set) var showsFormat = true
   /// The books the filter and search show, in the sort's order. Built once per change: with
   /// hundreds of books, building them on every read slowed each render.
   package private(set) var items: [BookItemViewModel] = []
@@ -104,6 +105,11 @@ public final class LibraryViewModel {
   /// The kind whose colour the library wears: the active destination's, or the saved choice.
   package var activeKind: DestinationKind { activeDestination?.kind ?? preferredDestination }
 
+  /// Covers carry their format only where the filter lets formats mix.
+  package var showsFormatOnCovers: Bool {
+    showsFormat && (filter == .all || filter == .notSent)
+  }
+
   package var isKindlePluggedIn: Bool { !volumes.isEmpty }
 
   /// Something to send to; the selection itself only ever holds books that can go there.
@@ -129,6 +135,7 @@ public final class LibraryViewModel {
     layout = saved.layout
     sort = saved.sort
     jumpBar = saved.jumpBar
+    showsFormat = saved.showsFormat
     preferredDestination = saved.activeDestination
     hasKindleEmail = saved.email != nil
     converterAvailable = converter.isAvailable
@@ -179,6 +186,7 @@ public final class LibraryViewModel {
     let email = saved.email?.kindleAddress
     hasKindleEmail = email != nil
     jumpBar = saved.jumpBar
+    showsFormat = saved.showsFormat
     converterAvailable = converter.isAvailable
     show(ObserveDestinations.destinations(email: email, volumes: volumes))
   }

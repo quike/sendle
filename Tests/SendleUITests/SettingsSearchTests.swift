@@ -18,6 +18,13 @@ struct SettingsSearchTests {
     #expect(SettingsSearch.results(for: "az").first == .jumpBar)
   }
 
+  @Test func findsTheFormatSettingByNameAndByTheFormatsItLabels() {
+    #expect(SettingsSearch.results(for: "format") == [.showFormat])
+    #expect(SettingsSearch.results(for: "epub").contains(.showFormat))
+    #expect(SettingsItem.showFormat.title == "Show book format")
+    #expect(SettingsItem.showFormat.section == .general)
+  }
+
   @Test func anEmptySearchFindsNothing() {
     #expect(SettingsSearch.results(for: "  ").isEmpty)
   }

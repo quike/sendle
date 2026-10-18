@@ -479,6 +479,39 @@ struct LibraryViewModelTests {
     #expect(model.jumpBar == .compact)
   }
 
+  @Test(arguments: [
+    (LibraryFilter.all, true), (.notSent, true), (.epub, false), (.pdf, false),
+  ])
+  func showsTheFormatOnCoversWhereTheFormatsMix(filter: LibraryFilter, shows: Bool) async {
+    let (model, _) = makeModel()
+    await model.start()
+
+    model.filter = filter
+
+    #expect(model.showsFormatOnCovers == shows)
+  }
+
+  @Test func hidesTheFormatUnderEveryFilterWhenTheSettingIsOff() async {
+    let (model, _) = makeModel(AppSettings(email: .fixture, showsFormat: false))
+    await model.start()
+
+    for filter in LibraryFilter.allCases {
+      model.filter = filter
+      #expect(!model.showsFormatOnCovers)
+    }
+  }
+
+  @Test func followsAFormatChangeFromSettings() async throws {
+    let (model, settings) = makeModel()
+    await model.start()
+    #expect(model.showsFormatOnCovers)
+
+    try await settings.update { $0.showsFormat = false }
+    await model.refreshSettings()
+
+    #expect(!model.showsFormatOnCovers)
+  }
+
   @Test func indexesOnlyTheBooksTheSearchShows() async {
     library.result = .success(titled(["Moby-Dick", "Emma", "Candide"]))
     let (model, _) = makeModel(AppSettings(email: .fixture, sort: .title))

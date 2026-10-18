@@ -15,6 +15,7 @@ public final class SettingsViewModel {
   package private(set) var launchAtLogin = LoginItemStatus.disabled
   package private(set) var launchAtLoginError: String?
   package private(set) var jumpBar = JumpBarStyle.full
+  package private(set) var showsFormat = true
   package private(set) var showsLogs = false
   package private(set) var kindleAddresses: [KindleEmail] = []
   package private(set) var activeKindleAddress: KindleEmail?
@@ -26,7 +27,7 @@ public final class SettingsViewModel {
   /// The boko the user chose, found or not.
   package private(set) var chosenBoko: URL?
   package private(set) var bokoError: String?
-  /// Told whenever a choice the panel shows changes: the A–Z bar, logs, the Kindle address, boko.
+  /// Told whenever a choice the panel shows changes: the A–Z bar, formats, logs, Kindle, boko.
   @ObservationIgnored package var onChange: (@MainActor () async -> Void)?
   @ObservationIgnored private var unmark: Task<Void, Never>?
   /// The email setup as saved; the form may hold edits that aren't.
@@ -62,6 +63,7 @@ public final class SettingsViewModel {
   package func start() async {
     let saved = await settings.load()
     jumpBar = saved.jumpBar
+    showsFormat = saved.showsFormat
     showsLogs = saved.showsLogs
   }
 
@@ -124,7 +126,9 @@ public final class SettingsViewModel {
         case .disabled, .unavailable: "Doesn't open at login"
         }
       let bar = jumpBar == .full ? "Full" : "Compact"
-      return "\(login) · A–Z bar: \(bar) · Logs \(showsLogs ? "on" : "off")"
+      let formats = showsFormat ? "on" : "off"
+      let logs = showsLogs ? "on" : "off"
+      return "\(login) · A–Z bar: \(bar) · Formats \(formats) · Logs \(logs)"
     case .kindle:
       guard let active = activeKindleAddress else { return "Not set up" }
       let others = kindleAddresses.count - 1
@@ -175,6 +179,11 @@ public final class SettingsViewModel {
   package func setJumpBar(_ style: JumpBarStyle) async {
     jumpBar = style
     await store { $0.jumpBar = style }
+  }
+
+  package func setShowsFormat(_ shows: Bool) async {
+    showsFormat = shows
+    await store { $0.showsFormat = shows }
   }
 
   package func setShowsLogs(_ shows: Bool) async {
@@ -271,6 +280,7 @@ public final class SettingsViewModel {
 
   private func show(_ saved: AppSettings) {
     jumpBar = saved.jumpBar
+    showsFormat = saved.showsFormat
     showsLogs = saved.showsLogs
     savedEmail = saved.email
     kindleAddresses = saved.savedKindleAddresses

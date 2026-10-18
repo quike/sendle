@@ -65,7 +65,7 @@ struct SettingsViewModelTests {
     #expect(model.section == nil)
     #expect(
       SettingsSection.allCases.map { model.summary(of: $0) } == [
-        "Doesn't open at login · A–Z bar: Full · Logs off", "reader@kindle.com",
+        "Doesn't open at login · A–Z bar: Full · Formats on · Logs off", "reader@kindle.com",
         "Gmail · me@gmail.com", "boko not found",
       ])
   }
@@ -120,12 +120,14 @@ struct SettingsViewModelTests {
 
   // MARK: General
 
-  @Test func readsTheJumpBarAndLogsBeforeSettingsOpen() async {
-    let model = makeModel(InMemorySettingsStore(AppSettings(jumpBar: .compact, showsLogs: true)))
+  @Test func readsTheJumpBarFormatsAndLogsBeforeSettingsOpen() async {
+    let model = makeModel(
+      InMemorySettingsStore(AppSettings(jumpBar: .compact, showsFormat: false, showsLogs: true)))
 
     await model.start()
 
     #expect(model.jumpBar == .compact)
+    #expect(!model.showsFormat)
     #expect(model.showsLogs)
   }
 
@@ -141,7 +143,25 @@ struct SettingsViewModelTests {
     #expect(await settings.settings.jumpBar == .compact)
     #expect(await settings.settings.showsLogs)
     #expect(changes == 2)
-    #expect(model.summary(of: .general) == "Doesn't open at login · A–Z bar: Compact · Logs on")
+    #expect(
+      model.summary(of: .general)
+        == "Doesn't open at login · A–Z bar: Compact · Formats on · Logs on")
+  }
+
+  @Test func savesTheFormatChoiceAtOnceAndSaysSo() async {
+    let model = makeModel()
+    var changes = 0
+    model.onChange = { changes += 1 }
+    await model.open(at: .general)
+    #expect(model.showsFormat)
+
+    await model.setShowsFormat(false)
+
+    #expect(await settings.settings.showsFormat == false)
+    #expect(changes == 1)
+    #expect(
+      model.summary(of: .general)
+        == "Doesn't open at login · A–Z bar: Full · Formats off · Logs off")
   }
 
   // MARK: Kindle addresses
@@ -302,7 +322,9 @@ struct SettingsViewModelTests {
 
     #expect(model.launchAtLogin == .requiresApproval)
     #expect(model.launchAtLoginNote?.contains("Login Items") == true)
-    #expect(model.summary(of: .general) == "Waiting for approval · A–Z bar: Full · Logs off")
+    #expect(
+      model.summary(of: .general)
+        == "Waiting for approval · A–Z bar: Full · Formats on · Logs off")
   }
 
   @Test func explainsWhyLaunchAtLoginCouldNotChange() async {

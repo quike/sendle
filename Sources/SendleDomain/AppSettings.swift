@@ -25,6 +25,7 @@ public struct AppSettings: Hashable, Sendable, Codable {
   public var activeDestination: DestinationKind
   public var sort: LibrarySort
   public var jumpBar: JumpBarStyle
+  public var showsFormat: Bool
   public var showsLogs: Bool
   /// Kindle addresses kept for later; `email.kindleAddress` is the active one.
   public var kindleAddresses: [KindleEmail]
@@ -39,6 +40,7 @@ public struct AppSettings: Hashable, Sendable, Codable {
     activeDestination: DestinationKind = .email,
     sort: LibrarySort = .recent,
     jumpBar: JumpBarStyle = .full,
+    showsFormat: Bool = true,
     showsLogs: Bool = false,
     kindleAddresses: [KindleEmail] = [],
     bokoPath: String? = nil
@@ -48,6 +50,7 @@ public struct AppSettings: Hashable, Sendable, Codable {
     self.activeDestination = activeDestination
     self.sort = sort
     self.jumpBar = jumpBar
+    self.showsFormat = showsFormat
     self.showsLogs = showsLogs
     self.kindleAddresses = kindleAddresses
     self.bokoPath = bokoPath
@@ -63,6 +66,7 @@ public struct AppSettings: Hashable, Sendable, Codable {
       (try? container.decodeIfPresent(DestinationKind.self, forKey: .activeDestination)) ?? .email
     sort = (try? container.decodeIfPresent(LibrarySort.self, forKey: .sort)) ?? .recent
     jumpBar = (try? container.decodeIfPresent(JumpBarStyle.self, forKey: .jumpBar)) ?? .full
+    showsFormat = (try? container.decodeIfPresent(Bool.self, forKey: .showsFormat)) ?? true
     showsLogs = (try? container.decodeIfPresent(Bool.self, forKey: .showsLogs)) ?? false
     kindleAddresses =
       (try? container.decodeIfPresent([KindleEmail].self, forKey: .kindleAddresses)) ?? []

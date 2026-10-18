@@ -14,8 +14,11 @@ struct BookGrid: View {
     LazyVGrid(columns: columns, alignment: .leading, spacing: 12) {
       ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
         VStack(alignment: .leading, spacing: 0) {
-          BookCover(panel: panel, item: item, size: .large)
-            .aspectRatio(2 / 3, contentMode: .fit)
+          BookCover(
+            panel: panel, item: item, size: .large,
+            showsFormat: panel.library.showsFormatOnCovers
+          )
+          .aspectRatio(2 / 3, contentMode: .fit)
           Text(item.title)
             .font(.system(size: 10.5, weight: .semibold))
             .lineLimit(1)
@@ -207,6 +210,7 @@ struct BookCover: View {
   let item: BookItemViewModel?
   let size: CoverSize
   var titleSize: CGFloat = 10
+  var showsFormat = false
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
   init(
@@ -214,13 +218,15 @@ struct BookCover: View {
     item: BookItemViewModel,
     size: CoverSize,
     showsMarks: Bool = true,
-    titleSize: CGFloat = 10
+    titleSize: CGFloat = 10,
+    showsFormat: Bool = false
   ) {
     self.panel = panel
     book = item.book
     self.item = showsMarks ? item : nil
     self.size = size
     self.titleSize = titleSize
+    self.showsFormat = showsFormat
   }
 
   /// A book's cover where no destination applies, as in the queue.
@@ -280,6 +286,9 @@ struct BookCover: View {
             .padding(-4)
         }
       }
+      .overlay(alignment: .bottomLeading) {
+        if showsFormat, let item { FormatBubble(text: item.badge).padding(6) }
+      }
       .overlay(alignment: .bottomTrailing) {
         if isHovered, let item, item.canSend, size == .large {
           QuickSendButton(panel: panel, item: item, isProminent: true).padding(6)
@@ -305,6 +314,20 @@ private struct CoverMark: View {
       .frame(width: 16, height: 16)
       .background(color, in: Circle())
       .overlay(Circle().strokeBorder(Theme.background, lineWidth: 2))
+  }
+}
+
+private struct FormatBubble: View {
+  let text: String
+
+  var body: some View {
+    Text(text)
+      .font(.system(size: 8.5, weight: .bold))
+      .kerning(0.3)
+      .foregroundStyle(Color.white.opacity(0.9))
+      .padding(.horizontal, 5)
+      .padding(.vertical, 1)
+      .background(Theme.background.opacity(0.72), in: RoundedRectangle(cornerRadius: 5))
   }
 }
 

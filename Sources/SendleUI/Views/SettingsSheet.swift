@@ -272,6 +272,23 @@ private struct GeneralPage: View {
         }
         .padding(12)
         .settingsHighlight(settings.highlighted == .jumpBar)
+        RowDivider()
+        HStack(spacing: 10) {
+          RowText(
+            title: "Show book format",
+            detail: "A small EPUB or PDF label on covers in All and Not sent")
+          Spacer(minLength: 8)
+          Toggle(
+            "Show book format",
+            isOn: Binding(
+              get: { settings.showsFormat },
+              set: { shows in Task { await settings.setShowsFormat(shows) } })
+          )
+          .toggleStyle(.switch)
+          .labelsHidden()
+        }
+        .padding(12)
+        .settingsHighlight(settings.highlighted == .showFormat)
       }
       SectionLabel("Troubleshooting")
       SettingsGroup {
