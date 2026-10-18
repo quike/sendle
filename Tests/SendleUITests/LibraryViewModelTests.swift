@@ -296,14 +296,6 @@ struct LibraryViewModelTests {
     #expect(model.activeKind == .usb)
   }
 
-  @Test func destinationSymbolsFollowTheirKind() {
-    let oasis = Destination.usb(.fixture(name: "Kindle Oasis"))
-
-    #expect(DestinationKind.email.symbol == "envelope.fill")
-    #expect(DestinationKind.usb.symbol == "cable.connector")
-    #expect(oasis.symbol == oasis.kind.symbol)
-  }
-
   @Test func namesEveryDestinationTheSameWay() {
     let email = Destination.email(.fixture)
     let oasis = Destination.usb(.fixture(name: "Kindle Oasis"))
@@ -312,6 +304,8 @@ struct LibraryViewModelTests {
     #expect(oasis.label == "Kindle Oasis")
     #expect(email.symbol == "envelope.fill")
     #expect(oasis.symbol == "cable.connector")
+    #expect(email.symbol == email.kind.symbol)
+    #expect(oasis.symbol == oasis.kind.symbol)
     #expect(email.spokenName == "Kindle email")
     #expect(oasis.spokenName == "Kindle Oasis (USB)")
     #expect(email.chipHelp == "Quick-send emails reader@kindle.com")
