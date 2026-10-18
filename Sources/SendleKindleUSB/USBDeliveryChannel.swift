@@ -42,6 +42,9 @@ public struct USBDeliveryChannel: DeliveryChannel {
       unlink(partial.path)
       throw error
     }
+    AppleDouble.remove(beside: destination)
+    DeviceSync.flush(documents)
+    if file.format == .azw3 { KindleThumbnail.write(for: file.url, onKindleAt: volume.mountURL) }
   }
 
   /// What a failed write to the Kindle means. Once its `documents` folder is gone, the Kindle was
@@ -89,7 +92,7 @@ public struct USBDeliveryChannel: DeliveryChannel {
         await progress(size > 0 ? min(Double(copied) / Double(size), 1) : 1)
       }
     }
-    guard fsync(output) == 0 else { throw writeFailure(errno, documents) }
+    guard DeviceSync.flush(output) else { throw writeFailure(errno, documents) }
     isOpen = false
     guard close(output) == 0 else { throw writeFailure(errno, documents) }
   }

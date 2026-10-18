@@ -56,8 +56,17 @@ public struct BokoConverter: FormatConverter {
       guard FileManager.default.fileExists(atPath: output.path) else {
         throw .conversionFailed("boko made no book.")
       }
+      Self.giveOwnASIN(to: output, named: name)
       return PreparedFile(url: output, format: format)
     }
+  }
+
+  /// boko gives every book the ASIN "EBOK000000", so they would all share one cover on the Kindle.
+  private static func giveOwnASIN(to book: URL, named name: String) {
+    guard let data = try? Data(contentsOf: book),
+      let patched = AZW3Metadata.replacingASIN(in: data, with: AZW3Metadata.asin(for: name))
+    else { return }
+    try? patched.write(to: book, options: .atomic)
   }
 
   /// English in every language, like the rest of Sendle's copy.

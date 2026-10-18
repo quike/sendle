@@ -126,6 +126,79 @@ struct USBDeliveryChannelTests {
     #expect(await send(channel()) == .copyFailed("Permission denied"))
   }
 
+  // MARK: Covers
+
+  var thumbnails: URL { root.appending(path: "system/thumbnails", directoryHint: .isDirectory) }
+
+  var thumbnail: URL { thumbnails.appending(path: "thumbnail_SN2Q7KXA4B_EBOK_portrait.jpg") }
+
+  func send(azw3: Data) async throws -> SendFailure? {
+    let url = try makeTemporaryDirectory().appending(path: "book.azw3")
+    try azw3.write(to: url)
+    do throws(SendFailure) {
+      try await channel().deliver(
+        PreparedFile(url: url, format: .azw3), named: "Moby-Dick - Herman Melville",
+        progress: { _ in })
+      return nil
+    } catch {
+      return error
+    }
+  }
+
+  @Test func writesTheCoverWhereTheKindlesLibraryLooksForIt() async throws {
+    let cover = makeJPEG(width: 800, height: 1_104)
+
+    #expect(try await send(azw3: makeAZW3(asin: "SN2Q7KXA4B", cover: cover)) == nil)
+
+    let size = try #require(pixelSize(of: Data(contentsOf: thumbnail)))
+    #expect(size.height == 500)
+    #expect(abs(size.width - 362) <= 1)
+  }
+
+  @Test func replacesTheCoverTheKindleFoundForItself() async throws {
+    try FileManager.default.createDirectory(at: thumbnails, withIntermediateDirectories: true)
+    try Data("No image available".utf8).write(to: thumbnail)
+
+    _ = try await send(azw3: makeAZW3(asin: "SN2Q7KXA4B", cover: makeJPEG(width: 80, height: 110)))
+
+    #expect(pixelSize(of: try Data(contentsOf: thumbnail)) == CGSize(width: 80, height: 110))
+  }
+
+  @Test func aBookWithoutACoverGetsNoThumbnail() async throws {
+    #expect(try await send(azw3: makeAZW3(asin: "SN2Q7KXA4B")) == nil)
+
+    #expect(!FileManager.default.fileExists(atPath: thumbnails.path))
+  }
+
+  @Test func aPDFGetsNoThumbnail() async throws {
+    #expect(await send(channel()) == nil)
+
+    #expect(!FileManager.default.fileExists(atPath: thumbnails.path))
+  }
+
+  /// On FAT, macOS keeps a new file's extended attributes in a `._` file beside it.
+  @Test func removesTheFilesMacOSAddsBesideTheBookAndItsCover() async throws {
+    try FileManager.default.createDirectory(at: thumbnails, withIntermediateDirectories: true)
+    let besideBook = documents.appending(path: "._Moby-Dick - Herman Melville.azw3")
+    let besideCover = thumbnails.appending(path: "._thumbnail_SN2Q7KXA4B_EBOK_portrait.jpg")
+    for file in [besideBook, besideCover] { try Data("Mac OS X".utf8).write(to: file) }
+
+    _ = try await send(azw3: makeAZW3(asin: "SN2Q7KXA4B", cover: makeJPEG(width: 80, height: 110)))
+
+    #expect(!FileManager.default.fileExists(atPath: besideBook.path))
+    #expect(!FileManager.default.fileExists(atPath: besideCover.path))
+    #expect(FileManager.default.fileExists(atPath: thumbnail.path))
+  }
+
+  @Test func aKindleWithoutASystemFolderStillGetsTheBook() async throws {
+    try FileManager.default.removeItem(at: root.appending(path: "system"))
+
+    #expect(try await send(azw3: makeAZW3(cover: makeJPEG(width: 80, height: 110))) == nil)
+
+    #expect(try documentNames() == ["Moby-Dick - Herman Melville.azw3"])
+    #expect(!FileManager.default.fileExists(atPath: root.appending(path: "system").path))
+  }
+
   @Test(
     arguments: [
       (ENOSPC, true, SendFailure.diskFull),
