@@ -357,6 +357,8 @@ struct SettingsViewModelTests {
   @Test func usesTheBokoTheUserChoosesAndResets() async {
     let chosen = URL(filePath: "/Users/reader/bin/boko")
     let model = makeModel()
+    var changes = 0
+    model.onChange = { changes += 1 }
     await model.open(at: .usb)
 
     await model.chooseBoko(chosen)
@@ -367,6 +369,7 @@ struct SettingsViewModelTests {
     await model.resetBoko()
     #expect(model.chosenBoko == nil)
     #expect(await settings.settings.bokoPath == nil)
+    #expect(changes == 2)
   }
 
   @Test func refusesAFileThatCannotRun() async {

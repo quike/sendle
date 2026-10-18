@@ -161,12 +161,14 @@ public final class LibraryViewModel {
     refreshItems()
   }
 
-  /// A new Kindle email shows at once; the destination stream only re-reads it when a Kindle moves.
+  /// A new Kindle email or boko shows at once; the destination stream only re-reads the email
+  /// when a Kindle moves.
   package func refreshSettings() async {
     let saved = await settings.load()
     let email = saved.email?.kindleAddress
     hasKindleEmail = email != nil
     jumpBar = saved.jumpBar
+    converterAvailable = converter.isAvailable
     show(ObserveDestinations.destinations(email: email, volumes: volumes))
   }
 

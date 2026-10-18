@@ -26,7 +26,7 @@ public final class SettingsViewModel {
   /// The boko the user chose, found or not.
   package private(set) var chosenBoko: URL?
   package private(set) var bokoError: String?
-  /// Told whenever a choice the panel shows changes: the A–Z bar, logs, the Kindle address.
+  /// Told whenever a choice the panel shows changes: the A–Z bar, logs, the Kindle address, boko.
   @ObservationIgnored package var onChange: (@MainActor () async -> Void)?
   @ObservationIgnored private var unmark: Task<Void, Never>?
   /// The email setup as saved; the form may hold edits that aren't.
@@ -226,6 +226,7 @@ public final class SettingsViewModel {
         }
     }
     readBoko()
+    await onChange?()
   }
 
   package func resetBoko() async {
@@ -238,6 +239,7 @@ public final class SettingsViewModel {
       }
     }
     readBoko()
+    await onChange?()
   }
 
   package var bokoTitle: String {

@@ -48,7 +48,7 @@ struct PanelModelTests {
     let libraryModel = LibraryViewModel(
       loadLibrary: LoadLibrary(library: library, inspector: StubProtectionInspector()),
       observeDestinations: ObserveDestinations(monitor: monitor, settings: settings),
-      settings: settings, history: history, converter: FakeFormatConverter(isAvailable: false))
+      settings: settings, history: history, converter: converter)
     let setup = SetupViewModel(
       configure: configure, sendTest: sendTest,
       checkAccess: {
@@ -690,6 +690,23 @@ struct PanelModelTests {
     system.program = URL(filePath: "/Users/reader/bin/boko")
     await panel.chooseBoko()
     #expect(await settings.settings.bokoPath == "/Users/reader/bin/boko")
+  }
+
+  @Test func aBokoChosenInSettingsLetsEPUBsGoOverUSBAtOnce() async {
+    monitor.update([.fixture()])
+    let (panel, _) = makePanel()
+    await panel.launch()
+    #expect(await eventually { panel.library.isKindlePluggedIn })
+    await panel.library.activate(.usb)
+    await panel.openSettings(.usb)
+    #expect(panel.library.items.first?.canSend == false)
+
+    system.program = URL(filePath: "/Users/reader/bin/boko")
+    await panel.chooseBoko()
+    #expect(panel.library.items.first?.canSend == true)
+
+    await panel.settings.resetBoko()
+    #expect(panel.library.items.first?.canSend == false)
   }
 
   @Test func aJumpBarChosenInSettingsReachesTheLibrary() async {
