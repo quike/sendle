@@ -101,6 +101,9 @@ public final class LibraryViewModel {
       ?? destinations.first
   }
 
+  /// The kind whose colour the library wears: the active destination's, or the saved choice.
+  package var activeKind: DestinationKind { activeDestination?.kind ?? preferredDestination }
+
   package var isKindlePluggedIn: Bool { !volumes.isEmpty }
 
   /// Something to send to; the selection itself only ever holds books that can go there.
@@ -295,7 +298,7 @@ public final class LibraryViewModel {
   private func refreshItems() {
     let newestFirst = LibraryItems.make(
       books: books, sends: sends, filter: filter, query: query,
-      destination: activeDestination?.kind ?? preferredDestination,
+      destination: activeKind,
       converterAvailable: converterAvailable, now: now())
     items = LibraryOrder.sorted(newestFirst, by: sort, book: \.book)
     recentItems = Array(newestFirst.prefix(8))
@@ -341,6 +344,15 @@ extension LibrarySort {
   }
 }
 
+extension DestinationKind {
+  package var symbol: String {
+    switch self {
+    case .email: "envelope.fill"
+    case .usb: "cable.connector"
+    }
+  }
+}
+
 extension Destination {
   var volume: KindleVolume? {
     if case .usb(let volume) = self { volume } else { nil }
@@ -354,12 +366,7 @@ extension Destination {
     }
   }
 
-  package var symbol: String {
-    switch self {
-    case .email: "envelope.fill"
-    case .usb: "cable.connector"
-    }
-  }
+  package var symbol: String { kind.symbol }
 
   /// The name where no icon can go: tooltips, VoiceOver and sentences.
   package var spokenName: String {

@@ -116,6 +116,11 @@ struct BookRow: View {
         Text(item.byline).font(.system(size: 10.5)).foregroundStyle(Theme.muted).lineLimit(1)
         HStack(spacing: 5) {
           FormatBadge(text: item.badge)
+          ForEach(item.routes, id: \.self) { kind in
+            Image(systemName: kind.symbol)
+              .font(.system(size: 8.5))
+              .foregroundStyle(Theme.tint(for: kind))
+          }
           Text(item.detail).foregroundStyle(item.tone.color).lineLimit(1)
         }
         .font(.system(size: 9.5))
@@ -126,7 +131,8 @@ struct BookRow: View {
     }
     .padding(7)
     .background(
-      isSelected ? Theme.accent.opacity(0.14) : isHovered ? Theme.glass : .clear,
+      isSelected
+        ? Theme.tint(for: library.activeKind).opacity(0.14) : isHovered ? Theme.glass : .clear,
       in: RoundedRectangle(cornerRadius: 14, style: .continuous)
     )
     .opacity(item.tone == .unavailable ? 0.5 : 1)
@@ -145,7 +151,8 @@ private struct RowMark: View {
     Group {
       if isSelected {
         Image(systemName: "checkmark").foregroundStyle(.white)
-          .frame(width: 30, height: 30).background(Theme.accent, in: Circle())
+          .frame(width: 30, height: 30)
+          .background(Theme.tint(for: panel.library.activeKind), in: Circle())
       } else if !item.canSend {
         Image(systemName: blockedSymbol).foregroundStyle(Theme.faint).frame(width: 30, height: 30)
       } else {
@@ -181,7 +188,9 @@ struct QuickSendButton: View {
         .foregroundStyle(isProminent ? .white : Color(hex: 0xc9d3ea))
         .frame(width: 28, height: 28)
         .background(
-          isProminent ? AnyShapeStyle(Theme.action) : AnyShapeStyle(Theme.glass), in: Circle())
+          isProminent
+            ? AnyShapeStyle(Theme.action(for: library.activeKind)) : AnyShapeStyle(Theme.glass),
+          in: Circle())
     }
     .buttonStyle(.plain)
     .disabled(!library.canSend)
@@ -226,6 +235,7 @@ struct BookCover: View {
     let slot = panel.covers.slot(for: book, size: size)
     let isSelected = item.map { panel.library.selection.contains($0.id) } ?? false
     let isHovered = item.map { panel.library.hovered == $0.id } ?? false
+    let tint = Theme.tint(for: panel.library.activeKind)
     let isUnavailable = book.availability != .ready
     let shape = UnevenRoundedRectangle(
       topLeadingRadius: 5, bottomLeadingRadius: 5, bottomTrailingRadius: 7, topTrailingRadius: 7,
@@ -251,15 +261,22 @@ struct BookCover: View {
         }
       }
       .overlay(alignment: .topTrailing) {
-        if item?.tone == .sent { CoverMark(symbol: "checkmark", color: Theme.live) }
+        if let routes = item?.routes, !routes.isEmpty {
+          HStack(spacing: 2) {
+            ForEach(routes, id: \.self) { kind in
+              CoverMark(symbol: kind.symbol, color: Theme.tint(for: kind))
+            }
+          }
+          .padding(5)
+        }
       }
       .overlay(alignment: .topLeading) {
-        if isSelected { CoverMark(symbol: "checkmark", color: Theme.accent) }
+        if isSelected { CoverMark(symbol: "checkmark", color: tint).padding(5) }
       }
       .overlay {
         if isSelected {
           RoundedRectangle(cornerRadius: 9, style: .continuous)
-            .strokeBorder(Theme.accent, lineWidth: 2)
+            .strokeBorder(tint, lineWidth: 2)
             .padding(-4)
         }
       }
@@ -288,7 +305,6 @@ private struct CoverMark: View {
       .frame(width: 16, height: 16)
       .background(color, in: Circle())
       .overlay(Circle().strokeBorder(Theme.background, lineWidth: 2))
-      .padding(5)
   }
 }
 
@@ -321,7 +337,7 @@ extension BookItemViewModel.Tone {
   var color: Color {
     switch self {
     case .plain, .unavailable: Theme.faint
-    case .sent: Theme.live
+    case .sent: Theme.muted
     case .warning: Theme.warm
     }
   }

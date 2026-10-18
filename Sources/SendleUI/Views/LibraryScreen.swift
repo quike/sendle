@@ -442,7 +442,7 @@ struct SendBar: View {
       .font(.system(size: 12.5, weight: .semibold))
       .foregroundStyle(.white)
       .background(
-        Theme.action(for: library.activeDestination?.kind ?? .email),
+        Theme.action(for: library.activeKind),
         in: RoundedRectangle(cornerRadius: 12, style: .continuous)
       )
       .opacity(library.canSend ? 1 : 0.4)

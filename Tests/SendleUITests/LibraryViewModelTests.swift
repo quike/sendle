@@ -274,6 +274,36 @@ struct LibraryViewModelTests {
     #expect(await eventually { model.activeDestination == .usb(oasis) })
   }
 
+  @Test func activeKindFollowsTheActiveDestination() async {
+    let (model, _) = makeModel()
+    await model.start()
+    monitor.update([kindle])
+    #expect(await eventually { model.destinations == [.usb(kindle), .email(.fixture)] })
+
+    await model.activate(.usb)
+    #expect(model.activeKind == .usb)
+
+    await model.activate(.email)
+    #expect(model.activeKind == .email)
+  }
+
+  @Test func activeKindFallsBackToTheSavedChoice() async {
+    let (model, _) = makeModel(AppSettings(activeDestination: .usb))
+
+    await model.start()
+
+    #expect(model.activeDestination == nil)
+    #expect(model.activeKind == .usb)
+  }
+
+  @Test func destinationSymbolsFollowTheirKind() {
+    let oasis = Destination.usb(.fixture(name: "Kindle Oasis"))
+
+    #expect(DestinationKind.email.symbol == "envelope.fill")
+    #expect(DestinationKind.usb.symbol == "cable.connector")
+    #expect(oasis.symbol == oasis.kind.symbol)
+  }
+
   @Test func namesEveryDestinationTheSameWay() {
     let email = Destination.email(.fixture)
     let oasis = Destination.usb(.fixture(name: "Kindle Oasis"))
