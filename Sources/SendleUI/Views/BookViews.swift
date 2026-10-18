@@ -29,6 +29,7 @@ struct BookGrid: View {
         .transition(Theme.entrance(index: index, reduceMotion: reduceMotion))
       }
     }
+    .scrollTargetLayout()
     .padding(.horizontal, 4)
   }
 }
@@ -39,12 +40,36 @@ struct BookList: View {
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
   var body: some View {
+    let library = panel.library
+    // Letter headers come with the full A–Z bar, as in Contacts.
+    let headers = library.jumpBar == .full ? library.index : nil
     LazyVStack(spacing: 2) {
       ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
-        BookRow(panel: panel, item: item)
-          .transition(Theme.entrance(index: index, reduceMotion: reduceMotion))
+        VStack(alignment: .leading, spacing: 2) {
+          if let letter = headers?.header(before: item.id) {
+            LetterHeader(letter: letter)
+          }
+          BookRow(panel: panel, item: item)
+        }
+        .transition(Theme.entrance(index: index, reduceMotion: reduceMotion))
       }
     }
+    .scrollTargetLayout()
+  }
+}
+
+private struct LetterHeader: View {
+  let letter: String
+
+  var body: some View {
+    Text(letter)
+      .font(.system(size: 10, weight: .bold))
+      .kerning(0.8)
+      .foregroundStyle(Theme.faint)
+      .padding(.horizontal, 7)
+      .padding(.top, 8)
+      .padding(.bottom, 1)
+      .accessibilityAddTraits(.isHeader)
   }
 }
 

@@ -33,6 +33,12 @@ public final class LibraryViewModel {
   package private(set) var recentItems: [BookItemViewModel] = []
   /// The A–Z bar's letters, while sorted by title or author.
   package private(set) var index: AlphabetIndex?
+  /// The book at the top of the scrolled list; setting it scrolls there.
+  package var topBook: BookID?
+  /// The letter under the pointer while it drags along the A–Z bar.
+  package private(set) var draggedLetter: String?
+  /// The pointer is over the compact A–Z bar, which shows only then.
+  package var isRailHovered = false
   package private(set) var destinations: [Destination] = []
   package private(set) var hasKindleEmail = false
   package private(set) var preferredDestination = DestinationKind.email
@@ -164,6 +170,35 @@ public final class LibraryViewModel {
     show(ObserveDestinations.destinations(email: email, volumes: volumes))
   }
 
+  // MARK: A–Z bar
+
+  package var showsRail: Bool { index != nil && !items.isEmpty }
+
+  /// Every letter on the full bar; only the letters with books on the compact one.
+  package var railLetters: [String] {
+    jumpBar == .full ? AlphabetIndex.letters : index?.lettersWithBooks ?? []
+  }
+
+  /// The letter of the book at the top of the list.
+  package var currentLetter: String? {
+    topBook.flatMap { index?.letter(of: $0) }
+  }
+
+  package func jump(to letter: String) {
+    guard let target = index?.target(for: letter) else { return }
+    topBook = target
+  }
+
+  package func drag(to letter: String) {
+    guard letter != draggedLetter else { return }
+    draggedLetter = letter
+    jump(to: letter)
+  }
+
+  package func endDrag() {
+    draggedLetter = nil
+  }
+
   // MARK: Choices
 
   package func setLayout(_ layout: LibraryLayout) async {
@@ -272,6 +307,16 @@ public final class LibraryViewModel {
       try await settings.update(change)
     } catch {
       logger.error("Could not save a panel choice: \(String(describing: error))")
+    }
+  }
+}
+
+extension LibrarySort {
+  package var title: String {
+    switch self {
+    case .recent: "Recently added"
+    case .title: "Title"
+    case .author: "Author"
     }
   }
 }

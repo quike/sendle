@@ -218,8 +218,48 @@ struct FilterBar: View {
           .accessibilityAddTraits(library.filter == filter ? .isSelected : [])
       }
       Spacer(minLength: 0)
+      SortMenu(library: library)
       LayoutSwitcher(library: library)
     }
+  }
+}
+
+/// Recently added, Title or Author; the A–Z bar shows for the last two.
+struct SortMenu: View {
+  let library: LibraryViewModel
+
+  var body: some View {
+    Menu {
+      ForEach(LibrarySort.allCases, id: \.self) { sort in
+        Button {
+          Task { await library.setSort(sort) }
+        } label: {
+          if sort == library.sort {
+            Label(sort.title, systemImage: "checkmark")
+          } else {
+            Text(sort.title)
+          }
+        }
+      }
+    } label: {
+      HStack(spacing: 3) {
+        Image(systemName: "arrow.up.arrow.down").font(.system(size: 8.5, weight: .bold))
+        Text(library.sort == .recent ? "Recent" : library.sort.title)
+      }
+      .font(.system(size: 10.5, weight: .semibold))
+      .foregroundStyle(Theme.text)
+      .padding(.horizontal, 8)
+      .frame(height: 24)
+      .glass(cornerRadius: 9)
+      .contentShape(Rectangle())
+    }
+    .menuStyle(.button)
+    .buttonStyle(.plain)
+    .menuIndicator(.hidden)
+    .fixedSize()
+    .help("Sort the library")
+    .accessibilityLabel("Sort")
+    .accessibilityValue(library.sort.title)
   }
 }
 
@@ -290,22 +330,37 @@ struct LibraryContent: View {
       if items.isEmpty {
         EmptyLibraryView(isFiltered: !library.books.isEmpty)
       } else {
-        ScrollView {
-          VStack(alignment: .leading, spacing: 0) {
-            switch library.layout {
-            case .grid:
-              SectionLabel("Library").padding(.bottom, 7)
-              BookGrid(panel: panel, items: items)
-            case .list:
-              SectionLabel("Library").padding(.bottom, 4)
-              BookList(panel: panel, items: items)
-            case .shelf:
-              BookShelf(panel: panel, items: items, recent: library.recentItems)
+        let fullRail = library.showsRail && library.jumpBar == .full
+        GeometryReader { geometry in
+          ScrollView {
+            VStack(alignment: .leading, spacing: 0) {
+              switch library.layout {
+              case .grid:
+                SectionLabel("Library").padding(.bottom, 7)
+                BookGrid(panel: panel, items: items)
+              case .list:
+                SectionLabel("Library").padding(.bottom, 4)
+                BookList(panel: panel, items: items)
+              case .shelf:
+                BookShelf(panel: panel, items: items, recent: library.recentItems)
+              }
+            }
+            .padding(.trailing, fullRail ? AlphabetRail.width : 0)
+            .padding(.bottom, library.selection.isEmpty ? 6 : 70)
+          }
+          .scrollIndicators(.never)
+          .scrollPosition(id: Bindable(library).topBook, anchor: .top)
+          // The compact A–Z bar shows while the pointer is near the right edge.
+          .onContinuousHover { phase in
+            guard case .active(let point) = phase else { return library.isRailHovered = false }
+            library.isRailHovered = point.x > geometry.size.width - 36
+          }
+          .overlay(alignment: .trailing) {
+            if library.showsRail {
+              AlphabetRail(library: library).padding(.bottom, library.selection.isEmpty ? 0 : 64)
             }
           }
-          .padding(.bottom, library.selection.isEmpty ? 6 : 70)
         }
-        .scrollIndicators(.never)
       }
     }
   }

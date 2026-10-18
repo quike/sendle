@@ -471,6 +471,65 @@ struct LibraryViewModelTests {
     #expect(model.recentItems.map(\.title) == ["Moby-Dick", "Emma", "Candide"])
   }
 
+  @Test func aLetterJumpsToItsFirstBookAndTheRailFollowsTheScroll() async {
+    library.result = .success(titled(["Moby-Dick", "Emma", "Candide", "Middlemarch"]))
+    let (model, _) = makeModel(AppSettings(email: .fixture, sort: .title))
+    await model.start()
+    await model.appear()
+
+    model.jump(to: "M")
+    #expect(model.topBook == BookID(rawValue: "Middlemarch"))
+    #expect(model.currentLetter == "M")
+
+    model.jump(to: "D")
+    #expect(model.topBook == BookID(rawValue: "Emma"))
+
+    model.topBook = BookID(rawValue: "Candide")
+    #expect(model.currentLetter == "C")
+  }
+
+  @Test func draggingAlongTheRailShowsTheLetterAndJumps() async {
+    library.result = .success(titled(["Moby-Dick", "Emma"]))
+    let (model, _) = makeModel(AppSettings(email: .fixture, sort: .title))
+    await model.start()
+    await model.appear()
+
+    model.drag(to: "E")
+    #expect(model.draggedLetter == "E")
+    #expect(model.topBook == BookID(rawValue: "Emma"))
+
+    model.endDrag()
+    #expect(model.draggedLetter == nil)
+  }
+
+  @Test func theRailShowsWhileSortedByTitleOrAuthor() async {
+    library.result = .success(titled(["Moby-Dick", "Emma"]))
+    let (model, _) = makeModel()
+    await model.start()
+    await model.appear()
+    #expect(!model.showsRail)
+
+    await model.setSort(.author)
+    #expect(model.showsRail)
+    #expect(model.railLetters == AlphabetIndex.letters)
+
+    model.query = "nothing like this"
+    #expect(!model.showsRail)
+  }
+
+  @Test func theCompactRailListsOnlyLettersWithBooks() async {
+    library.result = .success(titled(["Moby-Dick", "Emma"]))
+    let (model, _) = makeModel(AppSettings(email: .fixture, sort: .title, jumpBar: .compact))
+    await model.start()
+    await model.appear()
+
+    #expect(model.railLetters == ["E", "M"])
+  }
+
+  @Test func namesTheSorts() {
+    #expect(LibrarySort.allCases.map(\.title) == ["Recently added", "Title", "Author"])
+  }
+
   /// With 500 books, building the items on every read made each render slow.
   @Test func buildsTheItemsOncePerChange() async {
     let builds = OSAllocatedUnfairLock(initialState: 0)
