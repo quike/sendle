@@ -46,7 +46,10 @@ extension LogLevel {
 @Observable @MainActor
 public final class LogsViewModel {
   package var query = "" {
-    didSet { refilter() }
+    didSet {
+      closedDuringSearch = []
+      refilter()
+    }
   }
   package var area = LogAreaFilter.all {
     didSet { refilter() }
@@ -62,6 +65,8 @@ public final class LogsViewModel {
   private var entries: [LogEntry] = []
   private var hiddenLevels: Set<LogLevel> = []
   private var expanded: Set<Int> = []
+  /// Entries the search would open that the user closed since the query last changed.
+  private var closedDuringSearch: Set<Int> = []
   @ObservationIgnored private var following: Task<Void, Never>?
 
   private let feed: any ActivityLogFeed
@@ -93,7 +98,9 @@ public final class LogsViewModel {
 
   package func refresh() {
     entries = feed.entries()
-    expanded.formIntersection(entries.map(\.id))
+    let live = entries.map(\.id)
+    expanded.formIntersection(live)
+    closedDuringSearch.formIntersection(live)
     refilter()
   }
 
@@ -106,12 +113,24 @@ public final class LogsViewModel {
     refilter()
   }
 
+  /// Open when the user opened it, or when a searched word sits past its first line.
   package func isExpanded(_ entry: LogEntry) -> Bool {
     expanded.contains(entry.id)
+      || (!closedDuringSearch.contains(entry.id) && matchesPastFirstLine(entry))
   }
 
   package func toggleExpanded(_ entry: LogEntry) {
-    if expanded.remove(entry.id) == nil { expanded.insert(entry.id) }
+    if isExpanded(entry) {
+      expanded.remove(entry.id)
+      closedDuringSearch.insert(entry.id)
+    } else {
+      expanded.insert(entry.id)
+    }
+  }
+
+  /// Where the searched words fall in `text`.
+  package func highlights(in text: String) -> [Range<String.Index>] {
+    TextMatches.ranges(of: words, in: text)
   }
 
   package static func extraLines(in entry: LogEntry) -> Int {
@@ -152,15 +171,22 @@ public final class LogsViewModel {
     isAtBottom = true
   }
 
+  private var words: [Substring] {
+    query.split(whereSeparator: \.isWhitespace)
+  }
+
+  private func matchesPastFirstLine(_ entry: LogEntry) -> Bool {
+    guard let newline = entry.message.firstIndex(of: "\n") else { return false }
+    return highlights(in: entry.message).contains { $0.lowerBound > newline }
+  }
+
   private func refilter() {
-    let words = query.split(whereSeparator: \.isWhitespace)
+    let words = self.words
     var shown: [LogEntry] = []
     // A heading waiting for its first line, and where it goes when that line shows.
     var pending: (heading: LogEntry, index: Int)?
     for entry in entries where area.includes(entry.area) {
-      let matches = words.allSatisfy {
-        entry.message.range(of: $0, options: [.caseInsensitive, .diacriticInsensitive]) != nil
-      }
+      let matches = TextMatches.contains(every: words, in: entry.message)
       if entry.heading != nil {
         pending = (entry, shown.count)
         if matches && !words.isEmpty && isShowing(entry.level) {

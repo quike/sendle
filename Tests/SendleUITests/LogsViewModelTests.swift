@@ -128,6 +128,65 @@ struct LogsViewModelTests {
     #expect(!model.isExpanded(long))
   }
 
+  @Test func highlightsTheSearchedWords() {
+    let model = makeModel()
+    let line = "SMTP auth accepted"
+
+    model.query = "smtp auth"
+
+    #expect(model.highlights(in: line).map { String(line[$0]) } == ["SMTP", "auth"])
+  }
+
+  @Test func highlightsNothingWithoutASearch() {
+    #expect(makeModel().highlights(in: "SMTP auth accepted").isEmpty)
+  }
+
+  func readingEntry(_ model: LogsViewModel) throws -> LogEntry {
+    try #require(model.visible.first { $0.message.hasPrefix("Reading") })
+  }
+
+  @Test func searchOpensAnEntryMatchedPastItsFirstLine() throws {
+    log.debug(.boko, "Reading Frankenstein.epub\nWriting AZW3\nDone")
+    log.debug(.boko, "Writing AZW3\nDone")
+    let model = makeModel()
+    let past = try readingEntry(model)
+    let firstLineOnly = try #require(model.visible.last)
+
+    #expect(!model.isExpanded(past))
+
+    model.query = "azw3"
+    #expect(model.isExpanded(past))
+    #expect(!model.isExpanded(firstLineOnly))
+
+    model.query = ""
+    #expect(!model.isExpanded(past))
+  }
+
+  @Test func closingASearchOpenedEntryLastsUntilTheSearchChanges() throws {
+    log.debug(.boko, "Reading Frankenstein.epub\nWriting AZW3\nDone")
+    let model = makeModel()
+    let entry = try readingEntry(model)
+    model.query = "azw3"
+
+    model.toggleExpanded(entry)
+    #expect(!model.isExpanded(entry))
+
+    model.query = "writing azw3"
+    #expect(model.isExpanded(entry))
+  }
+
+  @Test func aClosedSearchOpenedEntryOpensAgainOnDemand() throws {
+    log.debug(.boko, "Reading Frankenstein.epub\nWriting AZW3\nDone")
+    let model = makeModel()
+    let entry = try readingEntry(model)
+    model.query = "azw3"
+    model.toggleExpanded(entry)
+
+    model.toggleExpanded(entry)
+
+    #expect(model.isExpanded(entry))
+  }
+
   @Test func copiesWhatIsShownInFull() {
     log.debug(.mail, "C: EHLO [127.0.0.1]")
     log.debug(.boko, "Reading\nWriting")

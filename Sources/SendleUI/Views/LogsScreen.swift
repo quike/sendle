@@ -162,7 +162,7 @@ private struct LogRow: View {
 
   var body: some View {
     if entry.heading != nil {
-      Text(entry.message)
+      Text(marked(entry.message))
         .font(.system(size: 10, weight: .semibold))
         .foregroundStyle(Theme.muted)
         .lineLimit(1)
@@ -174,6 +174,16 @@ private struct LogRow: View {
     } else {
       line
     }
+  }
+
+  private func marked(_ text: String) -> AttributedString {
+    var marked = AttributedString(text)
+    for range in logs.highlights(in: text) {
+      if let span = Range(range, in: marked) {
+        marked[span].backgroundColor = Theme.warm.opacity(0.35)
+      }
+    }
+    return marked
   }
 
   private var line: some View {
@@ -190,7 +200,7 @@ private struct LogRow: View {
       VStack(alignment: .leading, spacing: 4) {
         HStack(alignment: .firstTextBaseline, spacing: 5) {
           LevelBubble(level: entry.level)
-          Text(firstLine).foregroundStyle(entry.level.textColor)
+          Text(marked(firstLine)).foregroundStyle(entry.level.textColor)
           if extra > 0 {
             Button {
               logs.toggleExpanded(entry)
@@ -207,7 +217,7 @@ private struct LogRow: View {
           }
         }
         if isOpen {
-          Text(entry.message)
+          Text(marked(entry.message))
             .foregroundStyle(Color.white.opacity(0.75))
             .textSelection(.enabled)
             .frame(maxWidth: .infinity, alignment: .leading)
