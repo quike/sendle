@@ -19,6 +19,13 @@ extension FormatConverter {
   public var isAvailable: Bool { toolURL != nil }
 }
 
+/// A conversion tool the user can point at themselves.
+public protocol ToolChoice: Sendable {
+  /// Nil while Sendle looks in the usual folders.
+  var chosenTool: URL? { get }
+  func choose(_ tool: URL?)
+}
+
 public protocol StagingArea: Sendable {
   func makeDirectory() throws(SendFailure) -> URL
   func writeFile(named name: String, contents: Data, in directory: URL) throws(SendFailure) -> URL

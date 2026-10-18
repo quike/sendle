@@ -13,6 +13,7 @@ import SendleUI
 struct Composition {
   let panel: PanelModel
   private let settings: JSONSettingsStore
+  private let chooseTool: ChooseConverterTool
 
   /// Snapshot mode replaces every delivery, so that nothing is sent, and the plugged-in Kindles.
   init(
@@ -21,13 +22,14 @@ struct Composition {
     kindles: (any DestinationMonitor)? = nil
   ) {
     let data = DataDirectory.url()
+    let log = MemoryActivityLog()
     let settings = JSONSettingsStore(directory: data)
     let secrets = KeychainSecretStore()
     let staging = FileSystemStagingArea()
     let converter = BokoConverter()
     let channels =
       override ?? DeliveryChannels(email: EmailChannelFactory(settings: settings, secrets: secrets))
-    let configure = ConfigureEmail(settings: settings, secrets: secrets)
+    let configure = ConfigureEmail(settings: settings, secrets: secrets, log: log)
     let sendTest = SendTestEmail(settings: settings, channels: channels, staging: staging)
     let history = JSONSendHistoryStore(directory: data)
     let library = LibraryViewModel(
@@ -56,12 +58,14 @@ struct Composition {
           staging: staging, history: history)),
       ejector: VolumeEjector())
     self.settings = settings
+    chooseTool = ChooseConverterTool(settings: settings, choice: converter, log: log)
     // Clears folders an interrupted send left behind.
     staging.purge()
   }
 
   /// Loads the library and settings, and says so if the settings file had to be set aside.
   func launch() async {
+    await chooseTool.restore()
     await panel.launch()
     if let moved = await settings.takeQuarantinedFile() {
       panel.show(notice: ProblemPresenter.settingsSetAside(moved))

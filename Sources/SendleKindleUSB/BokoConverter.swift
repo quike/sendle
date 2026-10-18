@@ -1,8 +1,9 @@
 import Foundation
 import SendleDomain
+import os
 
 /// Converts EPUBs with the user's own boko. Sendle never bundles it: boko is GPL.
-public struct BokoConverter: FormatConverter {
+public final class BokoConverter: FormatConverter, ToolChoice {
   /// `cargo install boko` and boko's installer both use `~/.cargo/bin`. An app opened from the
   /// Finder doesn't get the shell's PATH, so the usual folders are listed here.
   package static var folders: [URL] {
@@ -17,8 +18,9 @@ public struct BokoConverter: FormatConverter {
 
   private let folders: [URL]
   private let timeout: Duration
+  private let chosen = OSAllocatedUnfairLock<URL?>(initialState: nil)
 
-  public init() {
+  public convenience init() {
     self.init(folders: Self.folders, timeout: .seconds(300))
   }
 
@@ -27,10 +29,20 @@ public struct BokoConverter: FormatConverter {
     self.timeout = timeout
   }
 
-  /// Looked up on every read, so a boko installed while Sendle runs is found.
+  /// Looked up on every read, so a boko installed while Sendle runs is found. A chosen boko that
+  /// has gone is not found: the usual folders might hold a different one.
   public var toolURL: URL? {
-    folders.lazy.map { $0.appending(path: "boko") }
+    if let chosenTool {
+      return FileManager.default.isExecutableFile(atPath: chosenTool.path) ? chosenTool : nil
+    }
+    return folders.lazy.map { $0.appending(path: "boko") }
       .first { FileManager.default.isExecutableFile(atPath: $0.path) }
+  }
+
+  public var chosenTool: URL? { chosen.withLock { $0 } }
+
+  public func choose(_ tool: URL?) {
+    chosen.withLock { $0 = tool }
   }
 
   public func convert(

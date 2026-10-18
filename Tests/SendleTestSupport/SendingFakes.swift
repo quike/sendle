@@ -22,8 +22,9 @@ public final class FakeEPUBPreparer: EPUBPreparer {
   }
 }
 
-public final class FakeFormatConverter: FormatConverter {
+public final class FakeFormatConverter: FormatConverter, ToolChoice {
   private let isInstalled: OSAllocatedUnfairLock<Bool>
+  private let chosen = OSAllocatedUnfairLock<URL?>(initialState: nil)
   private let converted = OSAllocatedUnfairLock<[PreparedFile]>(initialState: [])
   private let failure: SendFailure?
 
@@ -35,8 +36,14 @@ public final class FakeFormatConverter: FormatConverter {
   public var convertedFiles: [PreparedFile] { converted.withLock { $0 } }
 
   public var toolURL: URL? {
-    isInstalled.withLock { $0 }
-      ? URL(filePath: "/Users/reader/.cargo/bin/boko") : nil
+    if let chosenTool { return chosenTool }
+    return isInstalled.withLock { $0 } ? URL(filePath: "/Users/reader/.cargo/bin/boko") : nil
+  }
+
+  public var chosenTool: URL? { chosen.withLock { $0 } }
+
+  public func choose(_ tool: URL?) {
+    chosen.withLock { $0 = tool }
   }
 
   /// As if the user installed boko while Sendle runs.

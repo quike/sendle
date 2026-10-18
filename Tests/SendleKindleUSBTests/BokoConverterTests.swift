@@ -58,6 +58,37 @@ struct BokoConverterTests {
     #expect(BokoConverter.folders.first == cargo)
   }
 
+  @Test func aChosenBokoIsUsedInsteadOfTheUsualFolders() throws {
+    try installBoko("exit 0")
+    let chosen = try installBoko("exit 0", in: try makeTemporaryDirectory())
+    let converter = converter()
+
+    converter.choose(chosen)
+
+    #expect(converter.chosenTool == chosen)
+    #expect(converter.toolURL == chosen)
+  }
+
+  @Test func aChosenBokoThatIsGoneIsNotFoundEvenWhenTheUsualFoldersHaveOne() throws {
+    try installBoko("exit 0")
+    let converter = converter()
+
+    converter.choose(URL(filePath: "/Users/reader/gone/boko"))
+
+    #expect(converter.toolURL == nil)
+  }
+
+  @Test func resettingTheChoiceLooksInTheUsualFoldersAgain() throws {
+    let tool = try installBoko("exit 0")
+    let converter = converter()
+    converter.choose(URL(filePath: "/Users/reader/gone/boko"))
+
+    converter.choose(nil)
+
+    #expect(converter.chosenTool == nil)
+    #expect(converter.toolURL == tool)
+  }
+
   @Test func isUnavailableWithoutBoko() async {
     #expect(converter().toolURL == nil)
     #expect(await convert(converter()) == .failure(.conversionUnavailable))
