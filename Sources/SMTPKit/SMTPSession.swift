@@ -171,11 +171,17 @@ public actor SMTPSession {
   }
 
   /// A server can echo what it was sent while signing in, so a reply holding any of it keeps
-  /// only its code.
+  /// only its code; a command holding any of it is hidden whole.
   private func note(_ direction: SMTPTranscriptLine.Direction, _ text: String, code: Int? = nil) {
     guard let transcript else { return }
     let hidden =
-      if let code, secrets.contains(where: text.contains) { "\(code) <redacted>" } else { text }
+      if !secrets.contains(where: text.contains) {
+        text
+      } else if let code {
+        "\(code) <redacted>"
+      } else {
+        "<redacted>"
+      }
     transcript(SMTPTranscriptLine(direction: direction, text: hidden, code: code))
   }
 

@@ -116,6 +116,20 @@ struct SMTPSessionTests {
       ])
   }
 
+  @Test func hidesACommandThatHoldsTheSecret() async throws {
+    let lines = TranscriptLines()
+    let session = session(
+      ScriptedSMTPTransport([
+        greeting, .code(250, "smtp.example.com", "AUTH LOGIN"), .code(334, "VXNlcm5hbWU6"),
+        .code(334, "UGFzc3dvcmQ6"), .code(235, "Accepted"),
+      ]), transcript: lines.record)
+
+    try await session.connect()
+    try await session.authenticate(username: "me@gmail.com", password: "LOGIN")
+
+    #expect(lines.all.dropFirst(3).first == "C: <redacted>")
+  }
+
   @Test func hidesCredentialsAServerEchoesWhenItRefusesTheSignIn() async {
     let lines = TranscriptLines()
     let session = session(
