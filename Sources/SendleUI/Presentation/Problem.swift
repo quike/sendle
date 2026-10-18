@@ -1,11 +1,21 @@
 import Foundation
 import SendleDomain
 
+/// Settings' sections, in the order the front page lists them.
 public enum SettingsSection: String, Hashable, Sendable, CaseIterable {
+  case general
   case kindle
   case sender
   case usb
-  case general
+
+  package var title: String {
+    switch self {
+    case .general: "General"
+    case .kindle: "Kindle"
+    case .sender: "Sender"
+    case .usb: "USB"
+    }
+  }
 }
 
 /// What one click can do about a problem.

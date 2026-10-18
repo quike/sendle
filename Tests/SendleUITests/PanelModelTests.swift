@@ -35,6 +35,7 @@ struct PanelModelTests {
     onSleep: @escaping @Sendable () async -> Void = { try? await Task.sleep(for: .seconds(60)) }
   ) -> (PanelModel, InMemorySettingsStore) {
     let settings = InMemorySettingsStore(saved)
+    let converter = FakeFormatConverter(isAvailable: false)
     let configure = ConfigureEmail(settings: settings, secrets: MemorySecretStore())
     let channels = FakeDeliveryChannelFactory(channel: channel)
     let staging = FakeStagingArea()
@@ -53,8 +54,10 @@ struct PanelModelTests {
     let panel = PanelModel(
       library: libraryModel, setup: setup,
       settings: SettingsViewModel(
-        configure: configure, sendTest: sendTest, settings: settings, loginItem: FakeLoginItem(),
-        converter: FakeFormatConverter(isAvailable: false)),
+        configure: configure, sendTest: sendTest,
+        addresses: ManageKindleAddresses(settings: settings),
+        chooseTool: ChooseConverterTool(settings: settings, choice: converter),
+        settings: settings, loginItem: FakeLoginItem(), converter: converter),
       covers: CoverStore(provider: FakeCoverProvider()),
       queue: SendQueueViewModel(
         sendBooks: SendBooks(
@@ -277,6 +280,7 @@ struct PanelModelTests {
     #expect(panel.searchFocusRequests == 1)
     #expect(panel.handle(KeyInput(.character(","), command: true)))
     #expect(await eventually { panel.isShowingSettings })
+    #expect(panel.settings.section == nil)
   }
 
   @Test func libraryKeysWaitWhileSomethingCoversTheLibrary() async {
@@ -574,6 +578,16 @@ struct PanelModelTests {
   }
 
   // MARK: Settings sheet
+
+  @Test func aJumpBarChosenInSettingsReachesTheLibrary() async {
+    let (panel, _) = makePanel()
+    await panel.launch()
+    await panel.openSettings(.general)
+
+    await panel.settings.setJumpBar(.compact)
+
+    #expect(panel.library.jumpBar == .compact)
+  }
 
   @Test func aTestEmailThatSavedANewSetupShowsItsChip() async {
     let (panel, _) = makePanel(AppSettings())

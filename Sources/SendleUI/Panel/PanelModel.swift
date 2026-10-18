@@ -52,6 +52,7 @@ public final class PanelModel {
     self.queue = queue
     self.ejector = ejector
     library.reportProblem = { [weak self] problem in self?.show(notice: problem) }
+    settings.onChange = { [weak library] in await library?.refreshSettings() }
     queue.onFinish = { [weak library] in await library?.refreshHistory() }
     queue.isKindleConnected = { [weak library] in library?.isKindlePluggedIn ?? false }
   }
@@ -75,6 +76,7 @@ public final class PanelModel {
 
   /// Reads the library once, so the red dot can ask for access before the panel ever opens.
   public func launch() async {
+    await settings.start()
     await library.start()
     await library.reload()
   }
@@ -221,7 +223,8 @@ public final class PanelModel {
 
   // MARK: Settings sheet
 
-  package func openSettings(_ section: SettingsSection = .kindle) async {
+  /// Nil opens the front page.
+  package func openSettings(_ section: SettingsSection? = nil) async {
     await settings.open(at: section)
     isShowingSettings = true
   }

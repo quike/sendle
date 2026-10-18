@@ -35,6 +35,7 @@ struct Composition {
     let sendTest = SendTestEmail(
       settings: settings, channels: channels, staging: staging, log: log)
     let history = JSONSendHistoryStore(directory: data, log: log)
+    let chooseTool = ChooseConverterTool(settings: settings, choice: converter, log: log)
     let library = LibraryViewModel(
       loadLibrary: LoadLibrary(
         library: AppleBooksLibrary(location: .standard()), inspector: EPUBProtectionInspector(),
@@ -53,8 +54,9 @@ struct Composition {
     panel = PanelModel(
       library: library, setup: setup,
       settings: SettingsViewModel(
-        configure: configure, sendTest: sendTest, settings: settings, loginItem: loginItem,
-        converter: converter),
+        configure: configure, sendTest: sendTest,
+        addresses: ManageKindleAddresses(settings: settings, log: log), chooseTool: chooseTool,
+        settings: settings, loginItem: loginItem, converter: converter, log: log),
       covers: CoverStore(provider: CachedCoverProvider()),
       queue: SendQueueViewModel(
         sendBooks: SendBooks(
@@ -62,7 +64,7 @@ struct Composition {
           staging: staging, history: history, log: log)),
       ejector: VolumeEjector(log: log))
     self.settings = settings
-    chooseTool = ChooseConverterTool(settings: settings, choice: converter, log: log)
+    self.chooseTool = chooseTool
     // Clears folders an interrupted send left behind.
     staging.purge()
   }

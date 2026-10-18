@@ -20,10 +20,7 @@ struct SettingsSheet: View {
         .accessibilityLabel("Close settings")
       }
       Picker("Section", selection: Bindable(settings).section) {
-        Text("Kindle").tag(SettingsSection.kindle)
-        Text("Sender").tag(SettingsSection.sender)
-        Text("USB").tag(SettingsSection.usb)
-        Text("General").tag(SettingsSection.general)
+        ForEach(SettingsSection.allCases, id: \.self) { Text($0.title).tag(Optional($0)) }
       }
       .pickerStyle(.segmented)
       .labelsHidden()
@@ -43,7 +40,7 @@ struct SettingsSheet: View {
             }
           case .usb:
             BokoRow(settings: settings) { url in Task { await panel.perform(.openURL(url)) } }
-          case .general:
+          case .general, nil:
             LaunchAtLoginRow(settings: settings)
           }
         }
