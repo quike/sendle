@@ -89,6 +89,7 @@ struct SenderFields: View {
   let open: (URL) -> Void
 
   var body: some View {
+    let marked = highlighted?.onScreen(for: form.provider)
     VStack(alignment: .leading, spacing: 12) {
       LabeledField(label: "Send with") {
         ProviderTiles(form: form)
@@ -96,13 +97,13 @@ struct SenderFields: View {
           FieldNote(text: server.summary, color: Theme.faint)
         }
       }
-      .marked(highlighted == .mailProvider)
+      .settingsHighlight(marked == .mailProvider)
       LabeledField(label: "Sender address") {
         GlassTextField(
           label: "Sender address", prompt: "you@example.com", text: $form.senderAddress)
         issueNote(.invalidSenderAddress)
       }
-      .marked(highlighted == .senderAddress)
+      .settingsHighlight(marked == .senderAddress)
       LabeledField(label: "App password") {
         GlassTextField(
           label: "App password", prompt: form.passwordPrompt, text: $form.password,
@@ -116,7 +117,7 @@ struct SenderFields: View {
             .foregroundStyle(Theme.link)
         }
       }
-      .marked(highlighted == .appPassword)
+      .settingsHighlight(marked == .appPassword)
       if form.provider == .custom {
         LabeledField(label: "Mail server") {
           HStack(spacing: 6) {
@@ -131,7 +132,7 @@ struct SenderFields: View {
           .labelsHidden()
           issueNote(.missingServer)
         }
-        .marked(highlighted == .mailServer)
+        .settingsHighlight(marked == .mailServer)
       }
     }
   }
@@ -180,18 +181,6 @@ struct ProviderTiles: View {
         .accessibilityAddTraits(isOn ? .isSelected : [])
       }
     }
-  }
-}
-
-extension View {
-  /// Marks the field a settings search led to.
-  fileprivate func marked(_ isMarked: Bool) -> some View {
-    padding(isMarked ? 6 : 0)
-      .background(
-        isMarked ? Theme.accent.opacity(0.18) : .clear,
-        in: RoundedRectangle(cornerRadius: 12, style: .continuous)
-      )
-      .animation(.easeOut(duration: 0.6), value: isMarked)
   }
 }
 

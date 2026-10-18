@@ -21,6 +21,12 @@ struct SettingsSearchTests {
       SettingsSearch.results(for: "address").map(\.section) == [.kindle, .kindle, .sender])
   }
 
+  @Test func theProviderTilesStandForTheMailServerUnlessItIsOther() {
+    #expect(SettingsItem.mailServer.onScreen(for: .gmail) == .mailProvider)
+    #expect(SettingsItem.mailServer.onScreen(for: .custom) == .mailServer)
+    #expect(SettingsItem.appPassword.onScreen(for: .gmail) == .appPassword)
+  }
+
   @Test func everySettingNamesItsSection() {
     #expect(SettingsItem.appPassword.title == "App password")
     #expect(SettingsItem.showLogs.section == .general)

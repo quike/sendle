@@ -1,4 +1,5 @@
 import Foundation
+import SendleDomain
 
 /// Every setting the search can find, in the order the sections list them.
 package enum SettingsItem: CaseIterable, Sendable {
@@ -41,6 +42,12 @@ package enum SettingsItem: CaseIterable, Sendable {
     case .mailProvider, .senderAddress, .appPassword, .mailServer, .sendTest: .sender
     case .boko, .bokoLocation: .usb
     }
+  }
+
+  /// What the page marks for this setting: the mail server fields show only for Other, so for
+  /// the other providers the tiles stand in for them.
+  package func onScreen(for provider: MailProvider) -> SettingsItem {
+    self == .mailServer && provider != .custom ? .mailProvider : self
   }
 
   /// Other words people may look for it by.

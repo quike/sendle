@@ -216,12 +216,12 @@ struct RowDivider: View {
 
 extension View {
   /// Marks the setting a search result led to, for a moment.
-  func settingsHighlight(_ item: SettingsItem, in settings: SettingsViewModel) -> some View {
+  func settingsHighlight(_ isMarked: Bool) -> some View {
     background(
-      settings.highlighted == item ? Theme.accent.opacity(0.18) : .clear,
+      isMarked ? Theme.accent.opacity(0.18) : .clear,
       in: RoundedRectangle(cornerRadius: 12, style: .continuous)
     )
-    .animation(.easeOut(duration: 0.6), value: settings.highlighted)
+    .animation(.easeOut(duration: 0.6), value: isMarked)
   }
 }
 
@@ -251,7 +251,7 @@ private struct GeneralPage: View {
   var body: some View {
     let settings = panel.settings
     VStack(alignment: .leading, spacing: 12) {
-      LaunchAtLoginRow(settings: settings).settingsHighlight(.launchAtLogin, in: settings)
+      LaunchAtLoginRow(settings: settings).settingsHighlight(settings.highlighted == .launchAtLogin)
       SectionLabel("Library")
       SettingsGroup {
         HStack(spacing: 10) {
@@ -271,7 +271,7 @@ private struct GeneralPage: View {
           .fixedSize()
         }
         .padding(12)
-        .settingsHighlight(.jumpBar, in: settings)
+        .settingsHighlight(settings.highlighted == .jumpBar)
       }
       SectionLabel("Troubleshooting")
       SettingsGroup {
@@ -290,7 +290,7 @@ private struct GeneralPage: View {
           .labelsHidden()
         }
         .padding(12)
-        .settingsHighlight(.showLogs, in: settings)
+        .settingsHighlight(settings.highlighted == .showLogs)
       }
     }
   }
@@ -348,7 +348,7 @@ private struct KindlePage: View {
           }
           AddKindleAddressRow(settings: settings)
         }
-        .settingsHighlight(.kindleAddresses, in: settings)
+        .settingsHighlight(settings.highlighted == .kindleAddresses)
         if let error = settings.kindleAddressError {
           FieldNote(text: error, color: Theme.danger)
         } else if let warning = settings.kindleAddressWarning {
@@ -356,7 +356,7 @@ private struct KindlePage: View {
         }
         FieldNote(text: "Books sent by email go to the active address.", color: Theme.faint)
         ApprovedSendersNote { url in Task { await panel.perform(.openURL(url)) } }
-          .settingsHighlight(.approvedSenders, in: settings)
+          .settingsHighlight(settings.highlighted == .approvedSenders)
       } else {
         SetupFirstNote(panel: panel)
       }
@@ -436,7 +436,7 @@ private struct AddKindleAddressRow: View {
     }
     .padding(.horizontal, 12)
     .padding(.vertical, 8)
-    .settingsHighlight(.addAddress, in: settings)
+    .settingsHighlight(settings.highlighted == .addAddress)
   }
 }
 
@@ -456,7 +456,7 @@ private struct SenderPage: View {
         ) {
           Task { await panel.sendTest(from: settings.form) }
         }
-        .settingsHighlight(.sendTest, in: settings)
+        .settingsHighlight(settings.highlighted == .sendTest)
       } else {
         SetupFirstNote(panel: panel)
       }
@@ -480,31 +480,34 @@ private struct USBPage: View {
           .accessibilityHidden(true)
         RowText(title: settings.bokoTitle, detail: settings.bokoNote)
       }
-      if let path = (settings.boko ?? settings.chosenBoko)?.path {
-        Text(path)
-          .font(.system(size: 10.5, design: .monospaced))
-          .foregroundStyle(Theme.muted)
-          .lineLimit(2)
-          .truncationMode(.middle)
-          .textSelection(.enabled)
-      }
-      HStack(spacing: 8) {
-        Button("Choose…") { Task { await panel.chooseBoko() } }
-          .buttonStyle(SecondaryButtonStyle())
-          .help("Point Sendle at a boko somewhere else")
-        if settings.chosenBoko != nil {
-          Button("Reset") { Task { await settings.resetBoko() } }
+      VStack(alignment: .leading, spacing: 10) {
+        if let path = (settings.boko ?? settings.chosenBoko)?.path {
+          Text(path)
+            .font(.system(size: 10.5, design: .monospaced))
+            .foregroundStyle(Theme.muted)
+            .lineLimit(2)
+            .truncationMode(.middle)
+            .textSelection(.enabled)
+        }
+        HStack(spacing: 8) {
+          Button("Choose…") { Task { await panel.chooseBoko() } }
             .buttonStyle(SecondaryButtonStyle())
-            .help("Look for boko in the usual folders again")
-        }
-        Spacer(minLength: 0)
-        if settings.boko == nil, settings.chosenBoko == nil, let download = Self.download {
-          Button("Get boko ↗") { Task { await panel.perform(.openURL(download)) } }
-            .buttonStyle(.plain)
-            .font(.system(size: 11.5, weight: .semibold))
-            .foregroundStyle(Theme.link)
+            .help("Point Sendle at a boko somewhere else")
+          if settings.chosenBoko != nil {
+            Button("Reset") { Task { await settings.resetBoko() } }
+              .buttonStyle(SecondaryButtonStyle())
+              .help("Look for boko in the usual folders again")
+          }
+          Spacer(minLength: 0)
+          if settings.boko == nil, settings.chosenBoko == nil, let download = Self.download {
+            Button("Get boko ↗") { Task { await panel.perform(.openURL(download)) } }
+              .buttonStyle(.plain)
+              .font(.system(size: 11.5, weight: .semibold))
+              .foregroundStyle(Theme.link)
+          }
         }
       }
+      .settingsHighlight(settings.highlighted == .bokoLocation)
       if let error = settings.bokoError {
         FieldNote(text: error, color: Theme.danger)
       }
@@ -512,7 +515,7 @@ private struct USBPage: View {
     .padding(12)
     .frame(maxWidth: .infinity, alignment: .leading)
     .glass(cornerRadius: 14)
-    .settingsHighlight(.boko, in: settings)
+    .settingsHighlight(settings.highlighted == .boko)
   }
 }
 
