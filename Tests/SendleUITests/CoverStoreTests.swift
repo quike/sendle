@@ -82,4 +82,33 @@ struct CoverStoreTests {
     #expect(provider.requests.count == 2)
     #expect(store.slot(for: moby, size: .large).data == png)
   }
+
+  @Test func aCoverIsPendingUntilItsFirstAnswer() async {
+    let gate = Signal()
+    let store = CoverStore(provider: FakeCoverProvider([moby.id: png], gate: gate))
+    let loading = Task { await store.load(moby, size: .large) }
+    #expect(store.slot(for: moby, size: .large).isPending)
+    await gate.fire()
+    await loading.value
+    #expect(!store.slot(for: moby, size: .large).isPending)
+  }
+
+  @Test func aBookWithoutACoverStopsPending() async {
+    let store = CoverStore(provider: FakeCoverProvider())
+    await store.load(moby, size: .small)
+    let slot = store.slot(for: moby, size: .small)
+    #expect(!slot.isPending)
+    #expect(slot.isLoaded)
+  }
+
+  @Test func anUnreadableCoverStopsPendingButIsAskedAgain() async {
+    let provider = FakeCoverProvider(unreadable: [moby.id])
+    let store = CoverStore(provider: provider)
+    await store.load(moby, size: .small)
+    await store.load(moby, size: .small)
+    let slot = store.slot(for: moby, size: .small)
+    #expect(!slot.isPending)
+    #expect(!slot.isLoaded)
+    #expect(provider.requests.count == 2)
+  }
 }

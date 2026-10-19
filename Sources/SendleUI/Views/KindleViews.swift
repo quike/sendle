@@ -5,28 +5,30 @@ import SwiftUI
 /// nothing to select or send.
 struct KindleContent: View {
   let panel: PanelModel
+  @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
   var body: some View {
     let kindle = panel.kindle
-    switch kindle.state {
-    case .failed(let problem):
-      ProblemCard(problem: problem) { action in
-        if action == .retry {
-          Task { await kindle.refresh() }
+    Group {
+      switch kindle.state {
+      case .failed(let problem):
+        ProblemCard(problem: problem) { action in
+          if action == .retry {
+            Task { await kindle.refresh() }
+          } else {
+            Task { await panel.perform(action) }
+          }
+        }
+        .frame(maxHeight: .infinity, alignment: .top)
+      case .idle, .reading, .loaded:
+        if let listing = kindle.listing {
+          KindleBooks(panel: panel, isEmpty: listing.books.isEmpty).transition(.opacity)
         } else {
-          Task { await panel.perform(action) }
+          SkeletonBooks(layout: panel.library.layout).transition(.opacity)
         }
       }
-      .frame(maxHeight: .infinity, alignment: .top)
-    case .idle:
-      ProgressView().controlSize(.small).frame(maxWidth: .infinity, maxHeight: .infinity)
-    case .reading, .loaded:
-      if let listing = kindle.listing {
-        KindleBooks(panel: panel, isEmpty: listing.books.isEmpty)
-      } else {
-        ProgressView().controlSize(.small).frame(maxWidth: .infinity, maxHeight: .infinity)
-      }
     }
+    .animation(reduceMotion ? nil : Theme.press, value: kindle.listing != nil)
   }
 }
 
@@ -71,11 +73,8 @@ struct KindleGrid: View {
   let items: [KindleItemViewModel]
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-  private let columns = Array(
-    repeating: GridItem(.flexible(), spacing: 10, alignment: .top), count: 3)
-
   var body: some View {
-    LazyVGrid(columns: columns, alignment: .leading, spacing: 12) {
+    LazyVGrid(columns: bookGridColumns, alignment: .leading, spacing: 12) {
       ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
         VStack(alignment: .leading, spacing: 0) {
           KindleCover(kindle: kindle, item: item, size: .large)
@@ -174,8 +173,9 @@ struct KindleCover: View {
   var body: some View {
     let book = item.book
     let look = CoverLook.of(book.isProtected ? .protected : .ready)
+    let slot = kindle.covers.slot(for: book, size: size)
     CoverFace(
-      data: kindle.covers.slot(for: book, size: size).data, title: item.title,
+      data: slot.data, isPending: slot.isPending, title: item.title,
       seed: BookID(rawValue: book.id.relativePath), titleSize: size == .large ? titleSize : nil
     )
     .saturation(look.saturation)

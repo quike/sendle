@@ -504,54 +504,63 @@ struct LibraryContent: View {
   private static let top = "top"
 
   let panel: PanelModel
+  @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
   var body: some View {
     let library = panel.library
-    switch library.state {
-    case .loading:
-      ProgressView().controlSize(.small).frame(maxWidth: .infinity, maxHeight: .infinity)
-    case .failed(let problem):
-      ProblemCard(problem: problem) { action in Task { await panel.perform(action) } }
-        .frame(maxHeight: .infinity, alignment: .top)
-    case .loaded:
-      let items = library.items
-      if items.isEmpty {
-        EmptyLibraryView(isFiltered: !library.books.isEmpty)
-      } else {
-        let fullRail = library.showsRail && library.jumpBar == .full
-        GeometryReader { geometry in
-          ScrollViewReader { proxy in
-            ScrollView {
-              VStack(alignment: .leading, spacing: 0) {
-                switch library.layout {
-                case .grid:
-                  SectionLabel("Library").padding(.bottom, 7)
-                  BookGrid(panel: panel, items: items)
-                case .list:
-                  SectionLabel("Library").padding(.bottom, 4)
-                  BookList(panel: panel, items: items)
-                case .shelf:
-                  BookShelf(panel: panel, items: items, recent: library.recentItems)
-                }
+    Group {
+      switch library.state {
+      case .loading:
+        SkeletonBooks(layout: library.layout).transition(.opacity)
+      case .failed(let problem):
+        ProblemCard(problem: problem) { action in Task { await panel.perform(action) } }
+          .frame(maxHeight: .infinity, alignment: .top)
+      case .loaded:
+        loaded(library).transition(.opacity)
+      }
+    }
+    .animation(reduceMotion ? nil : Theme.press, value: library.state == .loading)
+  }
+
+  @ViewBuilder
+  private func loaded(_ library: LibraryViewModel) -> some View {
+    let items = library.items
+    if items.isEmpty {
+      EmptyLibraryView(isFiltered: !library.books.isEmpty)
+    } else {
+      let fullRail = library.showsRail && library.jumpBar == .full
+      GeometryReader { geometry in
+        ScrollViewReader { proxy in
+          ScrollView {
+            VStack(alignment: .leading, spacing: 0) {
+              switch library.layout {
+              case .grid:
+                SectionLabel("Library").padding(.bottom, 7)
+                BookGrid(panel: panel, items: items)
+              case .list:
+                SectionLabel("Library").padding(.bottom, 4)
+                BookList(panel: panel, items: items)
+              case .shelf:
+                BookShelf(panel: panel, items: items, recent: library.recentItems)
               }
-              .id(Self.top)
-              .padding(.trailing, fullRail ? AlphabetRail.reservedWidth : 0)
-              .padding(.bottom, library.selection.isEmpty ? 6 : 70)
             }
-            .scrollIndicators(.never)
-            .scrollPosition(id: Bindable(library).topBook, anchor: .top)
-            .onChange(of: library.scrollToTopRequests) { proxy.scrollTo(Self.top, anchor: .top) }
+            .id(Self.top)
+            .padding(.trailing, fullRail ? AlphabetRail.reservedWidth : 0)
+            .padding(.bottom, library.selection.isEmpty ? 6 : 70)
           }
-          .overlay(alignment: .trailing) {
-            if library.showsRail {
-              AlphabetRail(library: library).padding(.bottom, library.selection.isEmpty ? 0 : 64)
-            }
+          .scrollIndicators(.never)
+          .scrollPosition(id: Bindable(library).topBook, anchor: .top)
+          .onChange(of: library.scrollToTopRequests) { proxy.scrollTo(Self.top, anchor: .top) }
+        }
+        .overlay(alignment: .trailing) {
+          if library.showsRail {
+            AlphabetRail(library: library).padding(.bottom, library.selection.isEmpty ? 0 : 64)
           }
-          // The compact A–Z bar shows while the pointer is near the right edge, the bar included.
-          .onContinuousHover { phase in
-            guard case .active(let point) = phase else { return library.isRailHovered = false }
-            library.isRailHovered = point.x > geometry.size.width - 36
-          }
+        }
+        // The compact A–Z bar shows while the pointer is near the right edge, the bar included.
+        .onContinuousHover { phase in
+          guard case .active(let point) = phase else { return library.isRailHovered = false }
+          library.isRailHovered = point.x > geometry.size.width - 36
         }
       }
     }

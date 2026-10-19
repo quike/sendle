@@ -14,6 +14,8 @@ package enum CoverSize: Int, Sendable {
 package final class CoverSlot {
   package fileprivate(set) var data: Data?
   package fileprivate(set) var isLoaded = false
+  /// True until the first answer, whatever it is, so a view shows a skeleton and not a title card.
+  package fileprivate(set) var isPending = true
 }
 
 /// Covers kept in memory, "no cover" included, so each is read only once. A cover that couldn't
@@ -38,6 +40,7 @@ package final class CoverCache<Key: Hashable> {
     guard !slot.isLoaded else { return }
     if let running = loads[key] { return await running.value }
     let task = Task {
+      defer { slot.isPending = false }
       switch await read() {
       case .image(let png):
         slot.data = png

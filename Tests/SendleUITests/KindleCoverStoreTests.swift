@@ -73,4 +73,20 @@ struct KindleCoverStoreTests {
     await model.follow(.fixture(name: "Kindle Oasis"), books: [])
     #expect(!model.covers.slot(for: book, size: .large).isLoaded)
   }
+
+  @Test func aKindleCoverIsPendingUntilItIsRead() async {
+    let library = FakeKindleLibrary(covers: [book.id: png])
+    let store = KindleCoverStore(library: library)
+    #expect(store.slot(for: book, size: .large).isPending)
+    await store.load(book, on: .fixture(), size: .large)
+    #expect(!store.slot(for: book, size: .large).isPending)
+  }
+
+  @Test func coversArePendingAgainOnceReset() async {
+    let library = FakeKindleLibrary(covers: [book.id: png])
+    let store = KindleCoverStore(library: library)
+    await store.load(book, on: .fixture(), size: .large)
+    store.reset()
+    #expect(store.slot(for: book, size: .large).isPending)
+  }
 }

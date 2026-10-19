@@ -2,16 +2,17 @@ import AppKit
 import SendleDomain
 import SwiftUI
 
+/// The grid's three flexible columns, shared by the books and their skeleton.
+let bookGridColumns = Array(
+  repeating: GridItem(.flexible(), spacing: 10, alignment: .top), count: 3)
+
 struct BookGrid: View {
   let panel: PanelModel
   let items: [BookItemViewModel]
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-  private let columns = Array(
-    repeating: GridItem(.flexible(), spacing: 10, alignment: .top), count: 3)
-
   var body: some View {
-    LazyVGrid(columns: columns, alignment: .leading, spacing: 12) {
+    LazyVGrid(columns: bookGridColumns, alignment: .leading, spacing: 12) {
       ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
         VStack(alignment: .leading, spacing: 0) {
           BookCover(
@@ -244,7 +245,7 @@ struct BookCover: View {
     let isHovered = item.map { panel.library.hovered == $0.id } ?? false
     let look = CoverLook.of(book.availability)
     CoverFace(
-      data: slot.data, title: book.title, seed: book.id,
+      data: slot.data, isPending: slot.isPending, title: book.title, seed: book.id,
       titleSize: size == .large ? titleSize : nil,
       bottomInset: showsFormat && item != nil ? 16 : 0
     )
@@ -298,29 +299,40 @@ struct BookCover: View {
   }
 }
 
-/// A cover's picture, or a title card where there is none, with its rounded corners and spine.
+/// A cover's picture, or a title card where there is none, with its rounded corners and spine. A
+/// cover still being read shows a skeleton, and the picture fades in over it.
 struct CoverFace: View {
+  static let shape = UnevenRoundedRectangle(
+    topLeadingRadius: 5, bottomLeadingRadius: 5, bottomTrailingRadius: 7, topTrailingRadius: 7,
+    style: .continuous)
+
   let data: Data?
+  var isPending = false
   let title: String
   let seed: BookID
   let titleSize: CGFloat?
   var bottomInset: CGFloat = 0
+  @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
   var body: some View {
-    let shape = UnevenRoundedRectangle(
-      topLeadingRadius: 5, bottomLeadingRadius: 5, bottomTrailingRadius: 7, topTrailingRadius: 7,
-      style: .continuous)
     // The clear base takes the proposed size, so a cover of another shape can't widen the cell.
     Color.clear
       .overlay {
-        if let data, let image = NSImage(data: data) {
-          Image(nsImage: image).resizable().scaledToFill()
-        } else {
-          TitleCardView(
-            title: title, seed: seed, titleSize: titleSize, bottomInset: bottomInset)
+        Group {
+          if isPending {
+            ShimmerFill().transition(.opacity)
+          } else if let data, let image = NSImage(data: data) {
+            Image(nsImage: image).resizable().scaledToFill().transition(.opacity)
+          } else {
+            TitleCardView(
+              title: title, seed: seed, titleSize: titleSize, bottomInset: bottomInset
+            )
+            .transition(.opacity)
+          }
         }
+        .animation(reduceMotion ? nil : Theme.press, value: isPending)
       }
-      .clipShape(shape)
+      .clipShape(Self.shape)
       .overlay(alignment: .leading) {
         Rectangle().fill(Color.black.opacity(0.18)).frame(width: 3)
       }
