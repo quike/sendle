@@ -24,15 +24,18 @@ trap 'rm -rf "$SLICES"' EXIT
 for ARCH in arm64 x86_64; do
   echo "▸ Building for $ARCH"
   swift build -c release --product Sendle --triple "$ARCH-apple-macosx14.0"
-  cp "$(swift build -c release --triple "$ARCH-apple-macosx14.0" --show-bin-path)/Sendle" \
-    "$SLICES/Sendle-$ARCH"
+  BIN="$(swift build -c release --triple "$ARCH-apple-macosx14.0" --show-bin-path)"
+  cp "$BIN/Sendle" "$SLICES/Sendle-$ARCH"
 done
 
 echo "▸ Assembling $APP"
 rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 lipo -create -output "$APP/Contents/MacOS/Sendle" "$SLICES"/Sendle-*
-swift "$ROOT/scripts/make-icon.swift" "$APP/Contents/Resources/AppIcon.icns"
+# The panel's images, the same for every architecture.
+cp -R "$BIN/Sendle_SendleUI.bundle" "$APP/Contents/Resources/"
+swift "$ROOT/scripts/make-icon.swift" "$ROOT/scripts/AppIcon-source.png" \
+  "$APP/Contents/Resources/AppIcon.icns"
 cat > "$APP/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">

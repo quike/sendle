@@ -34,3 +34,10 @@ struct ThemeTests {
     #expect(Theme.tint(for: .usb) == Theme.live)
   }
 }
+
+struct BrandTests {
+  @Test func theHeaderLogoLoadsFromTheBundle() {
+    #expect(Brand.logo.size.width > 0)
+    #expect(Brand.logo.size.width == Brand.logo.size.height)
+  }
+}

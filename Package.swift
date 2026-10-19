@@ -14,7 +14,7 @@ let package = Package(
     ),
     .target(name: "SendleEPUB", dependencies: ["SendleDomain"]),
     .target(name: "SendleCovers", dependencies: ["SendleDomain", "SendleEPUB"]),
-    .target(name: "SendleUI", dependencies: ["SendleDomain"]),
+    .target(name: "SendleUI", dependencies: ["SendleDomain"], resources: [.process("Resources")]),
     .target(name: "SMTPKit"),
     .target(name: "SendleMail", dependencies: ["SendleDomain", "SMTPKit"]),
     .target(name: "SendleKindleUSB", dependencies: ["SendleDomain"]),

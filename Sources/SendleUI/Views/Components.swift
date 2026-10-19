@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 /// The dark card: background, a soft glow at the top and a 1 px inner hairline.
@@ -27,13 +28,17 @@ extension View {
   }
 }
 
+/// Sendle's app icon, made from scripts/AppIcon-source.png by scripts/make-icon.swift --logo.
+package enum Brand {
+  package static let logo = Bundle.module.image(forResource: "Logo") ?? NSImage()
+}
+
 struct BrandBadge: View {
   var body: some View {
-    Image(systemName: "book.closed.fill")
-      .font(.system(size: 14, weight: .semibold))
-      .foregroundStyle(.white)
+    Image(nsImage: Brand.logo)
+      .resizable()
+      .interpolation(.high)
       .frame(width: 30, height: 30)
-      .background(Theme.brand, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
       .accessibilityHidden(true)
   }
 }

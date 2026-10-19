@@ -1,92 +1,134 @@
 #!/usr/bin/swift
-// Draws Sendle's app icon, the panel's badge at full size: a white book on the brand gradient.
-// Usage: scripts/make-icon.swift <output.icns>
+// Makes Sendle's icons from scripts/AppIcon-source.png, an off-white tile with an orange open book
+// drawn with a soft shadow on a white canvas. Everything outside the tile becomes transparent; the
+// shadow is kept as a dark shadow with its own transparency.
+// Usage: scripts/make-icon.swift <source.png> <output.icns>        the app icon, at every size
+//        scripts/make-icon.swift --logo <source.png> <output.png>  the panel header's logo: the
+//                                                                  tile alone, 128 px, no shadow
 import AppKit
 
-guard CommandLine.arguments.count == 2 else {
-  FileHandle.standardError.write(Data("Usage: make-icon.swift <output.icns>\n".utf8))
+/// The tile in the source, in pixels from its top left: the edge just inside its rim, and the
+/// radius of its corners.
+let tileInSource = CGRect(x: 90.5, y: 85.5, width: 1072, height: 1066)
+let cornerInSource: CGFloat = 254
+/// The canvas behind the tile, which the source paints in place of transparency.
+let canvasWhite = 254
+
+func fail(_ message: String) -> Never {
+  FileHandle.standardError.write(Data("\(message)\n".utf8))
   exit(2)
 }
-let output = URL(fileURLWithPath: CommandLine.arguments[1])
 
-func color(_ hex: Int, alpha: CGFloat = 1) -> CGColor {
-  CGColor(
-    srgbRed: CGFloat((hex >> 16) & 0xff) / 255, green: CGFloat((hex >> 8) & 0xff) / 255,
-    blue: CGFloat(hex & 0xff) / 255, alpha: alpha)
+let arguments = Array(CommandLine.arguments.dropFirst())
+let isLogo = arguments.first == "--logo"
+let paths = isLogo ? Array(arguments.dropFirst()) : arguments
+guard paths.count == 2 else {
+  fail("Usage: make-icon.swift [--logo] <source.png> <output.icns|output.png>")
+}
+guard let sourceData = try? Data(contentsOf: URL(fileURLWithPath: paths[0])),
+  let source = NSBitmapImageRep(data: sourceData)?.cgImage
+else { fail("Can't read \(paths[0])") }
+let output = URL(fileURLWithPath: paths[1])
+
+func context(_ width: Int, _ height: Int) -> CGContext {
+  CGContext(
+    data: nil, width: width, height: height, bitsPerComponent: 8, bytesPerRow: 0,
+    space: CGColorSpace(name: CGColorSpace.sRGB)!,
+    bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)!
 }
 
-func render(_ pixels: Int) -> Data {
-  let bitmap = NSBitmapImageRep(
-    bitmapDataPlanes: nil, pixelsWide: pixels, pixelsHigh: pixels, bitsPerSample: 8,
-    samplesPerPixel: 4, hasAlpha: true, isPlanar: false, colorSpaceName: .deviceRGB,
-    bytesPerRow: 0, bitsPerPixel: 0)!
-  NSGraphicsContext.saveGraphicsState()
-  NSGraphicsContext.current = NSGraphicsContext(bitmapImageRep: bitmap)
-  let context = NSGraphicsContext.current!.cgContext
-  context.scaleBy(x: CGFloat(pixels) / 1024, y: CGFloat(pixels) / 1024)
-
-  // The macOS icon grid: an 824 pt tile centred on a 1024 pt canvas, with a soft shadow.
-  let tile = CGPath(
-    roundedRect: CGRect(x: 100, y: 100, width: 824, height: 824), cornerWidth: 185,
-    cornerHeight: 185, transform: nil)
-  context.setShadow(offset: CGSize(width: 0, height: -12), blur: 28, color: color(0, alpha: 0.35))
-  context.addPath(tile)
-  context.setFillColor(color(0x3d8bff))
-  context.fillPath()
-  context.setShadow(offset: .zero, blur: 0, color: nil)
-
-  // The brand gradient, #7c5cff at the top left to #3d8bff at the bottom right, and a glow.
-  context.saveGState()
-  context.addPath(tile)
-  context.clip()
-  let space = CGColorSpace(name: CGColorSpace.sRGB)!
-  let brand = CGGradient(
-    colorsSpace: space, colors: [color(0x7c5cff), color(0x3d8bff)] as CFArray, locations: [0, 1])!
-  context.drawLinearGradient(
-    brand, start: CGPoint(x: 100, y: 924), end: CGPoint(x: 924, y: 100), options: [])
-  let glow = CGGradient(
-    colorsSpace: space, colors: [color(0xffffff, alpha: 0.28), color(0xffffff, alpha: 0)] as CFArray,
-    locations: [0, 1])!
-  context.drawRadialGradient(
-    glow, startCenter: CGPoint(x: 512, y: 924), startRadius: 0,
-    endCenter: CGPoint(x: 512, y: 924), endRadius: 560, options: [])
-  context.restoreGState()
-
-  let configuration = NSImage.SymbolConfiguration(pointSize: 420, weight: .semibold)
-  if let symbol = NSImage(systemSymbolName: "book.closed.fill", accessibilityDescription: nil)?
-    .withSymbolConfiguration(configuration)
-  {
-    let size = symbol.size
-    let white = NSImage(size: size, flipped: false) { rect in
-      symbol.draw(in: rect)
-      NSColor.white.set()
-      rect.fill(using: .sourceAtop)
-      return true
+/// The source's shadow on its own: each pixel darker than the canvas becomes the colour and
+/// opacity that, laid over the canvas, give that pixel.
+func shadowLayer() -> CGImage {
+  let width = source.width
+  let height = source.height
+  let layer = context(width, height)
+  layer.draw(source, in: CGRect(x: 0, y: 0, width: width, height: height))
+  let rowBytes = layer.bytesPerRow
+  let pixels = layer.data!.bindMemory(to: UInt8.self, capacity: rowBytes * height)
+  for row in 0..<height {
+    for offset in stride(from: row * rowBytes, to: row * rowBytes + width * 4, by: 4) {
+      let darkest = min(Int(pixels[offset]), Int(pixels[offset + 1]), Int(pixels[offset + 2]))
+      let alpha = max(0, canvasWhite - darkest)
+      for channel in 0..<3 {
+        let value = Int(pixels[offset + channel]) - darkest
+        pixels[offset + channel] = UInt8(min(alpha, max(0, value)))
+      }
+      pixels[offset + 3] = UInt8(alpha * 255 / canvasWhite)
     }
-    context.setShadow(
-      offset: CGSize(width: 0, height: -10), blur: 30, color: color(0x1b1464, alpha: 0.45))
-    white.draw(
-      in: CGRect(
-        x: 512 - size.width / 2, y: 512 - size.height / 2, width: size.width, height: size.height))
   }
-  NSGraphicsContext.restoreGraphicsState()
-  return bitmap.representation(using: .png, properties: [:])!
+  return layer.makeImage()!
 }
 
+/// Draws the source so that its tile fills `tile`, in a context whose origin is at the bottom left.
+func drawSource(_ image: CGImage, in context: CGContext, tile: CGRect) {
+  let scaleX = tile.width / tileInSource.width
+  let scaleY = tile.height / tileInSource.height
+  let sourceBottom = CGFloat(source.height) - tileInSource.maxY
+  context.draw(
+    image,
+    in: CGRect(
+      x: tile.minX - tileInSource.minX * scaleX, y: tile.minY - sourceBottom * scaleY,
+      width: CGFloat(source.width) * scaleX, height: CGFloat(source.height) * scaleY))
+}
+
+func tilePath(_ tile: CGRect) -> CGPath {
+  let radius = cornerInSource * tile.width / tileInSource.width
+  return CGPath(roundedRect: tile, cornerWidth: radius, cornerHeight: radius, transform: nil)
+}
+
+func png(_ image: CGImage) -> Data {
+  NSBitmapImageRep(cgImage: image).representation(using: .png, properties: [:])!
+}
+
+/// The tile alone, edge to edge.
+func logo(_ pixels: Int) -> CGImage {
+  let canvas = context(pixels, pixels)
+  canvas.interpolationQuality = .high
+  let tile = CGRect(x: 0, y: 0, width: pixels, height: pixels)
+  canvas.addPath(tilePath(tile))
+  canvas.clip()
+  drawSource(source, in: canvas, tile: tile)
+  return canvas.makeImage()!
+}
+
+/// The macOS icon grid: an 824 px tile centred on a 1024 px canvas, with the source's shadow.
+func master() -> CGImage {
+  let canvas = context(1024, 1024)
+  canvas.interpolationQuality = .high
+  let tile = CGRect(x: 100, y: 100, width: 824, height: 824)
+  drawSource(shadowLayer(), in: canvas, tile: tile)
+  canvas.addPath(tilePath(tile))
+  canvas.clip()
+  drawSource(source, in: canvas, tile: tile)
+  return canvas.makeImage()!
+}
+
+func scaled(_ image: CGImage, to pixels: Int) -> CGImage {
+  let canvas = context(pixels, pixels)
+  canvas.interpolationQuality = .high
+  canvas.draw(image, in: CGRect(x: 0, y: 0, width: pixels, height: pixels))
+  return canvas.makeImage()!
+}
+
+if isLogo {
+  try png(logo(128)).write(to: output)
+  exit(0)
+}
+
+let icon = master()
 let iconset = FileManager.default.temporaryDirectory
   .appendingPathComponent("Sendle-\(UUID().uuidString).iconset")
 try FileManager.default.createDirectory(at: iconset, withIntermediateDirectories: true)
 defer { try? FileManager.default.removeItem(at: iconset) }
 for size in [16, 32, 128, 256, 512] {
-  try render(size).write(to: iconset.appendingPathComponent("icon_\(size)x\(size).png"))
-  try render(size * 2).write(to: iconset.appendingPathComponent("icon_\(size)x\(size)@2x.png"))
+  try png(scaled(icon, to: size)).write(to: iconset.appendingPathComponent("icon_\(size)x\(size).png"))
+  try png(scaled(icon, to: size * 2))
+    .write(to: iconset.appendingPathComponent("icon_\(size)x\(size)@2x.png"))
 }
 let iconutil = Process()
 iconutil.executableURL = URL(fileURLWithPath: "/usr/bin/iconutil")
 iconutil.arguments = ["-c", "icns", iconset.path, "-o", output.path]
 try iconutil.run()
 iconutil.waitUntilExit()
-guard iconutil.terminationStatus == 0 else {
-  FileHandle.standardError.write(Data("iconutil failed\n".utf8))
-  exit(1)
-}
+guard iconutil.terminationStatus == 0 else { fail("iconutil failed") }

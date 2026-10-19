@@ -20,8 +20,6 @@ package enum Theme {
   /// What floats over the books, such as the send bar, and reads over any cover.
   package static let floating = Color(hex: 0x161b29).opacity(0.96)
 
-  package static let brand = LinearGradient(
-    colors: [brandStart, accent], startPoint: .topLeading, endPoint: .bottomTrailing)
   package static let action = LinearGradient(
     colors: [accent, Color(hex: 0x2a6fe0)], startPoint: .topLeading, endPoint: .bottomTrailing)
   package static let usbAction = LinearGradient(
