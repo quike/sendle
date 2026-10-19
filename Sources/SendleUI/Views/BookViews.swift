@@ -333,9 +333,13 @@ struct CoverFace: View {
         .animation(reduceMotion ? nil : Theme.press, value: isPending)
       }
       .clipShape(Self.shape)
-      .overlay(alignment: .leading) {
-        Rectangle().fill(Color.black.opacity(0.18)).frame(width: 3)
-      }
+      .overlay(alignment: .leading) { CoverSpine() }
+  }
+}
+
+struct CoverSpine: View {
+  var body: some View {
+    Rectangle().fill(Color.black.opacity(0.18)).frame(width: 3)
   }
 }
 

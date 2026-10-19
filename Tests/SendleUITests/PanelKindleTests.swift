@@ -212,4 +212,24 @@ struct PanelKindleTests {
     await panel.queue.waitUntilFinished()
     #expect(panel.ejectActionName(for: kindle) == "Eject Kindle")
   }
+
+  @Test func ejectShowsInsideTheChipWhileItHasKeyboardFocus() async {
+    let (panel, _) = harness.makePanel()
+    await panel.launch()
+    let kindle = KindleVolume.fixture()
+    panel.focusedChip = kindle
+    #expect(panel.showsEject(in: kindle))
+    #expect(!panel.showsEject(in: .fixture(name: "Kindle Oasis")))
+    panel.focusedChip = nil
+    #expect(!panel.showsEject(in: kindle))
+  }
+
+  @Test func closingThePanelClearsTheChipUnderThePointer() async {
+    let (panel, _) = harness.makePanel()
+    await panel.launch()
+    panel.hoveredChip = .fixture()
+    panel.focusedChip = .fixture()
+    panel.panelDidClose()
+    #expect(!panel.showsEject(in: .fixture()))
+  }
 }

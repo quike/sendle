@@ -153,6 +153,11 @@ private struct KindleChip: View {
   let destination: Destination
   let volume: KindleVolume
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
+  @FocusState private var focus: Focus?
+
+  private enum Focus {
+    case chip, eject
+  }
 
   var body: some View {
     let isActive = destination == panel.library.activeDestination
@@ -164,9 +169,12 @@ private struct KindleChip: View {
       } label: {
         ChipLabel(
           title: destination.label, symbol: destination.symbol, tint: tint, isActive: isActive,
-          trailingPadding: showsEject ? 6 : 10)
+          trailingPadding: showsEject ? 6 : 10
+        )
+        .contentShape(Capsule())
       }
       .buttonStyle(.plain)
+      .focused($focus, equals: .chip)
       .help(destination.chipHelp)
       .accessibilityLabel(destination.spokenName)
       .accessibilityAddTraits(isActive ? .isSelected : [])
@@ -177,11 +185,20 @@ private struct KindleChip: View {
       }
       if showsEject {
         EjectButton(panel: panel, volume: volume)
+          .focused($focus, equals: .eject)
           .padding(.trailing, 3)
           .transition(.move(edge: .trailing).combined(with: .opacity))
       }
     }
+    .clipShape(Capsule())
     .chipShape(tint: tint, isActive: isActive)
+    .onChange(of: focus != nil) { _, hasFocus in
+      if hasFocus {
+        panel.focusedChip = volume
+      } else if panel.focusedChip == volume {
+        panel.focusedChip = nil
+      }
+    }
     .onHover { isHovering in
       if isHovering {
         panel.hoveredChip = volume
@@ -191,6 +208,7 @@ private struct KindleChip: View {
     }
     .onDisappear {
       if panel.hoveredChip == volume { panel.hoveredChip = nil }
+      if panel.focusedChip == volume { panel.focusedChip = nil }
     }
     .animation(reduceMotion ? nil : Theme.press, value: showsEject)
   }

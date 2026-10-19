@@ -38,6 +38,8 @@ public final class PanelModel {
   package private(set) var ejecting: KindleVolume?
   /// The Kindle chip under the pointer.
   package var hoveredChip: KindleVolume?
+  /// The Kindle chip, or its Eject, that has keyboard focus.
+  package var focusedChip: KindleVolume?
   /// Bumped by ⌘F; the search field takes the keyboard when it changes.
   package private(set) var searchFocusRequests = 0
   /// The status item's centre, measured from the card's left edge, where the arrow points.
@@ -139,6 +141,8 @@ public final class PanelModel {
 
   public func panelDidClose() {
     session += 1
+    hoveredChip = nil
+    focusedChip = nil
     library.disappear()
     logs.stop()
     accessWatch?.cancel()
@@ -282,9 +286,10 @@ public final class PanelModel {
     ejecting == nil && !isCopying(to: volume)
   }
 
-  /// Eject sits inside the Kindle's chip while the pointer is on it, and while it ejects.
+  /// Eject sits inside the Kindle's chip while the pointer or the keyboard is on it, and while it
+  /// ejects.
   package func showsEject(in volume: KindleVolume) -> Bool {
-    hoveredChip == volume || ejecting == volume
+    hoveredChip == volume || focusedChip == volume || ejecting == volume
   }
 
   /// What VoiceOver offers on the chip; nil where Eject would be refused.

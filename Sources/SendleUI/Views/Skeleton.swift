@@ -1,36 +1,60 @@
 import SendleDomain
 import SwiftUI
 
+private struct ShimmerPhaseKey: EnvironmentKey {
+  static let defaultValue: Double? = nil
+}
+
+extension EnvironmentValues {
+  /// Where the band is in its sweep, 0 to 1. A skeleton sets it once for all its blocks.
+  fileprivate var shimmerPhase: Double? {
+    get { self[ShimmerPhaseKey.self] }
+    set { self[ShimmerPhaseKey.self] = newValue }
+  }
+}
+
 /// A placeholder block: a soft band sweeps over it once per 1.4 s, and with Reduce Motion it stays
-/// still.
+/// still. Blocks outside a skeleton keep their own time, which is the same clock.
 struct ShimmerFill: View {
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
+  @Environment(\.shimmerPhase) private var sharedPhase
+
+  static func phase(at date: Date) -> Double {
+    let cycle = date.timeIntervalSinceReferenceDate / 1.4
+    return cycle - cycle.rounded(.down)
+  }
 
   var body: some View {
     Theme.glass.overlay {
       if !reduceMotion {
-        TimelineView(.animation) { context in
-          GeometryReader { geometry in
-            let cycle = context.date.timeIntervalSinceReferenceDate / 1.4
-            let phase = cycle - cycle.rounded(.down)
-            LinearGradient(
-              colors: [.clear, Color.white.opacity(0.06), .clear], startPoint: .leading,
-              endPoint: .trailing
-            )
-            .frame(width: geometry.size.width * 0.6)
-            .offset(x: (phase * 1.6 - 0.6) * geometry.size.width)
-          }
+        if let sharedPhase {
+          band(sharedPhase)
+        } else {
+          TimelineView(.animation) { band(Self.phase(at: $0.date)) }
         }
       }
     }
     .clipped()
+  }
+
+  private func band(_ phase: Double) -> some View {
+    GeometryReader { geometry in
+      LinearGradient(
+        colors: [.clear, Color.white.opacity(0.06), .clear], startPoint: .leading,
+        endPoint: .trailing
+      )
+      .frame(width: geometry.size.width * 0.6)
+      .offset(x: (phase * 1.6 - 0.6) * geometry.size.width)
+    }
   }
 }
 
 /// A cover that hasn't been read yet, in the covers' shape.
 struct SkeletonCover: View {
   var body: some View {
-    ShimmerFill().clipShape(CoverFace.shape)
+    ShimmerFill()
+      .clipShape(CoverFace.shape)
+      .overlay(alignment: .leading) { CoverSpine() }
   }
 }
 
@@ -49,19 +73,29 @@ private struct SkeletonLine: View {
 struct SkeletonBooks: View {
   let layout: LibraryLayout
 
+  @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+  /// One timeline sweeps every block, and stands still with Reduce Motion.
   var body: some View {
+    TimelineView(.animation(paused: reduceMotion)) { context in
+      content.environment(\.shimmerPhase, ShimmerFill.phase(at: context.date))
+    }
+  }
+
+  /// The loaded layouts' metrics, so the books replace it without a jump.
+  private var content: some View {
     VStack(alignment: .leading, spacing: 0) {
       switch layout {
       case .grid:
-        label.padding(.bottom, 10)
+        label.padding(.bottom, 7)
         grid
       case .list:
-        label.padding(.bottom, 8)
+        label.padding(.bottom, 4)
         rows(7)
       case .shelf:
         label
         covers
-        label.padding(.top, 6).padding(.bottom, 8)
+        label.padding(.top, 6).padding(.bottom, 4)
         rows(5)
       }
     }
@@ -71,8 +105,9 @@ struct SkeletonBooks: View {
     .accessibilityLabel("Loading books")
   }
 
+  /// As tall as a section label's line.
   private var label: some View {
-    SkeletonLine(width: 70, height: 6).padding(.horizontal, 2)
+    SkeletonLine(width: 70, height: 6).padding(.vertical, 3).padding(.horizontal, 2)
   }
 
   private var grid: some View {
@@ -81,7 +116,7 @@ struct SkeletonBooks: View {
         VStack(alignment: .leading, spacing: 0) {
           SkeletonCover().aspectRatio(2 / 3, contentMode: .fit)
           SkeletonLine(width: 64, height: 8).padding(.top, 8).padding(.bottom, 3)
-          SkeletonLine(width: 42, height: 6).padding(.vertical, 2)
+          SkeletonLine(width: 42, height: 6).padding(.vertical, 3)
         }
       }
     }
