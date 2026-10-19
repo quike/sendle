@@ -78,7 +78,14 @@ struct SkeletonBooks: View {
   /// One timeline sweeps every block, and stands still with Reduce Motion.
   var body: some View {
     TimelineView(.animation(paused: reduceMotion)) { context in
-      content.environment(\.shimmerPhase, ShimmerFill.phase(at: context.date))
+      // The clear base takes the space there is; the placeholders, taller than it, are cut off
+      // and never push the screen's header out of the card.
+      Color.clear
+        .overlay(alignment: .top) { content }
+        .clipped()
+        .environment(\.shimmerPhase, ShimmerFill.phase(at: context.date))
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Loading books")
     }
   }
 
@@ -99,10 +106,7 @@ struct SkeletonBooks: View {
         rows(5)
       }
     }
-    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-    .clipped()
-    .accessibilityElement(children: .ignore)
-    .accessibilityLabel("Loading books")
+    .frame(maxWidth: .infinity, alignment: .leading)
   }
 
   /// As tall as a section label's line.

@@ -15,11 +15,13 @@ struct Composition {
   private let settings: JSONSettingsStore
   private let chooseTool: ChooseConverterTool
 
-  /// Snapshot mode replaces every delivery, so that nothing is sent, and the plugged-in Kindles.
+  /// Snapshot mode replaces every delivery, so that nothing is sent, the plugged-in Kindles and how
+  /// they are read.
   init(
     loginItem: any LoginItem,
     channels override: (any DeliveryChannelFactory)? = nil,
-    kindles: (any DestinationMonitor)? = nil
+    kindles: (any DestinationMonitor)? = nil,
+    kindleLibrary: (any KindleLibrary)? = nil
   ) {
     let data = DataDirectory.url()
     let log = MemoryActivityLog()
@@ -46,7 +48,7 @@ struct Composition {
       history: history,
       converter: converter)
     let kindle = KindleViewModel(
-      library: USBKindleLibrary(cacheDirectory: data, log: log),
+      library: kindleLibrary ?? USBKindleLibrary(cacheDirectory: data, log: log),
       match: MatchKindleBooks(
         editions: OPFEditionReader(cacheFile: data.appending(path: "editions.json")),
         digests: SHA256FileDigester(), asins: SendleASINScheme(), history: history))

@@ -1,5 +1,6 @@
 import AppKit
 import SendleDomain
+import SendleKindleUSB
 import SendlePersistence
 import SendleUI
 import SwiftUI
@@ -7,7 +8,7 @@ import os
 
 /// `SENDLE_SNAPSHOT_DIR=<folder>` writes a PNG of each panel screen there and quits, to look at
 /// the UI without clicking through it. It saves layout choices and records a fake send, so it
-/// needs `SENDLE_DATA_DIR`.
+/// needs `SENDLE_DATA_DIR`. Its Kindle is a mock tree under that folder.
 @MainActor
 enum Snapshot {
   static let environmentKey = "SENDLE_SNAPSHOT_DIR"
@@ -24,13 +25,29 @@ enum Snapshot {
     exit(1)
   }
 
-  static func render(_ composition: Composition, kindles: SnapshotKindles, to folder: URL) async {
+  /// Writes the mock Kindle's files under the data folder and returns where they are.
+  static func writeMockKindle() -> URL {
+    let root = DataDirectory.url().appending(path: "mock-kindle", directoryHint: .isDirectory)
+    do {
+      try MockKindle.write(to: root)
+    } catch {
+      FileHandle.standardError.write(Data("Couldn't write the mock Kindle: \(error)\n".utf8))
+      exit(1)
+    }
+    return root
+  }
+
+  static func render(
+    _ composition: Composition, kindles: SnapshotKindles, kindleLibrary: SnapshotKindleLibrary,
+    to folder: URL
+  ) async {
     try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
     let panel = composition.panel
     let window = NSWindow(
       contentRect: NSRect(origin: .zero, size: PanelView.windowSize), styleMask: .borderless,
       backing: .buffered, defer: false)
     window.contentView = NSHostingView(rootView: PanelView(panel: panel))
+    await write(window, "library-loading.png", to: folder)
     await composition.launch()
     await panel.panelDidOpen()
     if panel.route == .library {
@@ -77,10 +94,8 @@ enum Snapshot {
     }
     panel.closeSettings()
     panel.skipSetup()
-    kindles.plugIn()
-    await panel.library.activate(.usb)
-    await write(window, "library-usb.png", to: folder)
-    panel.library.selectAll()
+    await renderKindle(panel, window: window, kindles: kindles, library: kindleLibrary, to: folder)
+    select(["A004", "A013"], in: panel)
     await panel.sendSelection()
     await write(window, "queue-usb-sending.png", to: folder)
     panel.queue.cancel()
@@ -91,8 +106,89 @@ enum Snapshot {
     await write(window, "logs.png", to: folder)
     panel.closeLogs()
     kindles.plugIn(["Kindle", "Kindle Oasis", "Kindle Scribe"])
-    await panel.library.activate(.usb(SnapshotKindles.volume(named: "Kindle Oasis")))
+    await panel.library.activate(.usb(kindles.volume(named: "Kindle Oasis")))
     await write(window, "library-usb-3.png", to: folder)
+  }
+
+  /// Plugs in the mock Kindle, holds its first read at the third of nine books, then lets it finish
+  /// and shows what the library and the Kindle side make of it.
+  private static func renderKindle(
+    _ panel: PanelModel, window: NSWindow, kindles: SnapshotKindles,
+    library kindleLibrary: SnapshotKindleLibrary, to folder: URL
+  ) async {
+    let saved = panel.library.layout
+    kindleLibrary.hold()
+    kindles.plugIn()
+    await panel.library.activate(.usb)
+    await until { panel.kindle.state == .reading(done: 3, total: 9) }
+    panel.showSide(.kindle)
+    await write(window, "kindle-reading.png", to: folder)
+    await panel.library.setLayout(.grid)
+    await write(window, "kindle-reading-grid.png", to: folder)
+    await panel.library.setLayout(saved)
+    kindleLibrary.release()
+    await until { panel.kindle.state == .loaded && panel.kindle.matches != nil }
+
+    panel.showSide(.library)
+    await write(window, "library-usb.png", to: folder)
+    await panel.library.setSort(.title)
+    for layout in [LibraryLayout.grid, .list] {
+      await panel.library.setLayout(layout)
+      await write(window, "library-kindle-\(layout.rawValue).png", to: folder)
+    }
+    for filter in panel.library.filters {
+      panel.library.filter = filter
+      let name = filter == .onKindle ? "library-on-kindle" : "library-scope-\(filter.rawValue)"
+      await write(window, "\(name).png", to: folder)
+    }
+    panel.library.filter = .all
+    panel.hoveredChip = kindles.volume(named: "Kindle")
+    await write(window, "chip-eject-hover.png", to: folder)
+    panel.hoveredChip = nil
+    await panel.library.setSort(.recent)
+    await panel.library.setLayout(saved)
+
+    panel.showSide(.kindle)
+    for layout in LibraryLayout.allCases {
+      await panel.library.setLayout(layout)
+      await write(window, "kindle-\(layout.rawValue).png", to: folder)
+    }
+    await panel.library.setLayout(.list)
+    panel.kindle.scope = .notInLibrary
+    await write(window, "kindle-not-in-library.png", to: folder)
+    panel.kindle.scope = .all
+    await panel.library.setLayout(saved)
+    panel.showSide(.library)
+
+    await panel.library.setSort(.title)
+    select(["A000", "A009"], in: panel)
+    await panel.sendSelection()
+    await write(window, "duplicates-sure.png", to: folder)
+    panel.choose(.skip)
+    await write(window, "duplicates-maybe.png", to: folder)
+    panel.cancelReview()
+    for (id, name) in [("A031", "duplicates-pdf-size"), ("A022", "duplicates-format")] {
+      select([id], in: panel)
+      await panel.sendSelection()
+      await write(window, "\(name).png", to: folder)
+      panel.cancelReview()
+    }
+    _ = panel.library.clearSelection()
+    await panel.library.setSort(.recent)
+  }
+
+  private static func select(_ ids: [String], in panel: PanelModel) {
+    for (index, id) in ids.enumerated() {
+      panel.click(BookID(rawValue: id), index == 0 ? .plain : .toggle)
+    }
+  }
+
+  /// Polls for up to five seconds, so a shot that waits for something that never comes still ends.
+  private static func until(_ condition: @MainActor () -> Bool) async {
+    for _ in 0..<500 {
+      if condition() { return }
+      try? await Task.sleep(for: .milliseconds(10))
+    }
   }
 
   /// Waits for covers and animations, then draws the window's content.
@@ -107,7 +203,8 @@ enum Snapshot {
   }
 }
 
-/// Snapshot mode's Kindle: none at first, then one at /Volumes/Kindle that nothing is copied to.
+/// Snapshot mode's Kindles: none at first, then "Kindle" at the mock tree and any others at
+/// /Volumes paths that nothing is copied to.
 final class SnapshotKindles: DestinationMonitor {
   private struct State {
     var volumes: [KindleVolume] = []
@@ -115,6 +212,11 @@ final class SnapshotKindles: DestinationMonitor {
   }
 
   private let state = OSAllocatedUnfairLock(initialState: State())
+  private let mockRoot: URL
+
+  init(mockRoot: URL) {
+    self.mockRoot = mockRoot
+  }
 
   func volumes() -> AsyncStream<[KindleVolume]> {
     AsyncStream { continuation in
@@ -125,14 +227,70 @@ final class SnapshotKindles: DestinationMonitor {
     }
   }
 
-  static func volume(named name: String) -> KindleVolume {
-    KindleVolume(id: "/Volumes/\(name)", name: name, mountURL: URL(filePath: "/Volumes/\(name)"))
+  func volume(named name: String) -> KindleVolume {
+    KindleVolume(
+      id: "/Volumes/\(name)", name: name,
+      mountURL: name == "Kindle" ? mockRoot : URL(filePath: "/Volumes/\(name)"))
   }
 
   func plugIn(_ names: [String] = ["Kindle"]) {
+    let volumes = names.map(volume(named:))
     state.withLock { state in
-      state.volumes = names.map(Self.volume(named:))
-      for listener in state.listeners { listener.yield(state.volumes) }
+      state.volumes = volumes
+      for listener in state.listeners { listener.yield(volumes) }
+    }
+  }
+}
+
+/// Reads the mock Kindle as the real library would, and can stop a read at its third book.
+final class SnapshotKindleLibrary: KindleLibrary {
+  private struct Gate {
+    var isHolding = false
+    var waiter: CheckedContinuation<Void, Never>?
+  }
+
+  private let reader: USBKindleLibrary
+  private let gate = OSAllocatedUnfairLock(initialState: Gate())
+
+  init(cacheDirectory: URL) {
+    reader = USBKindleLibrary(cacheDirectory: cacheDirectory)
+  }
+
+  /// The next read waits at its third book until `release()`.
+  func hold() {
+    gate.withLock { $0.isHolding = true }
+  }
+
+  func release() {
+    let waiter = gate.withLock { gate -> CheckedContinuation<Void, Never>? in
+      gate.isHolding = false
+      defer { gate.waiter = nil }
+      return gate.waiter
+    }
+    waiter?.resume()
+  }
+
+  func listing(
+    of volume: KindleVolume,
+    progress: @escaping @Sendable (_ done: Int, _ total: Int) async -> Void
+  ) async throws(KindleListingError) -> KindleListing {
+    try await reader.listing(of: volume) { [self] done, total in
+      await progress(done, total)
+      if done == 3 { await waitWhileHeld() }
+    }
+  }
+
+  func cover(of book: KindleBook, on volume: KindleVolume, maxPixel: Int) async -> Cover {
+    await reader.cover(of: book, on: volume, maxPixel: maxPixel)
+  }
+
+  private func waitWhileHeld() async {
+    await withCheckedContinuation { continuation in
+      let isHeld = gate.withLock { gate in
+        if gate.isHolding { gate.waiter = continuation }
+        return gate.isHolding
+      }
+      if !isHeld { continuation.resume() }
     }
   }
 }

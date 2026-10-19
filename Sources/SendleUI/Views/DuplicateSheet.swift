@@ -101,7 +101,7 @@ private struct ColumnHead<Cover: View>: View {
   var body: some View {
     VStack(alignment: .leading, spacing: 7) {
       SectionLabel(title)
-      cover.frame(width: 60, height: 90)
+      cover.frame(width: 72, height: 108)
     }
     .frame(maxWidth: .infinity, alignment: .leading)
   }
