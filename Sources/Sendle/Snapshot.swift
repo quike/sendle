@@ -99,6 +99,7 @@ enum Snapshot {
     panel.closeSettings()
     panel.skipSetup()
     await renderKindle(panel, window: window, kindles: kindles, library: kindleLibrary, to: folder)
+    await renderFloating(panel, window: window, to: folder)
     select(["A004", "A013"], in: panel)
     await panel.sendSelection()
     await write(window, "queue-usb-sending.png", to: folder)
@@ -192,6 +193,57 @@ enum Snapshot {
     }
     _ = panel.library.clearSelection()
     await panel.library.setSort(.recent)
+  }
+
+  /// The send bar and the A–Z bar on cards of their own: the send card, the A–Z card on the right
+  /// and mirrored on the left, compact, on the Kindle side, and the setting that switches them.
+  private static func renderFloating(_ panel: PanelModel, window: NSWindow, to folder: URL) async {
+    let saved = panel.library.layout
+    await panel.settings.setControls(.floating)
+    func place(_ side: RailSide) {
+      panel.railSide = side
+      window.setContentSize(PanelView.windowSize(margins: panel.windowMargins))
+    }
+    place(.trailing)
+    await panel.library.setLayout(.grid)
+    select(["A004", "A013", "A020"], in: panel)
+    await write(window, "floating-send-card.png", to: folder)
+    _ = panel.library.clearSelection()
+
+    await panel.library.setSort(.title)
+    panel.library.letterJump.jump(to: "M")
+    await write(window, "floating-az-right.png", to: folder)
+    await panel.settings.setJumpBar(.compact)
+    panel.library.letterJump.isHovered = true
+    panel.library.letterJump.drag(to: "P")
+    await write(window, "floating-az-compact.png", to: folder)
+    panel.library.letterJump.endDrag()
+    panel.library.letterJump.isHovered = false
+    await panel.settings.setJumpBar(.full)
+
+    place(.leading)
+    await panel.library.setLayout(.list)
+    panel.library.letterJump.jump(to: "D")
+    select(["A004", "A013"], in: panel)
+    await write(window, "floating-az-left.png", to: folder)
+    _ = panel.library.clearSelection()
+
+    panel.showSide(.kindle)
+    await panel.library.setLayout(.grid)
+    panel.kindle.letterJump.jump(to: "C")
+    await write(window, "floating-kindle-left.png", to: folder)
+    place(.trailing)
+    await write(window, "floating-kindle-right.png", to: folder)
+    panel.showSide(.library)
+
+    await panel.openSettings(.general)
+    await write(window, "floating-settings-general.png", to: folder)
+    panel.closeSettings()
+
+    await panel.library.setSort(.recent)
+    await panel.library.setLayout(saved)
+    await panel.settings.setControls(.attached)
+    place(.trailing)
   }
 
   /// Selected and lifted covers in the grid's outer columns and its top and bottom rows.
