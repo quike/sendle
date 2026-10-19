@@ -65,4 +65,19 @@ struct FileNamingTests {
     let book = Book.fixture(title: "Édité: Suite", author: "Anne Auteur")
     #expect(FileNaming.deliveryName(for: book, to: .usb) == FileNaming.baseName(for: book))
   }
+
+  @Test func theASINSeedCarriesTheEditionKeyOrTheName() {
+    let moby = Book.fixture()
+    #expect(
+      FileNaming.asinSeed(for: moby, edition: Edition(key: " urn:uuid:moby-dick "), copy: 1)
+        == "edition:urn:uuid:moby-dick")
+    #expect(
+      FileNaming.asinSeed(for: moby, edition: Edition(key: "urn:uuid:moby-dick"), copy: 2)
+        == "edition:urn:uuid:moby-dick#2")
+    #expect(
+      FileNaming.asinSeed(for: moby, edition: nil, copy: 1) == "Moby-Dick - Herman Melville")
+    #expect(
+      FileNaming.asinSeed(for: moby, edition: Edition(key: ""), copy: 3)
+        == "Moby-Dick - Herman Melville (3)")
+  }
 }
