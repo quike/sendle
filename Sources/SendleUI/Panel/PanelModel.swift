@@ -479,13 +479,14 @@ public final class PanelModel {
     }
   }
 
-  /// True when the key was used, so the shell swallows it.
+  /// True when the key was used, so the shell swallows it. A held Return settles no duplicate
+  /// the user hasn't seen.
   public func handle(_ key: KeyInput) -> Bool {
     guard let command = key.panelCommand else { return false }
     if duplicateReview != nil {
       switch command {
       case .escape: cancelReview()
-      case .confirm: chooseDefault()
+      case .confirm: if !key.isRepeat { chooseDefault() }
       default: return false
       }
       return true

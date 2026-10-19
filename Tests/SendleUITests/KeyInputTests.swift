@@ -61,6 +61,13 @@ struct KeyInputTests {
     #expect(input == KeyInput(.character("a"), isEditingText: true))
   }
 
+  @Test func remembersThatAKeyIsHeldDown() {
+    let input = KeyInput(
+      keyCode: 36, characters: "\r", modifierFlags: [], isEditingText: false, isRepeat: true)
+
+    #expect(input == KeyInput(.returnKey, isRepeat: true))
+  }
+
   @Test func ignoresAKeyWithoutCharacters() {
     #expect(KeyInput(keyCode: 63, characters: nil, modifierFlags: [], isEditingText: false) == nil)
   }

@@ -384,6 +384,16 @@ struct PanelKindleTests {
     #expect(channel.deliveries.map(\.name) == ["Moby-Dick - Herman Melville"])
   }
 
+  @Test func aHeldReturnDoesNotWalkThroughTheSheet() async {
+    let (panel, _, channel) = await harness.pluggedInPanel(listing: [sendlesPDF])
+    await panel.quickSend(BookID(rawValue: "a"))
+
+    #expect(panel.handle(KeyInput(.returnKey, isRepeat: true)))
+
+    #expect(panel.duplicateReview != nil)
+    #expect(channel.deliveries.isEmpty)
+  }
+
   @Test func theLibraryIgnoresItsKeysBehindTheSheet() async {
     let (panel, _, _) = await harness.pluggedInPanel(listing: [sendlesPDF])
     await panel.quickSend(BookID(rawValue: "a"))

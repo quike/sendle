@@ -18,11 +18,16 @@ public struct KeyInput: Equatable, Sendable {
   public let command: Bool
   /// A text field has the keyboard, so typing keys belong to it.
   public let isEditingText: Bool
+  /// The key is held down and this is one of its repeats.
+  public let isRepeat: Bool
 
-  public init(_ key: Key, command: Bool = false, isEditingText: Bool = false) {
+  public init(
+    _ key: Key, command: Bool = false, isEditingText: Bool = false, isRepeat: Bool = false
+  ) {
     self.key = key
     self.command = command
     self.isEditingText = isEditingText
+    self.isRepeat = isRepeat
   }
 
   /// A key as AppKit reports it. Only ⌘⇧⌥⌃ count as modifiers, so Caps Lock changes nothing.
@@ -30,7 +35,8 @@ public struct KeyInput: Equatable, Sendable {
     keyCode: UInt16,
     characters: String?,
     modifierFlags: NSEvent.ModifierFlags,
-    isEditingText: Bool
+    isEditingText: Bool,
+    isRepeat: Bool = false
   ) {
     let key: Key
     switch keyCode {
@@ -45,7 +51,8 @@ public struct KeyInput: Equatable, Sendable {
       key = .character(characters)
     }
     self.init(
-      key, command: modifierFlags.intersection(.typing) == .command, isEditingText: isEditingText)
+      key, command: modifierFlags.intersection(.typing) == .command, isEditingText: isEditingText,
+      isRepeat: isRepeat)
   }
 }
 

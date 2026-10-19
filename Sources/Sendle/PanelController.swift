@@ -126,7 +126,8 @@ final class PanelController: NSObject, NSWindowDelegate {
     guard
       let key = KeyInput(
         keyCode: event.keyCode, characters: event.charactersIgnoringModifiers,
-        modifierFlags: event.modifierFlags, isEditingText: isEditingText)
+        modifierFlags: event.modifierFlags, isEditingText: isEditingText,
+        isRepeat: event.isARepeat)
     else { return false }
     return model.handle(key)
   }
