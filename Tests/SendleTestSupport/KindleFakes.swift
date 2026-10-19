@@ -5,6 +5,8 @@ import os
 public final class FakeKindleLibrary: KindleLibrary {
   private struct State {
     var result: Result<KindleListing, KindleListingError>
+    var resultByVolume: [String: Result<KindleListing, KindleListingError>] = [:]
+    var listedVolumes: [KindleVolume] = []
     var gate: Signal?
     var progress: [(done: Int, total: Int)] = []
     var listings = 0
@@ -30,6 +32,16 @@ public final class FakeKindleLibrary: KindleLibrary {
     set { state.withLock { $0.result = newValue } }
   }
 
+  /// What listings of `volume` return, ahead of `result`.
+  public func setResult(
+    _ result: Result<KindleListing, KindleListingError>, for volume: KindleVolume
+  ) {
+    state.withLock { $0.resultByVolume[volume.id] = result }
+  }
+
+  /// The Kindles listed, in order.
+  public var listedVolumes: [KindleVolume] { state.withLock { $0.listedVolumes } }
+
   /// While set, a listing waits for it to fire before answering.
   public var gate: Signal? {
     get { state.withLock { $0.gate } }
@@ -53,9 +65,10 @@ public final class FakeKindleLibrary: KindleLibrary {
   ) async throws(KindleListingError) -> KindleListing {
     let (result, gate, steps) = state.withLock { state in
       state.listings += 1
+      state.listedVolumes.append(volume)
       state.inFlight += 1
       state.maxConcurrentListings = max(state.maxConcurrentListings, state.inFlight)
-      return (state.result, state.gate, state.progress)
+      return (state.resultByVolume[volume.id] ?? state.result, state.gate, state.progress)
     }
     defer { state.withLock { $0.inFlight -= 1 } }
     for step in steps {

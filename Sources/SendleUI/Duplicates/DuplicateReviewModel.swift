@@ -42,6 +42,15 @@ package struct DuplicateCase: Identifiable, Hashable, Sendable {
   }
 }
 
+/// What checking a Kindle for the books about to be sent found.
+package enum DuplicateCheck: Hashable, Sendable {
+  /// The books the Kindle already has, if any, and the listing they were found in.
+  case checked([DuplicateCase], in: KindleListing)
+  case unreadable(KindleListingError)
+  /// The Kindle changed before the check finished, so it says nothing about the one sent to.
+  case interrupted
+}
+
 /// One line of the comparison: the same fact on each side.
 package struct ComparisonRow: Hashable, Sendable {
   package let label: String

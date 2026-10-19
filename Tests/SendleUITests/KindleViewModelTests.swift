@@ -300,6 +300,56 @@ struct KindleViewModelTests {
     #expect(model.matches?.byBook[moby.id] == nil)
     #expect(model.matches != nil)
   }
+  // MARK: Duplicates
+
+  @Test func checksAKindleItDoesNotFollowWithoutTakingItOn() async {
+    let oasis = KindleVolume.fixture(name: "Kindle Oasis")
+    let sendlesCopy = KindleBook.fixture(
+      source: .sendle, asin: "SNFNYTPPHY", asinFollowsFileName: true)
+    kindle.result = .success(.fixture([]))
+    kindle.setResult(.success(.fixture([sendlesCopy])), for: oasis)
+    let model = makeModel()
+    await model.follow(.fixture(), books: [moby])
+
+    let check = await model.duplicates(of: [moby], on: oasis)
+
+    #expect(check == .checked([duplicate(of: sendlesCopy)], in: .fixture([sendlesCopy])))
+    #expect(kindle.listedVolumes == [.fixture(), oasis])
+    #expect(model.volume == .fixture())
+    #expect(model.listing == .fixture([]))
+  }
+
+  @Test func aKindleThatChangesDuringTheCheckInterruptsIt() async {
+    let oasis = KindleVolume.fixture(name: "Kindle Oasis")
+    let model = makeModel()
+    await model.follow(.fixture(), books: [moby])
+    let gate = Signal()
+    kindle.gate = gate
+    let check = Task { await model.duplicates(of: [moby], on: .fixture()) }
+    #expect(await eventually { model.state == .reading(done: 0, total: 0) })
+
+    let following = Task { await model.follow(oasis, books: [moby]) }
+    #expect(await eventually { model.volume == oasis })
+    await gate.fire()
+    await following.value
+
+    #expect(await check.value == .interrupted)
+  }
+
+  @Test func aKindleThatCannotBeReadSaysWhy() async {
+    let model = makeModel()
+    await model.follow(.fixture(), books: [moby])
+    kindle.result = .failure(.unreadable("I/O error"))
+
+    #expect(
+      await model.duplicates(of: [moby], on: .fixture()) == .unreadable(.unreadable("I/O error")))
+  }
+
+  func duplicate(of copy: KindleBook) -> DuplicateCase {
+    DuplicateCase(
+      book: moby, edition: nil,
+      match: KindleMatch(book: copy, confidence: .sure, reason: .sendleName), replace: .inPlace)
+  }
 }
 
 /// Its first read waits until the reading task is cancelled, then answers as if it had finished.

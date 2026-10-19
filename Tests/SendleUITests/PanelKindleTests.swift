@@ -450,6 +450,7 @@ struct PanelKindleTests {
     #expect(await eventually { panel.duplicateReview == nil })
     #expect(channel.deliveries.isEmpty)
     #expect(panel.queue.isEmpty)
+    #expect(panel.notice == ProblemPresenter.kindleChangedWhileChecking(.fixture()))
   }
 
   @Test func aSecondSendWhileTheKindleIsBeingReadIsIgnored() async {
@@ -465,5 +466,76 @@ struct PanelKindleTests {
     await panel.queue.waitUntilFinished()
 
     #expect(channel.deliveries.map(\.name) == ["Dracula - Bram Stoker"])
+  }
+
+  // MARK: Two Kindles
+
+  let oasis = KindleVolume.fixture(name: "Kindle Oasis")
+
+  /// Two PDFs, two Kindles with their own books, USB to the first, and the first read.
+  func twoKindlePanel(
+    first: [KindleBook], second: [KindleBook]
+  ) async -> (panel: PanelModel, kindle: FakeKindleLibrary, channel: FakeDeliveryChannel) {
+    harness.library.result = .success([
+      .fixture(id: "a", format: .pdf),
+      .fixture(id: "b", title: "Dracula", author: "Bram Stoker", format: .pdf),
+    ])
+    let kindle = FakeKindleLibrary(.success(.fixture(first)))
+    kindle.setResult(.success(.fixture(second)), for: oasis)
+    let channel = FakeDeliveryChannel()
+    let (panel, _) = harness.makePanel(
+      AppSettings(email: .fixture, activeDestination: .usb), channel: channel, kindle: kindle)
+    harness.monitor.update([.fixture(), oasis])
+    await panel.launch()
+    await panel.panelDidOpen()
+    _ = await eventually {
+      panel.library.activeDestination == .usb(.fixture()) && panel.kindle.matches != nil
+    }
+    return (panel, kindle, channel)
+  }
+
+  @Test func switchingTheKindleWhileItIsCheckedSendsNothing() async {
+    let (panel, kindle, channel) = await twoKindlePanel(first: [sendlesPDF], second: [])
+    let gate = Signal()
+    kindle.gate = gate
+    let sending = Task { await panel.quickSend(BookID(rawValue: "a")) }
+    #expect(await eventually { panel.kindle.state == .reading(done: 0, total: 0) })
+
+    await panel.library.activate(.usb(oasis))
+    #expect(await eventually { panel.kindle.volume == oasis })
+    await gate.fire()
+    await sending.value
+    await panel.queue.waitUntilFinished()
+
+    #expect(panel.duplicateReview == nil)
+    #expect(channel.deliveries.isEmpty)
+    #expect(panel.queue.isEmpty)
+    #expect(panel.notice == ProblemPresenter.kindleChangedWhileChecking(.fixture()))
+  }
+
+  @Test func switchingTheKindleWhileTheSheetShowsSendsNothing() async {
+    let (panel, _, channel) = await twoKindlePanel(first: [sendlesPDF], second: [])
+    await panel.quickSend(BookID(rawValue: "a"))
+    #expect(panel.duplicateReview != nil)
+
+    await panel.library.activate(.usb(oasis))
+    panel.chooseDefault()
+
+    #expect(panel.duplicateReview == nil)
+    #expect(channel.deliveries.isEmpty)
+    #expect(panel.queue.isEmpty)
+    #expect(panel.notice == ProblemPresenter.kindleChangedWhileChecking(.fixture()))
+  }
+
+  @Test func theSendBarSaysWhileTheKindleIsChecked() async {
+    let (panel, kindle, _) = await harness.pluggedInPanel(listing: [])
+    let gate = Signal()
+    kindle.gate = gate
+    let sending = Task { await panel.quickSend(BookID(rawValue: "b")) }
+
+    #expect(await eventually { panel.sendBarHint == "Checking Kindle for duplicates…" })
+    await gate.fire()
+    await sending.value
+    #expect(panel.sendBarHint != "Checking Kindle for duplicates…")
   }
 }

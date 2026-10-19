@@ -42,6 +42,9 @@ public final class PanelModel {
   package var focusedChip: KindleVolume?
   /// The duplicates of a USB send, while the user decides what to do with each.
   package private(set) var duplicateReview: DuplicateReviewModel?
+  /// The Kindle being read for duplicates before a send, while it is; another send would only
+  /// race it.
+  package private(set) var checkingKindle: KindleVolume?
   /// Bumped by ⌘F; the search field takes the keyboard when it changes.
   package private(set) var searchFocusRequests = 0
   /// The status item's centre, measured from the card's left edge, where the arrow points.
@@ -54,10 +57,10 @@ public final class PanelModel {
   @ObservationIgnored private var beforeLogs = (route: PanelRoute.library, showedSettings: false)
   /// Bumped by every open and close, so an opening that a newer one replaced leaves the state alone.
   @ObservationIgnored private var session = 0
-  /// What the review is about: sent, minus the skips, once it finishes.
-  @ObservationIgnored private var pendingSend: (books: [Book], destination: Destination)?
-  /// The Kindle is being read for duplicates, so another send would only race it.
-  @ObservationIgnored private var isCheckingDuplicates = false
+  /// What the review is about: sent, minus the skips, once it finishes. Keep both copies are named
+  /// against the listing the duplicates were found in.
+  @ObservationIgnored private var pendingSend:
+    (books: [Book], destination: Destination, listing: KindleListing)?
 
   public init(
     library: LibraryViewModel,
@@ -89,6 +92,12 @@ public final class PanelModel {
   /// The shell owns the panel, so it's attached after both exist.
   public func attach(_ system: any SystemActions) {
     self.system = system
+  }
+
+  /// The send bar's second line.
+  package var sendBarHint: String {
+    if let checkingKindle { return "Checking \(checkingKindle.name) for duplicates…" }
+    return library.canSend ? "\(library.sendHint) · Esc to clear" : library.sendHint
   }
 
   public var statusItem: StatusItemState {
@@ -188,13 +197,14 @@ public final class PanelModel {
     library.click(id, kind)
   }
 
-  /// A Kindle that goes takes its side with it.
+  /// A Kindle that goes takes its side with it, and a destination that changes takes the review
+  /// of a send to it.
   private func followKindle() {
     let volume = library.kindleVolume
     let books = library.books
     if volume == nil { side = .library }
-    if let pending = pendingSend, volume.map({ Destination.usb($0) }) != pending.destination {
-      cancelReview()
+    if let pending = pendingSend, library.activeDestination != pending.destination {
+      stopSend(to: pending.destination)
     }
     Task { await kindle.follow(volume, books: books) }
   }
@@ -235,27 +245,38 @@ public final class PanelModel {
     await send([item.book])
   }
 
-  /// A USB send first reads the Kindle again and asks about each book it already has. Without
-  /// duplicates, or when the Kindle can't be read, it goes as it always did.
+  /// A USB send first reads the Kindle it goes to and asks about each book it already has.
+  /// Without duplicates, or when the Kindle can't be read, it goes as it always did. A destination
+  /// that changes during the check stops the send.
   private func send(_ books: [Book]) async {
     guard let destination = library.activeDestination, !books.isEmpty, !queue.isRunning,
-      duplicateReview == nil, !isCheckingDuplicates
+      duplicateReview == nil, checkingKindle == nil
     else { return }
     if case .usb(let volume) = destination {
       if ejecting == volume { return }
       system?.endEditing()
-      if kindle.volume == volume {
-        isCheckingDuplicates = true
-        let duplicates = await kindle.duplicates(of: books)
-        isCheckingDuplicates = false
-        if let duplicates, !duplicates.isEmpty, !queue.isRunning {
-          pendingSend = (books, destination)
-          duplicateReview = DuplicateReviewModel(cases: duplicates)
-          return
-        }
+      checkingKindle = volume
+      let check = await kindle.duplicates(of: books, on: volume)
+      checkingKindle = nil
+      guard library.activeDestination == destination, check != .interrupted else {
+        return stopSend(to: destination)
+      }
+      if case .checked(let duplicates, let listing) = check, !duplicates.isEmpty {
+        guard !queue.isRunning else { return }
+        pendingSend = (books, destination, listing)
+        duplicateReview = DuplicateReviewModel(cases: duplicates)
+        return
       }
     }
     start(books, to: destination)
+  }
+
+  /// Nothing goes to a Kindle whose books were checked against another one.
+  private func stopSend(to destination: Destination) {
+    cancelReview()
+    if case .usb(let volume) = destination {
+      show(notice: ProblemPresenter.kindleChangedWhileChecking(volume))
+    }
   }
 
   private func start(
@@ -289,9 +310,12 @@ public final class PanelModel {
   /// ASIN of each copy replaced, and sends.
   private func finishReview(_ review: DuplicateReviewModel) {
     guard let pending = pendingSend else { return cancelReview() }
+    guard library.activeDestination == pending.destination else {
+      return stopSend(to: pending.destination)
+    }
     cancelReview()
     var taken = Set(
-      (kindle.listing?.books ?? []).filter { !$0.id.relativePath.contains("/") }
+      pending.listing.books.filter { !$0.id.relativePath.contains("/") }
         .map { $0.stem.lowercased() })
     var copies: [BookID: KindleCopy] = [:]
     var books: [Book] = []

@@ -56,6 +56,8 @@ public final class KindleViewModel {
   @ObservationIgnored private var reading: Task<Result<KindleListing, KindleListingError>, Never>?
   /// Changes with each Kindle followed, so work for one that went is dropped.
   @ObservationIgnored private var epoch = 0
+  /// Why the last read failed.
+  @ObservationIgnored private var failure: KindleListingError?
 
   private let library: any KindleLibrary
   private let match: MatchKindleBooks
@@ -103,12 +105,52 @@ public final class KindleViewModel {
     await queueRead()
   }
 
-  /// Which of `books` the Kindle already holds, read afresh so a book copied in since the last
-  /// read still counts; nil when the Kindle can't be read.
-  package func duplicates(of books: [Book]) async -> [DuplicateCase]? {
-    await refresh()
-    await queue?.value
-    guard case .loaded = state, let matches else { return nil }
+  /// Which of `books` the Kindle at `volume` already holds, read afresh so a book copied in since
+  /// the last read still counts. A Kindle this model doesn't follow is read on the side.
+  package func duplicates(of books: [Book], on volume: KindleVolume) async -> DuplicateCheck {
+    let found: Result<(KindleListing, KindleMatches), KindleListingError>
+    if volume == self.volume {
+      let epoch = epoch
+      await refresh()
+      await queue?.value
+      guard epoch == self.epoch else { return .interrupted }
+      if case .loaded = state, let listing, let matches {
+        found = .success((listing, matches))
+      } else {
+        found = .failure(failure ?? .cancelled)
+      }
+    } else {
+      found = await readAside(volume, matching: books)
+    }
+    switch found {
+    case .failure(let error):
+      return .unreadable(error)
+    case .success(let (listing, matches)):
+      return .checked(await duplicateCases(of: books, in: matches), in: listing)
+    }
+  }
+
+  /// Matches the library against the listing already read.
+  package func rematch() async {
+    guard listing != nil else { return }
+    await enqueue { await $0.matchLibrary() }
+  }
+
+  // MARK: Private
+
+  private func readAside(
+    _ volume: KindleVolume, matching books: [Book]
+  ) async -> Result<(KindleListing, KindleMatches), KindleListingError> {
+    do throws(KindleListingError) {
+      let listing = try await library.listing(of: volume) { _, _ in }
+      return .success((listing, await match(books, against: listing.books, on: volume)))
+    } catch {
+      return .failure(error)
+    }
+  }
+
+  private func duplicateCases(of books: [Book], in matches: KindleMatches) async -> [DuplicateCase]
+  {
     var found: [(book: Book, match: KindleMatch)] = []
     for book in books {
       if let match = matches.byBook[book.id] { found.append((book, match)) }
@@ -124,14 +166,6 @@ public final class KindleViewModel {
           ? .inPlace : .unavailable)
     }
   }
-
-  /// Matches the library against the listing already read.
-  package func rematch() async {
-    guard listing != nil else { return }
-    await enqueue { await $0.matchLibrary() }
-  }
-
-  // MARK: Private
 
   private func listChanged(_ changed: Bool) {
     if changed { scrollToTopRequests += 1 }
@@ -215,6 +249,7 @@ public final class KindleViewModel {
     reading = task
     let result = await task.value
     guard epoch == self.epoch else { return }
+    if case .failure(let error) = result { failure = error } else { failure = nil }
     switch result {
     case .success(let listing):
       self.listing = listing

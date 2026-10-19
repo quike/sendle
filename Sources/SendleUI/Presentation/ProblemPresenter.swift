@@ -98,6 +98,13 @@ public enum ProblemPresenter {
     }
   }
 
+  package static func kindleChangedWhileChecking(_ volume: KindleVolume) -> Problem {
+    Problem(
+      "Nothing was sent to \(volume.name)",
+      message: "The Kindle changed before Sendle finished checking which books it already has. "
+        + "Send again.")
+  }
+
   package static func ejectWhileCopying(_ volume: KindleVolume) -> Problem {
     Problem(
       "\(volume.name) is still being copied to", message: "Eject it when the copy is done.",

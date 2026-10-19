@@ -698,7 +698,7 @@ struct SendBar: View {
         Text("\(library.selection.count) selected")
           .font(.system(size: 11.5, weight: .semibold))
           .foregroundStyle(Color.white.opacity(0.75))
-        Text(library.canSend ? "\(library.sendHint) · Esc to clear" : library.sendHint)
+        Text(panel.sendBarHint)
           .font(.system(size: 9.5))
           .foregroundStyle(Theme.faint)
       }
