@@ -55,11 +55,19 @@ public actor OPFEditionReader: EditionReader {
     if isDirectory.boolValue {
       return withoutDownloads { OPFReader.package(inEPUBAt: book.fileURL)?.edition }
     }
-    let folder = FileManager.default.temporaryDirectory
-      .appending(path: "SendleEditions-\(UUID().uuidString)", directoryHint: .isDirectory)
-    defer { try? FileManager.default.removeItem(at: folder) }
-    guard (try? DittoExtractor().extract(book.fileURL, into: folder)) != nil else { return nil }
-    return OPFReader.package(inEPUBAt: folder)?.edition
+    // The whole book is unzipped only when its package can't be picked out by name.
+    let extractors: [any ArchiveExtractor] = [PackageExtractor(), DittoExtractor()]
+    for extractor in extractors {
+      let folder = FileManager.default.temporaryDirectory
+        .appending(path: "SendleEditions-\(UUID().uuidString)", directoryHint: .isDirectory)
+      defer { try? FileManager.default.removeItem(at: folder) }
+      if (try? extractor.extract(book.fileURL, into: folder)) != nil,
+        let package = OPFReader.package(inEPUBAt: folder)
+      {
+        return package.edition
+      }
+    }
+    return nil
   }
 
   private static func isOnThisMac(_ book: Book) -> Bool {

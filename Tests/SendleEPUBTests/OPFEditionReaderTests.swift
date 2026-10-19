@@ -42,6 +42,28 @@ struct OPFEditionReaderTests {
     #expect(try temporaryFiles().isEmpty)
   }
 
+  @Test func unzipsOnlyTheContainerAndThePackage() throws {
+    let zipped = try zippedEPUB(id: "zipped")
+    let out = folder.appending(path: "out", directoryHint: .isDirectory)
+
+    try PackageExtractor().extract(zipped.fileURL, into: out)
+
+    let files = try FileManager.default.subpathsOfDirectory(atPath: out.path)
+      .filter { !$0.hasSuffix("/") && !["META-INF", "OEBPS"].contains($0) }
+    #expect(Set(files) == ["META-INF/container.xml", "OEBPS/content.opf"])
+  }
+
+  @Test func aPackageWithAnUnusualNameIsStillRead() async throws {
+    var book = EPUBFixture.book()
+    book.files["OEBPS/Content.OPF"] = book.files.removeValue(forKey: "OEBPS/content.opf")
+    book.files["META-INF/container.xml"] = Data(
+      EPUBFixture.container.replacingOccurrences(of: "content.opf", with: "Content.OPF").utf8)
+    let zipped = try zippedEPUB(id: "unusual", files: book.files)
+
+    #expect(
+      await reader().editions(of: [zipped]) == [zipped.id: Edition(key: "urn:uuid:moby-dick")])
+  }
+
   @Test func aFileThatIsNoBookHasNoEditionAndIsNotCached() async throws {
     let url = folder.appending(path: "broken.epub")
     try Data("not a zip".utf8).write(to: url)
@@ -90,8 +112,9 @@ struct OPFEditionReaderTests {
     return .fixture(id: id, fileURL: root, availability: availability)
   }
 
-  private func zippedEPUB(id: String) throws -> Book {
-    let files = EPUBFixture.book().files
+  private func zippedEPUB(id: String, files: [String: Data] = EPUBFixture.book().files) throws
+    -> Book
+  {
     let names = ["mimetype"] + files.keys.filter { $0 != "mimetype" }.sorted()
     let url = folder.appending(path: "\(id).epub")
     try writeArchive(names.compactMap { name in files[name].map { (name, $0) } }, to: url)
