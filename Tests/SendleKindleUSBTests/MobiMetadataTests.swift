@@ -60,4 +60,22 @@ struct MobiMetadataTests {
     #expect(MobiMetadata(DataBytes(moby.prefix(300))) == nil)
     #expect(MobiMetadata(DataBytes(Data("not a book".utf8))) == nil)
   }
+
+  @Test func aBookWithoutTheEXTHFlagReadsNothing() throws {
+    var data = MOBIBuilder.book(exth: [(503, "Dune")])
+    let layout = try #require(MobiLayout(DataBytes(data)))
+    data[layout.record0Start + 0x83] = 0
+
+    #expect(MobiMetadata(DataBytes(data)) == nil)
+  }
+
+  @Test func aHugeRecordZeroIsNotReadWhole() throws {
+    let url = try makeTemporaryDirectory().appending(path: "huge.azw3")
+    try MOBIBuilder.book(exth: [(503, "Huge"), (999, String(repeating: "a", count: 1 << 21))])
+      .write(to: url)
+    let file = try #require(FileBytes(url: url))
+
+    #expect(MobiMetadata(file) == nil)
+    #expect(file.bytesRead < (1 << 20) + 64_000)
+  }
 }

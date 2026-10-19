@@ -19,9 +19,13 @@ package struct MobiMetadata: Hashable, Sendable {
       flags & 0x40 != 0
     else { return nil }
     func texts(_ kind: UInt32) -> [String] {
-      (layout.entries[kind] ?? []).compactMap { range in
-        source.bytes(range).map { String(decoding: $0, as: UTF8.self) }?
-          .trimmingCharacters(in: .whitespacesAndNewlines)
+      (layout.entries[kind] ?? []).map { range in
+        String(
+          decoding: layout.record0[
+            (range.lowerBound - layout.record0Start)..<(range.upperBound - layout.record0Start)],
+          as: UTF8.self
+        )
+        .trimmingCharacters(in: .whitespacesAndNewlines)
       }.filter { !$0.isEmpty }
     }
     func text(_ kind: UInt32) -> String? { texts(kind).last }

@@ -235,23 +235,45 @@ struct USBDeliveryChannelTests {
         (503, "Moby-Dick"), (100, "Herman Melville"), (113, "EBOK000000"), (501, "EBOK"),
         (104, "9780306406157"),
       ], cover: makeJPEG(width: 80, height: 110))
+    let value = try #require(original.range(of: Data("EBOK000000".utf8)))
+    let seed = "edition:urn:uuid:moby-dick"
 
-    let copy = try await deliverAZW3(
-      original, seed: "edition:urn:uuid:moby-dick", named: "Moby-Dick - Herman Melville")
+    let copy = try await deliverAZW3(original, seed: seed, named: "Moby-Dick - Herman Melville")
 
     #expect(copy.count == original.count)
-    #expect(zip(original, copy).filter { $0.0 != $0.1 }.count <= 10)
+    let changed = zip(original, copy).enumerated().filter { $0.element.0 != $0.element.1 }
+    #expect(!changed.isEmpty)
+    #expect(changed.allSatisfy { value.contains($0.offset) })
+    #expect(AZW3Metadata(copy)?.asin == AZW3Metadata.asin(for: seed))
     #expect(MobiMetadata(DataBytes(copy))?.title == "Moby-Dick")
     #expect(MobiMetadata(DataBytes(copy))?.isbn == "9780306406157")
   }
 
-  @Test func aBookWithoutATenCharacterASINIsCopiedUnchanged() async throws {
-    let original = MOBIBuilder.book(exth: [(113, "SHORT"), (501, "EBOK")])
+  static let damagedBooks: [(String, Data)] = [
+    ("a ten-letter-short ASIN", MOBIBuilder.book(exth: [(113, "SHORT"), (501, "EBOK")])),
+    ("no ASIN at all", MOBIBuilder.book(exth: [(501, "EBOK")])),
+    (
+      "two ASINs",
+      MOBIBuilder.book(exth: [(113, "EBOK000000"), (113, "EBOK000001"), (501, "EBOK")])
+    ),
+    ("garbage", Data("garbage that is not a book".utf8)),
+    ("a truncated book", makeAZW3(cover: makeJPEG(width: 80, height: 110)).prefix(300)),
+    ("a record table that is missing", bookmobiHeaderOnly),
+  ]
 
+  static var bookmobiHeaderOnly: Data {
+    var data = Data(count: 78)
+    data.replaceSubrange(60..<68, with: Data("BOOKMOBI".utf8))
+    data[77] = 5
+    return data
+  }
+
+  @Test(arguments: damagedBooks)
+  func aBookThatCannotTakeTheASINIsCopiedUnchanged(_ name: String, original: Data) async throws {
     let copy = try await deliverAZW3(
       original, seed: "edition:k", named: "Moby-Dick - Herman Melville")
 
-    #expect(copy == original)
+    #expect(copy == original, "\(name)")
     #expect(
       log.summary.contains(
         "warning USB Couldn't set the book's ASIN; the Kindle may mix up its cover"))

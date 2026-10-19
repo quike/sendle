@@ -31,7 +31,7 @@ package final class FileBytes: ByteSource {
   private let descriptor: Int32
 
   package init?(url: URL) {
-    let descriptor = open(url.path, O_RDONLY)
+    let descriptor = open(url.path, O_RDONLY | O_NONBLOCK | O_CLOEXEC)
     guard descriptor >= 0 else { return nil }
     var info = stat()
     guard fstat(descriptor, &info) == 0, info.st_mode & S_IFMT == S_IFREG else {

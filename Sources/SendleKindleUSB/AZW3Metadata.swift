@@ -27,11 +27,12 @@ package struct AZW3Metadata: Equatable, Sendable {
     cover = book.cover.flatMap(source.bytes).map { Data($0) }
   }
 
-  /// `data` with `asin` in place of the book's own, which must be as long, so nothing else moves.
+  /// `data` with `asin` in place of the book's own, which must be the only one and as long, so
+  /// nothing else moves.
   package static func replacingASIN(in data: Data, with asin: String) -> Data? {
     let replacement = Array(asin.utf8)
-    guard let range = MobiLayout(DataBytes(data))?.range(of: asinEntry),
-      range.count == replacement.count
+    guard let layout = MobiLayout(DataBytes(data)), layout.entries[asinEntry]?.count == 1,
+      let range = layout.range(of: asinEntry), range.count == replacement.count
     else { return nil }
     var file = [UInt8](data)
     file.replaceSubrange(range, with: replacement)
