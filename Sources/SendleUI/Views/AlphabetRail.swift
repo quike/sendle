@@ -193,7 +193,8 @@ struct BooksScroll<ID: Hashable & Sendable, Content: View>: View {
             .padding(.trailing, fullRail ? AlphabetRail<ID>.reservedWidth : 0)
             .padding(.bottom, 6 + bottomRoom)
         }
-        .scrollOverflow()
+        .scrollOverflow(.horizontal)
+        .contentMargins(.vertical, BooksArea.liftRoom, for: .scrollContent)
         .scrollIndicators(.never)
         .scrollPosition(id: Bindable(jump).top, anchor: .top)
         .onChange(of: scrollToTopRequests) { proxy.scrollTo(Self.top, anchor: .top) }
@@ -210,6 +211,7 @@ struct BooksScroll<ID: Hashable & Sendable, Content: View>: View {
       }
     }
     .anchorPreference(key: BooksAreaKey.self, value: .bounds) { $0 }
+    .padding(BooksArea.insets)
   }
 }
 
@@ -217,7 +219,30 @@ extension View {
   /// Reaches a scroll view `amount` past its frame at `edges` and insets its content by as much,
   /// so a selected cover's frame, a lifted cover and their shadows are never cut there while the
   /// books rest where they would without it.
-  func scrollOverflow(_ edges: Edge.Set = .all, _ amount: CGFloat = 10) -> some View {
+  func scrollOverflow(_ edges: Edge.Set = .all, _ amount: CGFloat = BooksArea.liftRoom)
+    -> some View
+  {
     contentMargins(edges, amount, for: .scrollContent).padding(edges, -amount)
+  }
+}
+
+/// Where the books show on the library screen. As they scroll they are cut as far below the
+/// controls and above the card's bottom edge as the grid's covers sit from the card's sides, and
+/// they rest `liftRoom` inside that, so a selected or lifted cover is never cut.
+package enum BooksArea {
+  /// The library screen's padding inside the card.
+  package static let screenPadding: CGFloat = 14
+  /// Between the controls and what the screen shows under them.
+  package static let controlsGap: CGFloat = 10
+  /// The grid's own padding at its sides.
+  package static let gridInset: CGFloat = 4
+  /// Room for a selected cover's frame, a lifted cover and their shadows.
+  package static let liftRoom: CGFloat = 10
+
+  /// What the books take off the space the screen gives them, to be cut at the covers' side margin.
+  package static var insets: EdgeInsets {
+    let margin = screenPadding + gridInset
+    return EdgeInsets(
+      top: margin - controlsGap, leading: 0, bottom: margin - screenPadding, trailing: 0)
   }
 }

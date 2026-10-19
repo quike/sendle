@@ -66,12 +66,12 @@ struct LibraryScreen: View {
         .padding(.top, 10)
       }
       if isKindleSide {
-        KindleContent(panel: panel).padding(.top, 10)
+        KindleContent(panel: panel).padding(.top, BooksArea.controlsGap)
       } else {
-        LibraryContent(panel: panel).padding(.top, 10)
+        LibraryContent(panel: panel).padding(.top, BooksArea.controlsGap)
       }
     }
-    .padding(14)
+    .padding(BooksArea.screenPadding)
     .overlay(alignment: .bottom) {
       if panel.showsSendBar {
         SendBar(panel: panel)

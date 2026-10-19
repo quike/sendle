@@ -81,8 +81,9 @@ struct SkeletonBooks: View {
       // The clear base takes the space there is; the placeholders, taller than it, are cut off
       // and never push the screen's header out of the card.
       Color.clear
-        .overlay(alignment: .top) { content }
+        .overlay(alignment: .top) { content.padding(.top, BooksArea.liftRoom) }
         .clipped()
+        .padding(BooksArea.insets)
         .environment(\.shimmerPhase, ShimmerFill.phase(at: context.date))
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("Loading books")
@@ -122,7 +123,7 @@ struct SkeletonBooks: View {
         }
       }
     }
-    .padding(.horizontal, 4)
+    .padding(.horizontal, BooksArea.gridInset)
   }
 
   /// Six covers wider than the panel, as the shelf's row scrolls past its edge.

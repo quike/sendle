@@ -201,12 +201,14 @@ enum Snapshot {
   /// and mirrored on the left, compact, on the Kindle side, and the setting that switches them.
   private static func renderFloating(_ panel: PanelModel, window: NSWindow, to folder: URL) async {
     let saved = panel.library.layout
+    await renderMargins(panel, window: window, to: folder, prefix: "attached")
     await panel.settings.setControls(.floating)
     func place(_ side: RailSide) {
       panel.railSide = side
       window.setContentSize(PanelView.windowSize(margins: panel.windowMargins))
     }
     place(.trailing)
+    await renderMargins(panel, window: window, to: folder, prefix: "floating")
     await panel.library.setLayout(.grid)
     select(["A004", "A013", "A020"], in: panel)
     await write(window, "floating-send-card.png", to: folder)
@@ -246,6 +248,56 @@ enum Snapshot {
     await panel.library.setLayout(saved)
     await panel.settings.setControls(.attached)
     place(.trailing)
+  }
+
+  /// Each side and layout scrolled to cut the books at the top and the bottom, and a lifted cover
+  /// in the grid's first row at rest.
+  private static func renderMargins(
+    _ panel: PanelModel, window: NSWindow, to folder: URL, prefix: String
+  ) async {
+    let saved = panel.library.layout
+    await panel.library.setSort(.title)
+    for side in [LibrarySide.library, .kindle] {
+      panel.showSide(side)
+      for layout in LibraryLayout.allCases {
+        await panel.library.setLayout(layout)
+        if side == .library {
+          let ids = panel.library.items.map(\.id)
+          panel.library.letterJump.top = ids[ids.count / 3]
+        } else {
+          let ids = panel.kindle.items.map(\.id)
+          panel.kindle.letterJump.top = ids[ids.count / 3]
+        }
+        try? await Task.sleep(for: .milliseconds(400))
+        scrollBooks(in: window, by: 37)
+        await write(window, "\(prefix)-margins-\(side)-\(layout.rawValue).png", to: folder)
+      }
+    }
+    panel.showSide(.library)
+    await panel.library.setLayout(.grid)
+    if let first = panel.library.items.first?.id {
+      panel.library.letterJump.top = first
+      panel.library.hovered = first
+      await write(window, "\(prefix)-margins-first-row.png", to: folder)
+      panel.library.hovered = nil
+    }
+    await panel.library.setSort(.recent)
+    await panel.library.setLayout(saved)
+  }
+
+  /// Scrolls the tallest scroll view, the books', by `points`: between rows, where a jump to a
+  /// book never lands.
+  private static func scrollBooks(in window: NSWindow, by points: CGFloat) {
+    func scrollViews(in view: NSView) -> [NSScrollView] {
+      if let scroll = view as? NSScrollView { return [scroll] }
+      return view.subviews.flatMap(scrollViews)
+    }
+    guard let root = window.contentView,
+      let scroll = scrollViews(in: root).max(by: { $0.frame.height < $1.frame.height })
+    else { return }
+    let clip = scroll.contentView
+    clip.scroll(to: NSPoint(x: clip.bounds.minX, y: clip.bounds.minY + points))
+    scroll.reflectScrolledClipView(clip)
   }
 
   /// Selected and lifted covers in the grid's outer columns and its top and bottom rows.

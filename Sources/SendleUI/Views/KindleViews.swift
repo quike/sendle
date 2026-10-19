@@ -94,7 +94,7 @@ struct KindleGrid: View {
       }
     }
     .scrollTargetLayout()
-    .padding(.horizontal, 4)
+    .padding(.horizontal, BooksArea.gridInset)
   }
 }
 
