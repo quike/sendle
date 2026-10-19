@@ -32,6 +32,14 @@ struct KindleEPUBPreparerTests {
     #expect(try unzipped(prepared.url) == epub.files)
   }
 
+  @Test func carriesTheEditionToTheKindle() async throws {
+    try EPUBFixture.book().write(to: root)
+
+    let prepared = try await preparer.prepare(book(), in: staging)
+
+    #expect(prepared.edition?.key == "urn:uuid:moby-dick")
+  }
+
   @Test func leavesOutApplesAdditions() async throws {
     var epub = EPUBFixture.book()
     epub.files["iTunesMetadata.plist"] = Data("plist".utf8)

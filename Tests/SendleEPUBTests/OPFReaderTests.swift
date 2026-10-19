@@ -1,4 +1,5 @@
 import Foundation
+import SendleDomain
 import SendleEPUB
 import SendleTestSupport
 import Testing
@@ -163,6 +164,42 @@ struct OPFReaderTests {
       at: root.appending(path: "META-INF/container.xml"), withDestinationURL: outside)
 
     #expect(OPFReader.package(inEPUBAt: root) == nil)
+  }
+}
+
+extension OPFReaderTests {
+  @Test func readsTheEditionFromThePackage() throws {
+    try EPUBFixture.book(
+      metadata: EPUBFixture.metadata
+        + """
+        <dc:identifier xmlns:opf="http://www.idpf.org/2007/opf" opf:scheme="ISBN">0-306-40615-2</dc:identifier>
+        <dc:publisher> Penguin </dc:publisher>
+        """
+    ).write(to: root)
+
+    #expect(
+      OPFReader.package(inEPUBAt: root)?.edition
+        == Edition(key: "urn:uuid:moby-dick", isbn: "9780306406157", publisher: "Penguin"))
+  }
+
+  @Test func theISBNIsTheKeyWithoutAUniqueIdentifier() throws {
+    try EPUBFixture.book(
+      metadata: """
+        <dc:identifier id="other">urn:isbn:9780306406157</dc:identifier><dc:title>Moby-Dick</dc:title>
+        """
+    ).write(to: root)
+
+    #expect(
+      OPFReader.package(inEPUBAt: root)?.edition
+        == Edition(key: "9780306406157", isbn: "9780306406157"))
+  }
+
+  @Test func anInvalidISBNIsNoISBN() throws {
+    try EPUBFixture.book(
+      metadata: EPUBFixture.metadata + "<dc:identifier>urn:isbn:0306406153</dc:identifier>"
+    ).write(to: root)
+
+    #expect(OPFReader.package(inEPUBAt: root)?.edition.isbn == nil)
   }
 }
 

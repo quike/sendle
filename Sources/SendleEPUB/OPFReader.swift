@@ -1,4 +1,5 @@
 import Foundation
+import SendleDomain
 
 /// What Sendle needs from an EPUB's package document. Paths are archive paths: relative to the
 /// book's root, percent-decoded, separated by `/`.
@@ -21,12 +22,16 @@ package struct EPUBPackage: Hashable, Sendable {
   package let items: [Item]
   package let coverPath: String?
   package let hasLanguage: Bool
+  package let edition: Edition
 
-  package init(path: String, items: [Item], coverPath: String?, hasLanguage: Bool) {
+  package init(
+    path: String, items: [Item], coverPath: String?, hasLanguage: Bool, edition: Edition = Edition()
+  ) {
     self.path = path
     self.items = items
     self.coverPath = coverPath
     self.hasLanguage = hasLanguage
+    self.edition = edition
   }
 }
 
@@ -76,7 +81,25 @@ public enum OPFReader {
     }
     return EPUBPackage(
       path: path, items: items, coverPath: (epub3Cover ?? epub2Cover)?.path,
-      hasLanguage: reader.hasLanguage)
+      hasLanguage: reader.hasLanguage, edition: edition(from: reader))
+  }
+
+  /// The key is the identifier the package names as unique, else the ISBN.
+  private static func edition(from reader: PackageReader) -> Edition {
+    let isbn = reader.identifiers.lazy.compactMap { identifier -> String? in
+      let text = identifier.text.lowercased()
+      guard
+        identifier.scheme?.lowercased() == "isbn" || text.hasPrefix("urn:isbn:")
+          || text.hasPrefix("isbn:")
+      else { return nil }
+      return ISBN.normalised(identifier.text)
+    }.first
+    let unique = reader.uniqueIdentifier.flatMap { id in
+      reader.identifiers.first { $0.id == id }?.text
+    }
+    return Edition(
+      key: unique.flatMap { $0.isEmpty ? nil : $0 } ?? isbn, isbn: isbn,
+      publisher: reader.publisher)
   }
 
   @discardableResult
@@ -109,18 +132,37 @@ private final class PackageReader: NSObject, XMLParserDelegate {
     let properties: Set<String>
   }
 
+  struct Identifier {
+    let id: String?
+    let scheme: String?
+    let text: String
+  }
+
+  private struct Field {
+    let name: String
+    let id: String?
+    let scheme: String?
+    var text = ""
+  }
+
   private static let dublinCore = "http://purl.org/dc/elements/1.1/"
+  private static let fields: Set<String> = ["language", "identifier", "publisher"]
 
   var items: [RawItem] = []
   var coverID: String?
   var hasLanguage = false
-  private var language: String?
+  var uniqueIdentifier: String?
+  var identifiers: [Identifier] = []
+  var publisher: String?
+  private var field: Field?
 
   func parser(
     _ parser: XMLParser, didStartElement element: String, namespaceURI: String?,
     qualifiedName: String?, attributes: [String: String]
   ) {
     switch element {
+    case "package":
+      uniqueIdentifier = attributes["unique-identifier"]
     case "item":
       guard let id = attributes["id"], let href = attributes["href"] else { return }
       let properties = (attributes["properties"] ?? "").split(whereSeparator: \.isWhitespace)
@@ -130,23 +172,33 @@ private final class PackageReader: NSObject, XMLParserDelegate {
           properties: Set(properties.map(String.init))))
     case "meta" where attributes["name"] == "cover":
       coverID = coverID ?? attributes["content"]
-    case "language" where namespaceURI == Self.dublinCore:
-      language = ""
+    case _ where namespaceURI == Self.dublinCore && Self.fields.contains(element):
+      field = Field(
+        name: element, id: attributes["id"],
+        scheme: attributes["scheme"] ?? attributes["opf:scheme"])
     default:
       break
     }
   }
 
   func parser(_ parser: XMLParser, foundCharacters string: String) {
-    language?.append(string)
+    field?.text.append(string)
   }
 
   func parser(
     _ parser: XMLParser, didEndElement element: String, namespaceURI: String?,
     qualifiedName: String?
   ) {
-    guard element == "language", let text = language else { return }
-    hasLanguage = hasLanguage || !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-    language = nil
+    guard let finished = field, finished.name == element else { return }
+    field = nil
+    let text = finished.text.trimmingCharacters(in: .whitespacesAndNewlines)
+    switch element {
+    case "language":
+      hasLanguage = hasLanguage || !text.isEmpty
+    case "identifier":
+      identifiers.append(Identifier(id: finished.id, scheme: finished.scheme, text: text))
+    default:
+      if publisher == nil, !text.isEmpty { publisher = text }
+    }
   }
 }

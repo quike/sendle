@@ -166,6 +166,25 @@ struct SendBooksTests {
     #expect(events.last == .sent(book.id, fixes: [.addedXMLDeclaration]))
   }
 
+  @Test func keepsTheEditionThroughConversion() async {
+    let edition = Edition(key: "urn:uuid:moby-dick")
+    let harness = Harness(preparer: FakeEPUBPreparer(edition: edition))
+
+    _ = await harness.send([.fixture()], to: .usb(.fixture()))
+
+    #expect(harness.channel.deliveries.first?.file.edition == edition)
+    #expect(harness.channel.deliveries.first?.file.asinSeed == "edition:urn:uuid:moby-dick")
+  }
+
+  @Test func aPDFOrAnEmailGetsNoASINSeed() async {
+    let harness = Harness(preparer: FakeEPUBPreparer(edition: Edition(key: "k")))
+
+    _ = await harness.send([.fixture(format: .pdf)], to: .usb(.fixture()))
+    _ = await harness.send([.fixture()], to: email)
+
+    #expect(harness.channel.deliveries.map(\.file.asinSeed) == [nil, nil])
+  }
+
   @Test func reportsABlockedBookWithoutStartingWork() async {
     let harness = Harness()
     let book = Book.fixture(availability: .protected)

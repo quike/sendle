@@ -130,11 +130,13 @@ public struct SendBooks: Sendable {
         logFixes(file.fixes)
       case .convert(let format):
         let converted = try await converter.convert(file, to: format, in: directory)
-        file = PreparedFile(url: converted.url, format: converted.format, fixes: file.fixes)
+        file = PreparedFile(
+          url: converted.url, format: converted.format, fixes: file.fixes, edition: file.edition)
       case .deliver:
         let channel = try await channels.channel(for: destination)
         try await deliver(
-          file, named: FileNaming.deliveryName(for: book, to: destination.kind), via: channel,
+          Self.seeded(file, for: book, to: destination),
+          named: FileNaming.deliveryName(for: book, to: destination.kind), via: channel,
           to: destination
         ) { fraction in
           await onEvent(.uploading(book.id, fraction: fraction))
@@ -142,6 +144,15 @@ public struct SendBooks: Sendable {
       }
     }
     return file
+  }
+
+  private static func seeded(
+    _ file: PreparedFile, for book: Book, to destination: Destination
+  ) -> PreparedFile {
+    guard destination.kind == .usb, file.format == .azw3 else { return file }
+    return PreparedFile(
+      url: file.url, format: file.format, fixes: file.fixes, edition: file.edition,
+      asinSeed: FileNaming.asinSeed(for: book, edition: file.edition, copy: 1))
   }
 
   private func deliver(

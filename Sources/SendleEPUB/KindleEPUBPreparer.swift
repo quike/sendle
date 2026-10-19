@@ -19,7 +19,8 @@ public struct KindleEPUBPreparer: EPUBPreparer {
     let fixed = KindleFixer(language: book.language).apply(to: texts, package: package)
     let output = staging.appending(path: FileNaming.baseName(for: book) + ".epub")
     try Self.zip(entries, from: root, replacing: fixed.documents, to: output)
-    return PreparedFile(url: output, format: .epub, fixes: fixed.fixes)
+    return PreparedFile(
+      url: output, format: .epub, fixes: fixed.fixes, edition: package.edition)
   }
 
   /// The book's folder, or a zipped `.epub` unzipped into `staging`.

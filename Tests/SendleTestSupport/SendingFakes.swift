@@ -6,10 +6,12 @@ public final class FakeEPUBPreparer: EPUBPreparer {
   private let prepared = OSAllocatedUnfairLock<[BookID]>(initialState: [])
   private let fixes: [EPUBFix]
   private let failure: SendFailure?
+  private let edition: Edition?
 
-  public init(fixes: [EPUBFix] = [], failure: SendFailure? = nil) {
+  public init(fixes: [EPUBFix] = [], failure: SendFailure? = nil, edition: Edition? = nil) {
     self.fixes = fixes
     self.failure = failure
+    self.edition = edition
   }
 
   public var preparedIDs: [BookID] { prepared.withLock { $0 } }
@@ -18,7 +20,8 @@ public final class FakeEPUBPreparer: EPUBPreparer {
     prepared.withLock { $0.append(book.id) }
     if let failure { throw failure }
     return PreparedFile(
-      url: staging.appending(path: "\(book.id.rawValue).epub"), format: .epub, fixes: fixes)
+      url: staging.appending(path: "\(book.id.rawValue).epub"), format: .epub, fixes: fixes,
+      edition: edition)
   }
 }
 
