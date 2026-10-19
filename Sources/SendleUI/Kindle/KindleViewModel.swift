@@ -240,7 +240,7 @@ public final class KindleViewModel {
     let before = state
     state = .reading(done: 0, total: 0)
     let library = library
-    let task = Task { () -> Result<KindleListing, KindleListingError> in
+    let task = Task { [weak self] () -> Result<KindleListing, KindleListingError> in
       do throws(KindleListingError) {
         return .success(
           try await library.listing(of: volume) { [weak self] done, total in
