@@ -259,18 +259,10 @@ private struct GeneralPage: View {
             title: "Controls",
             detail: "The send and A–Z bars, in the panel or on cards beside it.")
           Spacer(minLength: 8)
-          Picker(
-            "Controls",
-            selection: Binding(
-              get: { settings.controls },
-              set: { style in Task { await settings.setControls(style) } })
-          ) {
-            Text("Attached").tag(ControlsStyle.attached)
-            Text("Floating").tag(ControlsStyle.floating)
-          }
-          .pickerStyle(.segmented)
-          .labelsHidden()
-          .fixedSize()
+          SegmentedSwitch(
+            label: "Controls", options: [ControlsStyle.attached, .floating],
+            selection: settings.controls, title: { $0 == .attached ? "Attached" : "Floating" }
+          ) { style in Task { await settings.setControls(style) } }
         }
         .padding(12)
         .settingsHighlight(settings.highlighted == .controls)
@@ -278,18 +270,10 @@ private struct GeneralPage: View {
         HStack(spacing: 10) {
           RowText(title: "A–Z bar", detail: "Shown while the library is sorted by title or author.")
           Spacer(minLength: 8)
-          Picker(
-            "A–Z bar",
-            selection: Binding(
-              get: { settings.jumpBar }, set: { style in Task { await settings.setJumpBar(style) } }
-            )
-          ) {
-            Text("Full").tag(JumpBarStyle.full)
-            Text("Compact").tag(JumpBarStyle.compact)
-          }
-          .pickerStyle(.segmented)
-          .labelsHidden()
-          .fixedSize()
+          SegmentedSwitch(
+            label: "A–Z bar", options: [JumpBarStyle.full, .compact],
+            selection: settings.jumpBar, title: { $0 == .full ? "Full" : "Compact" }
+          ) { style in Task { await settings.setJumpBar(style) } }
         }
         .padding(12)
         .settingsHighlight(settings.highlighted == .jumpBar)

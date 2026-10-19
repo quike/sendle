@@ -595,29 +595,9 @@ struct SideSwitch: View {
   private let sides: [LibrarySide] = [.library, .kindle]
 
   var body: some View {
-    HStack(spacing: 0) {
-      ForEach(sides, id: \.self) { side in
-        let isOn = panel.side == side
-        Button {
-          panel.showSide(side)
-        } label: {
-          Text(panel.switchTitle(side))
-            .font(.system(size: 11, weight: .semibold))
-            .foregroundStyle(isOn ? Theme.text : Theme.muted)
-            .frame(maxWidth: .infinity, minHeight: 22)
-            .background(
-              isOn ? Color.white.opacity(0.14) : .clear,
-              in: RoundedRectangle(cornerRadius: 7, style: .continuous)
-            )
-            .contentShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
-            .shadow(color: .black.opacity(isOn ? 0.4 : 0), radius: 1.5, y: 1)
-        }
-        .buttonStyle(.plain)
-        .accessibilityAddTraits(isOn ? .isSelected : [])
-      }
-    }
-    .padding(2)
-    .glass(cornerRadius: 9)
+    SegmentedSwitch(
+      label: "Books", options: sides, selection: panel.side, fillsWidth: true,
+      title: panel.switchTitle, choose: panel.showSide)
   }
 }
 

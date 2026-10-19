@@ -124,12 +124,10 @@ struct SenderFields: View {
             GlassTextField(label: "Mail server", prompt: "smtp.example.com", text: $form.customHost)
             GlassTextField(label: "Port", prompt: "Port", text: $form.customPort).frame(width: 64)
           }
-          Picker("Security", selection: $form.customSecurity) {
-            Text("TLS").tag(SMTPSecurity.implicitTLS)
-            Text("STARTTLS").tag(SMTPSecurity.startTLS)
-          }
-          .pickerStyle(.segmented)
-          .labelsHidden()
+          SegmentedSwitch(
+            label: "Security", options: [SMTPSecurity.implicitTLS, .startTLS],
+            selection: form.customSecurity, title: { $0 == .implicitTLS ? "TLS" : "STARTTLS" }
+          ) { form.customSecurity = $0 }
           issueNote(.missingServer)
         }
         .settingsHighlight(marked == .mailServer)
