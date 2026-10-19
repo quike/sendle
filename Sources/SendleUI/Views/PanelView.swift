@@ -4,9 +4,13 @@ import SwiftUI
 public struct PanelView: View {
   /// Room around the card for its arrow and shadow; the window is this much larger than the card.
   public static let margins = EdgeInsets(top: 12, leading: 24, bottom: 46, trailing: 24)
-  public static let windowSize = CGSize(
-    width: Theme.cardSize.width + margins.leading + margins.trailing,
-    height: Theme.cardSize.height + margins.top + margins.bottom)
+  public static let windowSize = windowSize(margins: margins)
+
+  public static func windowSize(margins: EdgeInsets) -> CGSize {
+    CGSize(
+      width: Theme.cardSize.width + margins.leading + margins.trailing,
+      height: Theme.cardSize.height + margins.top + margins.bottom)
+  }
 
   let panel: PanelModel
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
