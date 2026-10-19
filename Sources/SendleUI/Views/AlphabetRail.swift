@@ -62,11 +62,14 @@ struct FloatingRail<ID: Hashable & Sendable>: View {
   /// The panel's card and the books, in the window.
   let card: CGRect
   let books: CGRect
+  /// No sheet or other screen covers the books, so the card comes in and goes as they do.
+  let isUncovered: Bool
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
   var body: some View {
     let isFull = style == .full
-    let isShown = jump.isShown && (isFull || jump.isHovered || jump.draggedLetter != nil)
+    let isAvailable = isUncovered && jump.isShown
+    let isShown = isAvailable && (isFull || jump.isHovered || jump.draggedLetter != nil)
     let letters = jump.letters(style)
     let inset = AlphabetRail<ID>.capsuleInset
     let frame = FloatingControls.railFrame(
@@ -79,7 +82,7 @@ struct FloatingRail<ID: Hashable & Sendable>: View {
       ? CGRect(x: books.maxX, y: books.minY, width: frame.maxX - books.maxX, height: books.height)
       : CGRect(x: frame.minX, y: books.minY, width: books.minX - frame.minX, height: books.height)
     ZStack(alignment: isTrailing ? .trailing : .leading) {
-      if !isFull, jump.isShown {
+      if !isFull, isAvailable {
         Color.clear.contentShape(Rectangle())
       }
       if isShown {

@@ -37,28 +37,23 @@ struct FloatingControlsTests {
 
   // MARK: Margins
 
-  @Test func attachedControlsKeepTodaysMargins() {
-    #expect(FloatingControls.margins(.attached, side: .trailing) == PanelView.margins)
-    #expect(FloatingControls.margins(.attached, side: .leading) == PanelView.margins)
-  }
-
   /// Each floating card takes the gap, itself and the same room for its shadow as the card.
-  @Test func floatingControlsGrowOnlyTheEdgesTheirCardsUse() {
+  @Test func theFloatingCardsGrowOnlyTheEdgesTheyUse() {
     let base = PanelView.margins
-    let right = FloatingControls.margins(.floating, side: .trailing)
+    let right = FloatingControls.margins(side: .trailing)
     #expect(right.top == base.top)
     #expect(right.leading == base.leading)
     #expect(right.trailing == base.trailing + 10 + FloatingControls.railWidth)
     #expect(right.bottom == base.bottom + 10 + FloatingControls.sendHeight)
 
-    let left = FloatingControls.margins(.floating, side: .leading)
+    let left = FloatingControls.margins(side: .leading)
     #expect(left.leading == right.trailing)
     #expect(left.trailing == base.trailing)
     #expect(left.bottom == right.bottom)
   }
 
   @Test func theWindowIsTheCardAndItsMargins() {
-    let margins = FloatingControls.margins(.floating, side: .leading)
+    let margins = FloatingControls.margins(side: .leading)
     #expect(
       PanelView.windowSize(margins: margins)
         == CGSize(
@@ -104,26 +99,21 @@ struct FloatingControlsTests {
   /// The status item near the screen's right edge, as it usually is.
   let anchor = CGRect(x: 1_300, y: 875, width: 24, height: 25)
 
-  @Test func attachedControlsPlaceTheWindowAsBefore() {
-    let placement = PanelPlacement(below: anchor, in: screen, controls: .attached)
+  @Test func theCardSitsUnderTheStatusItemAsItAlwaysHas() {
+    let placement = PanelPlacement(below: anchor, in: screen)
 
-    #expect(placement.window == CGRect(x: 1_012, y: 200, width: 448, height: 678))
     #expect(placement.card == CGRect(x: 1_036, y: 246, width: 400, height: 620))
-    #expect(placement.margins == PanelView.margins)
     #expect(placement.arrowX == 276)
   }
 
-  @Test func floatingControlsGrowTheWindowAroundACardThatStaysPut() {
-    let attached = PanelPlacement(below: anchor, in: screen, controls: .attached)
-    let floating = PanelPlacement(below: anchor, in: screen, controls: .floating)
+  @Test func theWindowGrowsAroundTheCardForTheFloatingCards() {
+    let placement = PanelPlacement(below: anchor, in: screen)
 
-    #expect(floating.card == attached.card)
-    #expect(floating.arrowX == attached.arrowX)
-    #expect(floating.side == .leading)
-    let margins = FloatingControls.margins(.floating, side: .leading)
-    #expect(floating.margins == margins)
+    #expect(placement.side == .leading)
+    let margins = FloatingControls.margins(side: .leading)
+    #expect(placement.margins == margins)
     #expect(
-      floating.window
+      placement.window
         == CGRect(
           x: 1_036 - margins.leading, y: 246 - margins.bottom,
           width: 400 + margins.leading + margins.trailing,
@@ -132,7 +122,7 @@ struct FloatingControlsTests {
 
   @Test func aStatusItemFarFromTheEdgeKeepsTheAZCardOnTheRight() {
     let middle = CGRect(x: 600, y: 875, width: 24, height: 25)
-    let floating = PanelPlacement(below: middle, in: screen, controls: .floating)
+    let floating = PanelPlacement(below: middle, in: screen)
 
     #expect(floating.card == CGRect(x: 412, y: 246, width: 400, height: 620))
     #expect(floating.side == .trailing)

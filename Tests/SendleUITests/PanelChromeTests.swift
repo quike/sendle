@@ -46,7 +46,7 @@ struct PanelChromeTests {
   /// The panel with both floating cards, the A–Z card as tall as books that reach down to the
   /// card's bottom padding.
   func floatingWindow(side: RailSide) -> some View {
-    let margins = FloatingControls.margins(.floating, side: side)
+    let margins = FloatingControls.margins(side: side)
     let card = CGRect(origin: CGPoint(x: margins.leading, y: margins.top), size: Theme.cardSize)
     let books = CGRect(
       x: card.minX + 14, y: card.minY + 120, width: card.width - 28, height: card.height - 134)
@@ -69,7 +69,7 @@ struct PanelChromeTests {
   func theWindowGrowsByTheFloatingCardsAlone(side: RailSide) throws {
     let renderer = ImageRenderer(content: floatingWindow(side: side))
     let image = try #require(renderer.cgImage)
-    let size = PanelView.windowSize(margins: FloatingControls.margins(.floating, side: side))
+    let size = PanelView.windowSize(margins: FloatingControls.margins(side: side))
 
     #expect(CGFloat(image.width) == size.width)
     #expect(CGFloat(image.height) == size.height)

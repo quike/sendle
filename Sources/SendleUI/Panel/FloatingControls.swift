@@ -1,5 +1,4 @@
 import CoreGraphics
-import SendleDomain
 import SwiftUI
 
 /// The side of the card the floating A–Z card takes.
@@ -25,10 +24,10 @@ package enum FloatingControls {
   }
 
   /// The arrow's and the shadow's room around the card, plus each floating card with the same
-  /// room again for its own shadow.
-  package static func margins(_ controls: ControlsStyle, side: RailSide) -> EdgeInsets {
+  /// room again for its own shadow. The window keeps it whatever the controls, so switching them
+  /// never moves or resizes the window: the floating cards just come and go in it.
+  package static func margins(side: RailSide) -> EdgeInsets {
     var margins = PanelView.margins
-    guard controls == .floating else { return margins }
     margins.bottom += gap + sendHeight
     switch side {
     case .leading: margins.leading += gap + railWidth
@@ -53,8 +52,9 @@ package enum FloatingControls {
   }
 }
 
-/// Where the panel's window goes under the status item, in screen coordinates. The card sits where
-/// it does with attached controls whatever the controls; only the window around it grows.
+/// Where the panel's window goes under the status item, in screen coordinates: the card where it
+/// would be in a window of `PanelView.margins`, and the window around it with the floating cards'
+/// room.
 package struct PanelPlacement: Equatable, Sendable {
   package let card: CGRect
   package let window: CGRect
@@ -63,7 +63,7 @@ package struct PanelPlacement: Equatable, Sendable {
   /// The status item's centre, from the card's leading edge.
   package let arrowX: CGFloat
 
-  package init(below anchor: CGRect, in screen: CGRect, controls: ControlsStyle) {
+  package init(below anchor: CGRect, in screen: CGRect) {
     let base = PanelView.margins
     let size = PanelView.windowSize
     let x = max(
@@ -75,7 +75,7 @@ package struct PanelPlacement: Equatable, Sendable {
       x: x + base.leading, y: y + base.bottom, width: Theme.cardSize.width,
       height: Theme.cardSize.height)
     side = FloatingControls.side(card: card, screen: screen)
-    margins = FloatingControls.margins(controls, side: side)
+    margins = FloatingControls.margins(side: side)
     window = CGRect(
       x: card.minX - margins.leading, y: card.minY - margins.bottom,
       width: card.width + margins.leading + margins.trailing,

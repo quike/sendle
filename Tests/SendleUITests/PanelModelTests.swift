@@ -684,7 +684,7 @@ struct PanelModelTests {
     #expect(panel.sendBarRoom == 64)
     #expect(panel.floatingRailSide == nil)
     #expect(!panel.showsFloatingRail)
-    #expect(panel.windowMargins == PanelView.margins)
+    #expect(panel.windowMargins == FloatingControls.margins(side: .trailing))
   }
 
   @Test func floatingControlsPutTheSendBarOnItsOwnCardWithTheSelection() async {
@@ -708,12 +708,43 @@ struct PanelModelTests {
     await panel.panelDidOpen()
     #expect(panel.floatingRailSide == .trailing)
     #expect(panel.showsFloatingRail)
-    #expect(panel.windowMargins == FloatingControls.margins(.floating, side: .trailing))
+    #expect(panel.windowMargins == FloatingControls.margins(side: .trailing))
 
     panel.railSide = .leading
 
     #expect(panel.floatingRailSide == .leading)
-    #expect(panel.windowMargins == FloatingControls.margins(.floating, side: .leading))
+    #expect(panel.windowMargins == FloatingControls.margins(side: .leading))
+  }
+
+  /// The window keeps the floating cards' room whatever the controls, so switching them in
+  /// Settings changes what the window draws but not where: the card stays put on screen.
+  @Test(arguments: [
+    CGRect(x: 1_300, y: 875, width: 24, height: 25), CGRect(x: 600, y: 875, width: 24, height: 25),
+  ])
+  func switchingTheControlsLeavesTheCardWhereItIs(statusItem: CGRect) async {
+    let (panel, _) = harness.makePanel(AppSettings(email: .fixture, controls: .floating))
+    await panel.launch()
+    let placement = PanelPlacement(
+      below: statusItem, in: CGRect(x: 0, y: 0, width: 1_440, height: 875))
+    panel.railSide = placement.side
+    func cardOnScreen() -> CGRect {
+      let margins = panel.windowMargins
+      #expect(placement.window.size == PanelView.windowSize(margins: margins))
+      return CGRect(
+        origin: CGPoint(
+          x: placement.window.minX + margins.leading, y: placement.window.minY + margins.bottom),
+        size: Theme.cardSize)
+    }
+    #expect(cardOnScreen() == placement.card)
+    await panel.openSettings(.general)
+
+    await panel.settings.setControls(.attached)
+    #expect(panel.controls == .attached)
+    #expect(cardOnScreen() == placement.card)
+
+    await panel.settings.setControls(.floating)
+    #expect(panel.controls == .floating)
+    #expect(cardOnScreen() == placement.card)
   }
 
   /// The floating cards belong to the books, so a sheet over them or another screen hides them.

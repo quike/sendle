@@ -44,10 +44,10 @@ enum Snapshot {
     try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
     let panel = composition.panel
     let window = NSWindow(
-      contentRect: NSRect(origin: .zero, size: PanelView.windowSize), styleMask: .borderless,
-      backing: .buffered, defer: false)
+      contentRect: NSRect(origin: .zero, size: PanelView.windowSize(margins: panel.windowMargins)),
+      styleMask: .borderless, backing: .buffered, defer: false)
     window.contentView = NSHostingView(rootView: PanelView(panel: panel))
-    // Attached until renderFloating, so the window needs no room for the floating cards.
+    // Attached until renderFloating floats them.
     await panel.settings.setControls(.attached)
     await write(window, "library-loading.png", to: folder)
     await composition.launch()

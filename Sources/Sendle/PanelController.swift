@@ -19,10 +19,6 @@ final class PanelController: NSObject, NSWindowDelegate {
   private var opening: Task<Void, Never>?
   /// A file picker is open, so losing the key window must not close the panel.
   private var isChoosingFile = false
-  /// The status item and its screen's visible frame from the last show, to place the window
-  /// again when the controls change while it is open.
-  private var placedBelow: (anchor: NSRect, screen: NSRect)?
-  private var isFollowingControls = false
   private(set) var isVisible = false
 
   init(model: PanelModel) {
@@ -70,8 +66,10 @@ final class PanelController: NSObject, NSWindowDelegate {
     let visible =
       (buttonWindow.screen ?? NSScreen.main)?.visibleFrame
       ?? NSRect(x: 0, y: 0, width: 1_440, height: 900)
-    placedBelow = (anchor, visible)
-    place()
+    let placement = PanelPlacement(below: anchor, in: visible)
+    model.railSide = placement.side
+    model.arrowX = placement.arrowX
+    window.setFrame(placement.window, display: true)
 
     isVisible = true
     window.makeKeyAndOrderFront(nil)
@@ -87,31 +85,6 @@ final class PanelController: NSObject, NSWindowDelegate {
       MainActor.assumeIsolated { self?.hide() }
     }
     opening = Task { [model] in await model.panelDidOpen() }
-  }
-
-  /// Sizes the window for the controls around the card, which stays under the status item.
-  private func place() {
-    guard let placedBelow else { return }
-    let placement = PanelPlacement(
-      below: placedBelow.anchor, in: placedBelow.screen, controls: model.controls)
-    model.railSide = placement.side
-    model.arrowX = placement.arrowX
-    window.setFrame(placement.window, display: true)
-    followControls()
-  }
-
-  /// Places the window again when Settings switches the controls while the panel is open.
-  private func followControls() {
-    guard !isFollowingControls else { return }
-    isFollowingControls = true
-    withObservationTracking {
-      _ = model.controls
-    } onChange: { [weak self] in
-      Task { @MainActor in
-        self?.isFollowingControls = false
-        self?.place()
-      }
-    }
   }
 
   func hide() {

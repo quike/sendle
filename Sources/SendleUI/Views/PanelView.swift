@@ -45,7 +45,7 @@ public struct PanelView: View {
     }
     .overlayPreferenceValue(BooksAreaKey.self) { books in
       GeometryReader { proxy in
-        if let books, panel.showsFloatingRail, let side = panel.floatingRailSide {
+        if let books, let side = panel.floatingRailSide {
           floatingRail(card: card, books: proxy[books], side: side)
         }
       }
@@ -68,12 +68,15 @@ public struct PanelView: View {
   @ViewBuilder
   private func floatingRail(card: CGRect, books: CGRect, side: RailSide) -> some View {
     let style = panel.library.jumpBar
+    let isUncovered = panel.showsFloatingRail
     if panel.side == .kindle {
       FloatingRail(
-        jump: panel.kindle.letterJump, style: style, side: side, card: card, books: books)
+        jump: panel.kindle.letterJump, style: style, side: side, card: card, books: books,
+        isUncovered: isUncovered)
     } else {
       FloatingRail(
-        jump: panel.library.letterJump, style: style, side: side, card: card, books: books)
+        jump: panel.library.letterJump, style: style, side: side, card: card, books: books,
+        isUncovered: isUncovered)
     }
   }
 

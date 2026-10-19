@@ -123,7 +123,7 @@ public final class PanelModel {
   package var controls: ControlsStyle { library.controls }
 
   /// The room the window keeps around the card.
-  package var windowMargins: EdgeInsets { FloatingControls.margins(controls, side: railSide) }
+  package var windowMargins: EdgeInsets { FloatingControls.margins(side: railSide) }
 
   /// The send bar over the bottom of the library's books.
   package var showsSendBar: Bool {
