@@ -377,7 +377,7 @@ struct PanelModelTests {
 
     #expect(panel.handle(KeyInput(.returnKey)))
 
-    #expect(panel.route == .queue)
+    #expect(await eventually { panel.route == .queue })
     #expect(panel.queue.rows.map(\.id.rawValue) == ["a", "b"])
     #expect(panel.queue.destination == .email(.fixture))
     #expect(panel.library.selection.isEmpty)
@@ -391,7 +391,7 @@ struct PanelModelTests {
     await panel.launch()
     await panel.panelDidOpen()
 
-    panel.quickSend(BookID(rawValue: "b"))
+    await panel.quickSend(BookID(rawValue: "b"))
 
     #expect(panel.route == .queue)
     #expect(panel.queue.rows.map(\.id.rawValue) == ["b"])
@@ -406,7 +406,7 @@ struct PanelModelTests {
     #expect(!panel.library.canSend)
     #expect(panel.library.sendHint == "Set up your Kindle email first")
     #expect(!panel.handle(KeyInput(.returnKey)))
-    panel.quickSend(BookID(rawValue: "a"))
+    await panel.quickSend(BookID(rawValue: "a"))
 
     #expect(panel.route == .library)
     #expect(panel.queue.isEmpty)
@@ -419,7 +419,7 @@ struct PanelModelTests {
     await panel.panelDidOpen()
     panel.library.selectAll()
 
-    panel.sendSelection()
+    await panel.sendSelection()
     await channel.waitUntilDeliveryStarts()
 
     #expect(panel.statusItem.progress == "↑ 1/2")
@@ -433,7 +433,7 @@ struct PanelModelTests {
     let (panel, _) = harness.makePanel(channel: channel)
     await panel.launch()
     await panel.panelDidOpen()
-    panel.quickSend(BookID(rawValue: "a"))
+    await panel.quickSend(BookID(rawValue: "a"))
     await channel.waitUntilDeliveryStarts()
 
     panel.escape()
@@ -451,7 +451,7 @@ struct PanelModelTests {
     let (panel, _) = harness.makePanel()
     await panel.launch()
     await panel.panelDidOpen()
-    panel.quickSend(BookID(rawValue: "a"))
+    await panel.quickSend(BookID(rawValue: "a"))
     await panel.queue.waitUntilFinished()
 
     panel.escape()
@@ -465,7 +465,7 @@ struct PanelModelTests {
       channel: FakeDeliveryChannel(.fail(.authenticationFailed(.gmail))))
     await panel.launch()
     await panel.panelDidOpen()
-    panel.quickSend(BookID(rawValue: "a"))
+    await panel.quickSend(BookID(rawValue: "a"))
     await panel.queue.waitUntilFinished()
     #expect(panel.statusItem.needsAttention)
 
@@ -481,7 +481,7 @@ struct PanelModelTests {
       channel: FakeDeliveryChannel(.fail(unreachable), .fail(unreachable), .succeed))
     await panel.launch()
     await panel.panelDidOpen()
-    panel.quickSend(BookID(rawValue: "a"))
+    await panel.quickSend(BookID(rawValue: "a"))
     await panel.queue.waitUntilFinished()
     #expect(panel.queue.summary?.fix?.action == .retry)
 
@@ -497,7 +497,7 @@ struct PanelModelTests {
       channel: FakeDeliveryChannel(.fail(.authenticationFailed(.gmail))))
     await panel.launch()
     await panel.panelDidOpen()
-    panel.quickSend(BookID(rawValue: "a"))
+    await panel.quickSend(BookID(rawValue: "a"))
     await panel.queue.waitUntilFinished()
 
     await panel.performQueueFix()
@@ -515,7 +515,7 @@ struct PanelModelTests {
     await panel.launch()
     await panel.panelDidOpen()
     #expect(await eventually { panel.library.activeDestination == .usb(kindle) })
-    panel.quickSend(BookID(rawValue: "a"))
+    await panel.quickSend(BookID(rawValue: "a"))
     await panel.queue.waitUntilFinished()
 
     await panel.performQueueFix()
@@ -531,7 +531,7 @@ struct PanelModelTests {
     await panel.launch()
     await panel.panelDidOpen()
     #expect(await eventually { panel.library.isKindlePluggedIn })
-    panel.quickSend(BookID(rawValue: "a"))
+    await panel.quickSend(BookID(rawValue: "a"))
     await panel.queue.waitUntilFinished()
 
     await panel.performQueueFix()
@@ -816,7 +816,7 @@ struct PanelModelTests {
     await panel.launch()
     await panel.panelDidOpen()
     #expect(await eventually { panel.library.activeDestination == .usb(kindle) })
-    panel.quickSend(BookID(rawValue: "a"))
+    await panel.quickSend(BookID(rawValue: "a"))
     await channel.waitUntilDeliveryStarts()
 
     #expect(!panel.canEject(kindle))
@@ -838,7 +838,7 @@ struct PanelModelTests {
     await panel.launch()
     await panel.panelDidOpen()
     #expect(await eventually { panel.library.activeDestination == .usb(kindle) })
-    panel.quickSend(BookID(rawValue: "a"))
+    await panel.quickSend(BookID(rawValue: "a"))
     await channel.waitUntilDeliveryStarts()
 
     await panel.eject(kindle)
@@ -865,7 +865,7 @@ struct PanelModelTests {
     let ejecting = Task { await panel.eject(kindle) }
     #expect(await eventually { panel.ejecting == kindle })
 
-    panel.quickSend(BookID(rawValue: "a"))
+    await panel.quickSend(BookID(rawValue: "a"))
 
     #expect(panel.route == .library)
     #expect(panel.queue.isEmpty)

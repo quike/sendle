@@ -26,12 +26,16 @@ public struct PanelView: View {
           case .logs: LogsScreen(panel: panel)
           }
         }
-        .disabled(panel.isShowingSettings)
+        .disabled(panel.isShowingSettings || panel.duplicateReview != nil)
         if panel.isShowingSettings {
           SettingsSheet(panel: panel).transition(.move(edge: .bottom))
         }
+        if let review = panel.duplicateReview {
+          DuplicateSheet(panel: panel, review: review).transition(.move(edge: .bottom))
+        }
       }
       .animation(reduceMotion ? nil : Theme.press, value: panel.isShowingSettings)
+      .animation(reduceMotion ? nil : Theme.press, value: panel.duplicateReview != nil)
     }
   }
 

@@ -186,7 +186,7 @@ struct QuickSendButton: View {
   var body: some View {
     let library = panel.library
     Button {
-      panel.quickSend(item.id)
+      Task { await panel.quickSend(item.id) }
     } label: {
       Image(systemName: "paperplane.fill")
         .font(.system(size: 11, weight: .semibold))
@@ -483,7 +483,7 @@ extension View {
       .accessibilityAction { panel.click(item.id, .plain) }
       .accessibilityActions {
         if item.canSend, library.canSend {
-          Button("Send") { panel.quickSend(item.id) }
+          Button("Send") { Task { await panel.quickSend(item.id) } }
         }
       }
   }

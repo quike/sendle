@@ -76,6 +76,28 @@ struct PanelHarness {
     return (panel, settings)
   }
 
+  /// A library of two PDFs, a Kindle holding `listing`, USB as the destination, and the Kindle read.
+  func pluggedInPanel(
+    listing: [KindleBook]
+  ) async -> (panel: PanelModel, kindle: FakeKindleLibrary, channel: FakeDeliveryChannel) {
+    library.result = .success([
+      .fixture(id: "a", format: .pdf),
+      .fixture(id: "b", title: "Dracula", author: "Bram Stoker", format: .pdf),
+    ])
+    let kindle = FakeKindleLibrary(.success(.fixture(listing)))
+    let channel = FakeDeliveryChannel()
+    let (panel, _) = makePanel(
+      AppSettings(email: .fixture, activeDestination: .usb), channel: channel, kindle: kindle)
+    monitor.update([.fixture()])
+    await panel.launch()
+    await panel.panelDidOpen()
+    _ = await eventually {
+      panel.library.activeDestination == .usb(.fixture()) && panel.kindle.state == .loaded
+        && panel.kindle.matches != nil
+    }
+    return (panel, kindle, channel)
+  }
+
   func denyAccess() {
     library.result = .failure(.accessDenied)
     library.canWatch = false

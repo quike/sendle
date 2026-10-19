@@ -701,7 +701,7 @@ struct SendBar: View {
       HStack(spacing: 0) {
         // The whole label sends; only the arrow opens the menu.
         Button {
-          panel.sendSelection()
+          Task { await panel.sendSelection() }
         } label: {
           HStack(spacing: 4) {
             Text("Send to")

@@ -40,6 +40,8 @@ public final class PanelModel {
   package var hoveredChip: KindleVolume?
   /// The Kindle chip, or its Eject, that has keyboard focus.
   package var focusedChip: KindleVolume?
+  /// The duplicates of a USB send, while the user decides what to do with each.
+  package private(set) var duplicateReview: DuplicateReviewModel?
   /// Bumped by ⌘F; the search field takes the keyboard when it changes.
   package private(set) var searchFocusRequests = 0
   /// The status item's centre, measured from the card's left edge, where the arrow points.
@@ -52,6 +54,10 @@ public final class PanelModel {
   @ObservationIgnored private var beforeLogs = (route: PanelRoute.library, showedSettings: false)
   /// Bumped by every open and close, so an opening that a newer one replaced leaves the state alone.
   @ObservationIgnored private var session = 0
+  /// What the review is about: sent, minus the skips, once it finishes.
+  @ObservationIgnored private var pendingSend: (books: [Book], destination: Destination)?
+  /// The Kindle is being read for duplicates, so another send would only race it.
+  @ObservationIgnored private var isCheckingDuplicates = false
 
   public init(
     library: LibraryViewModel,
@@ -187,6 +193,9 @@ public final class PanelModel {
     let volume = library.kindleVolume
     let books = library.books
     if volume == nil { side = .library }
+    if let pending = pendingSend, volume.map({ Destination.usb($0) }) != pending.destination {
+      cancelReview()
+    }
     Task { await kindle.follow(volume, books: books) }
   }
 
@@ -217,13 +226,87 @@ public final class PanelModel {
 
   // MARK: Sending
 
-  package func sendSelection() {
-    send(library.selectedBooks)
+  package func sendSelection() async {
+    await send(library.selectedBooks)
   }
 
-  package func quickSend(_ id: BookID) {
+  package func quickSend(_ id: BookID) async {
     guard let item = library.items.first(where: { $0.id == id && $0.canSend }) else { return }
-    send([item.book])
+    await send([item.book])
+  }
+
+  /// A USB send first reads the Kindle again and asks about each book it already has. Without
+  /// duplicates, or when the Kindle can't be read, it goes as it always did.
+  private func send(_ books: [Book]) async {
+    guard let destination = library.activeDestination, !books.isEmpty, !queue.isRunning,
+      duplicateReview == nil, !isCheckingDuplicates
+    else { return }
+    if case .usb(let volume) = destination {
+      if ejecting == volume { return }
+      system?.endEditing()
+      if kindle.volume == volume {
+        isCheckingDuplicates = true
+        let duplicates = await kindle.duplicates(of: books)
+        isCheckingDuplicates = false
+        if let duplicates, !duplicates.isEmpty, !queue.isRunning {
+          pendingSend = (books, destination)
+          duplicateReview = DuplicateReviewModel(cases: duplicates)
+          return
+        }
+      }
+    }
+    start(books, to: destination)
+  }
+
+  private func start(_ books: [Book], to destination: Destination, copies: [BookID: Int] = [:]) {
+    system?.endEditing()
+    queue.send(books, to: destination, copies: copies)
+    _ = library.clearSelection()
+    route = .queue
+  }
+
+  package func choose(_ choice: DuplicateChoice) {
+    guard let review = duplicateReview else { return }
+    review.choose(choice)
+    if review.isFinished { finishReview(review) }
+  }
+
+  package func chooseDefault() {
+    guard let review = duplicateReview else { return }
+    review.chooseDefault()
+    if review.isFinished { finishReview(review) }
+  }
+
+  /// Closing the sheet sends nothing.
+  package func cancelReview() {
+    duplicateReview = nil
+    pendingSend = nil
+  }
+
+  /// Drops the skips, numbers each Keep both copy past the names the Kindle already uses, and sends.
+  private func finishReview(_ review: DuplicateReviewModel) {
+    guard let pending = pendingSend else { return cancelReview() }
+    cancelReview()
+    var taken = Set(
+      (kindle.listing?.books ?? []).filter { !$0.id.relativePath.contains("/") }
+        .map { $0.stem.lowercased() })
+    var copies: [BookID: Int] = [:]
+    var books: [Book] = []
+    for book in pending.books {
+      switch review.decisions[book.id] {
+      case .skip?:
+        continue
+      case .keepBoth?:
+        let copy = FileNaming.nextFreeCopy(for: book, taken: taken)
+        taken.insert(FileNaming.copyName(for: book, copy: copy).lowercased())
+        copies[book.id] = copy
+      case .replace?, nil:
+        break
+      }
+      books.append(book)
+    }
+    guard !books.isEmpty else { return }
+    start(books, to: pending.destination, copies: copies)
   }
 
   /// Back to the library from a finished queue, which is then cleared.
@@ -245,17 +328,6 @@ public final class PanelModel {
     case .openPrivacySettings, .openSettings, .openURL:
       await perform(action)
     }
-  }
-
-  private func send(_ books: [Book]) {
-    guard let destination = library.activeDestination, !books.isEmpty, !queue.isRunning else {
-      return
-    }
-    if case .usb(let volume) = destination, ejecting == volume { return }
-    system?.endEditing()
-    queue.send(books, to: destination)
-    _ = library.clearSelection()
-    route = .queue
   }
 
   // MARK: Logs
@@ -351,10 +423,13 @@ public final class PanelModel {
 
   // MARK: Keys
 
-  /// Esc closes the innermost thing: the sheet, a finished queue or a setup that can wait, the
-  /// search, the selection, then the panel. A running queue keeps going behind a closed panel.
+  /// Esc closes the innermost thing: the duplicates, the settings sheet, a finished queue or a
+  /// setup that can wait, the search, the selection, then the panel. A running queue keeps going
+  /// behind a closed panel.
   package func escape() {
-    if isShowingSettings {
+    if duplicateReview != nil {
+      cancelReview()
+    } else if isShowingSettings {
       isShowingSettings = false
     } else if route == .logs {
       closeLogs()
@@ -376,6 +451,14 @@ public final class PanelModel {
   /// True when the key was used, so the shell swallows it.
   public func handle(_ key: KeyInput) -> Bool {
     guard let command = key.panelCommand else { return false }
+    if duplicateReview != nil {
+      switch command {
+      case .escape: cancelReview()
+      case .confirm: chooseDefault()
+      default: return false
+      }
+      return true
+    }
     switch command {
     case .escape:
       escape()
@@ -421,7 +504,7 @@ public final class PanelModel {
       }
     case .library:
       guard side == .library, !library.selection.isEmpty, library.canSend else { return false }
-      sendSelection()
+      Task { await sendSelection() }
     case .queue:
       guard !queue.isRunning else { return false }
       finishQueue()

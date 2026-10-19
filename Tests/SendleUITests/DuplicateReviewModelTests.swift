@@ -83,6 +83,20 @@ struct DuplicateReviewModelTests {
     #expect(model.isFinished)
   }
 
+  @Test func appliesToTheRestOnlyWhereAnotherOfTheSameConfidenceIsLeft() {
+    let model = DuplicateReviewModel(cases: [
+      duplicate("a", .sure), duplicate("b", .maybe), duplicate("c", .sure),
+    ])
+    #expect(model.canApplyToRest)
+    model.choose(.skip)
+    #expect(!model.canApplyToRest)
+    model.choose(.skip)
+    #expect(!model.canApplyToRest)
+    model.choose(.skip)
+    #expect(model.isFinished)
+    #expect(!model.canApplyToRest)
+  }
+
   @Test func aReplaceIsNotAppliedToACopyItCannotReplace() {
     let model = DuplicateReviewModel(cases: [
       duplicate("a", .sure), duplicate("b", .sure, .unavailable),

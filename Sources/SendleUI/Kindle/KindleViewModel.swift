@@ -103,6 +103,28 @@ public final class KindleViewModel {
     await queueRead()
   }
 
+  /// Which of `books` the Kindle already holds, read afresh so a book copied in since the last
+  /// read still counts; nil when the Kindle can't be read.
+  package func duplicates(of books: [Book]) async -> [DuplicateCase]? {
+    await refresh()
+    await queue?.value
+    guard case .loaded = state, let matches else { return nil }
+    var found: [(book: Book, match: KindleMatch)] = []
+    for book in books {
+      if let match = matches.byBook[book.id] { found.append((book, match)) }
+    }
+    // Only EPUBs on this Mac have an edition, and reading one must not download it.
+    let readable = found.map(\.book).filter(Self.hasReadableEdition)
+    var editions: [BookID: Edition] = [:]
+    if !readable.isEmpty { editions = await match.editions(of: readable) }
+    return found.map { entry in
+      DuplicateCase(
+        book: entry.book, edition: editions[entry.book.id], match: entry.match,
+        replace: FileNaming.isSendlesCopy(entry.match.book, of: entry.book)
+          ? .inPlace : .unavailable)
+    }
+  }
+
   /// Matches the library against the listing already read.
   package func rematch() async {
     guard listing != nil else { return }
@@ -223,6 +245,11 @@ public final class KindleViewModel {
   private func setMatches(_ matches: KindleMatches?) {
     self.matches = matches
     onMatchesChange?(matches)
+  }
+
+  private static func hasReadableEdition(_ book: Book) -> Bool {
+    guard book.format == .epub else { return false }
+    return book.availability == .ready || book.availability == .protected
   }
 
   private static func problem(for error: KindleListingError, on volume: KindleVolume) -> Problem {

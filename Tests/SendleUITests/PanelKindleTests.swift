@@ -139,10 +139,10 @@ struct PanelKindleTests {
     await panel.panelDidOpen()
     #expect(await eventually { kindle.listings == 1 && panel.kindle.state == .loaded })
 
-    panel.quickSend(BookID(rawValue: "a"))
+    await panel.quickSend(BookID(rawValue: "a"))
     await panel.queue.waitUntilFinished()
 
-    #expect(kindle.listings == 2)
+    #expect(kindle.listings == 3)
   }
 
   @Test func anEmailSendOnlyMatchesAgain() async {
@@ -154,7 +154,7 @@ struct PanelKindleTests {
     #expect(await eventually { panel.kindle.state == .loaded && panel.kindle.matches != nil })
     #expect(panel.library.kindleMatches?.byBook[BookID(rawValue: "a")] == nil)
 
-    panel.quickSend(BookID(rawValue: "a"))
+    await panel.quickSend(BookID(rawValue: "a"))
     await panel.queue.waitUntilFinished()
 
     #expect(kindle.listings == 1)
@@ -204,7 +204,7 @@ struct PanelKindleTests {
     #expect(await eventually { panel.library.activeDestination == .usb(kindle) })
     #expect(panel.ejectActionName(for: kindle) == "Eject Kindle")
 
-    panel.quickSend(BookID(rawValue: "a"))
+    await panel.quickSend(BookID(rawValue: "a"))
     await channel.waitUntilDeliveryStarts()
     #expect(panel.ejectActionName(for: kindle) == nil)
 
@@ -231,5 +231,224 @@ struct PanelKindleTests {
     panel.focusedChip = .fixture()
     panel.panelDidClose()
     #expect(!panel.showsEject(in: .fixture()))
+  }
+
+  // MARK: Duplicates
+
+  /// Sendle's own PDF of Moby-Dick, the library's book "a".
+  let sendlesPDF = KindleBook.fixture(
+    path: "Moby-Dick - Herman Melville.pdf", source: .sendle, asin: "SNMOBYDICK",
+    asinFollowsFileName: true)
+
+  @Test func aUSBSendOfABookOnTheKindleAsksFirst() async {
+    let (panel, _, _) = await harness.pluggedInPanel(listing: [sendlesPDF])
+    panel.library.selectAll()
+
+    await panel.sendSelection()
+
+    #expect(panel.duplicateReview?.counter == "1 of 1")
+    #expect(panel.duplicateReview?.current.replace == .inPlace)
+    #expect(!panel.queue.isRunning)
+    #expect(panel.queue.isEmpty)
+    #expect(panel.route == .library)
+  }
+
+  @Test func quickSendAsksToo() async {
+    let (panel, _, _) = await harness.pluggedInPanel(listing: [sendlesPDF])
+
+    await panel.quickSend(BookID(rawValue: "a"))
+
+    #expect(panel.duplicateReview != nil)
+    #expect(panel.queue.isEmpty)
+  }
+
+  @Test func skipLeavesTheBookOutAndSendsTheRest() async {
+    let (panel, _, channel) = await harness.pluggedInPanel(listing: [sendlesPDF])
+    panel.library.selectAll()
+    await panel.sendSelection()
+
+    panel.choose(.skip)
+    await panel.queue.waitUntilFinished()
+
+    #expect(panel.duplicateReview == nil)
+    #expect(panel.queue.rows.map(\.id.rawValue) == ["b"])
+    #expect(channel.deliveries.map(\.name) == ["Dracula - Bram Stoker"])
+    #expect(panel.route == .queue)
+    #expect(panel.library.selection.isEmpty)
+  }
+
+  @Test func skippingEveryBookSendsNothingAndKeepsTheSelection() async {
+    let (panel, _, channel) = await harness.pluggedInPanel(listing: [sendlesPDF])
+    panel.click(BookID(rawValue: "a"), .plain)
+    await panel.sendSelection()
+
+    panel.choose(.skip)
+
+    #expect(panel.duplicateReview == nil)
+    #expect(channel.deliveries.isEmpty)
+    #expect(panel.queue.isEmpty)
+    #expect(panel.route == .library)
+    #expect(panel.library.selection.ids == [BookID(rawValue: "a")])
+  }
+
+  @Test func keepBothSendsUnderTheNextFreeName() async {
+    let taken = KindleBook.fixture(path: "Moby-Dick - Herman Melville (2).azw3")
+    let (panel, _, channel) = await harness.pluggedInPanel(listing: [sendlesPDF, taken])
+    await panel.quickSend(BookID(rawValue: "a"))
+
+    panel.choose(.keepBoth)
+    await panel.queue.waitUntilFinished()
+
+    #expect(channel.deliveries.map(\.name) == ["Moby-Dick - Herman Melville (3)"])
+  }
+
+  @Test func applyingKeepBothToTheRestNamesEveryCopy() async {
+    let twin = KindleBook.fixture(
+      path: "Dracula - Bram Stoker.pdf", title: "Dracula", authors: ["Bram Stoker"],
+      source: .sendle, asin: "SNDRACULA1", asinFollowsFileName: true)
+    let (panel, _, channel) = await harness.pluggedInPanel(listing: [sendlesPDF, twin])
+    panel.library.selectAll()
+    await panel.sendSelection()
+    panel.duplicateReview?.appliesToRest = true
+
+    panel.choose(.keepBoth)
+    await panel.queue.waitUntilFinished()
+
+    #expect(
+      channel.deliveries.map(\.name).sorted()
+        == ["Dracula - Bram Stoker (2)", "Moby-Dick - Herman Melville (2)"])
+  }
+
+  @Test func replaceOverwritesSendlesCopyInPlace() async {
+    let (panel, _, channel) = await harness.pluggedInPanel(listing: [sendlesPDF])
+    await panel.quickSend(BookID(rawValue: "a"))
+
+    panel.chooseDefault()
+    await panel.queue.waitUntilFinished()
+
+    #expect(channel.deliveries.map(\.name) == ["Moby-Dick - Herman Melville"])
+  }
+
+  @Test func aCopySendleDidNotNameOffersOnlySkipAndKeepBoth() async {
+    let byHand = KindleBook.fixture(path: "Moby Dick.pdf")
+    let (panel, _, channel) = await harness.pluggedInPanel(listing: [byHand])
+    await panel.quickSend(BookID(rawValue: "a"))
+
+    #expect(panel.duplicateReview?.choices == [.skip, .keepBoth])
+    panel.chooseDefault()
+
+    #expect(channel.deliveries.isEmpty)
+    #expect(panel.queue.isEmpty)
+  }
+
+  @Test func closingTheSheetSendsNothing() async {
+    let (panel, _, channel) = await harness.pluggedInPanel(listing: [sendlesPDF])
+    panel.library.selectAll()
+    await panel.sendSelection()
+
+    panel.cancelReview()
+
+    #expect(panel.duplicateReview == nil)
+    #expect(channel.deliveries.isEmpty)
+    #expect(panel.queue.isEmpty)
+    #expect(panel.library.selection.count == 2)
+  }
+
+  @Test func returnTakesTheDefaultAndEscapeClosesTheSheet() async {
+    let (panel, _, channel) = await harness.pluggedInPanel(listing: [sendlesPDF])
+    await panel.quickSend(BookID(rawValue: "a"))
+
+    #expect(panel.handle(KeyInput(.escape)))
+    #expect(panel.duplicateReview == nil)
+    #expect(harness.system.closedPanel == 0)
+    #expect(channel.deliveries.isEmpty)
+
+    await panel.quickSend(BookID(rawValue: "a"))
+    #expect(panel.handle(KeyInput(.returnKey)))
+    await panel.queue.waitUntilFinished()
+    #expect(channel.deliveries.map(\.name) == ["Moby-Dick - Herman Melville"])
+  }
+
+  @Test func theLibraryIgnoresItsKeysBehindTheSheet() async {
+    let (panel, _, _) = await harness.pluggedInPanel(listing: [sendlesPDF])
+    await panel.quickSend(BookID(rawValue: "a"))
+
+    #expect(!panel.handle(KeyInput(.character("a"), command: true)))
+    #expect(!panel.handle(KeyInput(.down)))
+    #expect(panel.library.selection.isEmpty)
+  }
+
+  @Test func anEmailSendNeverAsks() async {
+    harness.library.result = .success([.fixture(id: "a", format: .pdf)])
+    let kindle = FakeKindleLibrary(.success(.fixture([sendlesPDF])))
+    let (panel, _) = harness.makePanel(kindle: kindle)
+    harness.monitor.update([.fixture()])
+    await panel.launch()
+    await panel.panelDidOpen()
+    #expect(await eventually { panel.kindle.state == .loaded && panel.kindle.matches != nil })
+
+    await panel.quickSend(BookID(rawValue: "a"))
+
+    #expect(panel.duplicateReview == nil)
+    #expect(panel.route == .queue)
+    #expect(panel.queue.destination?.kind == .email)
+  }
+
+  @Test func aBookAddedSinceTheLastReadIsStillFound() async {
+    let (panel, kindle, _) = await harness.pluggedInPanel(listing: [])
+    #expect(panel.kindle.matches?.byBook[BookID(rawValue: "a")] == nil)
+    kindle.result = .success(.fixture([sendlesPDF]))
+
+    await panel.quickSend(BookID(rawValue: "a"))
+
+    #expect(panel.duplicateReview != nil)
+  }
+
+  @Test func aKindleThatCannotBeReadSendsAsBefore() async {
+    let (panel, kindle, channel) = await harness.pluggedInPanel(listing: [sendlesPDF])
+    kindle.result = .failure(.unreadable("I/O error"))
+
+    await panel.quickSend(BookID(rawValue: "a"))
+    await panel.queue.waitUntilFinished()
+
+    #expect(panel.duplicateReview == nil)
+    #expect(channel.deliveries.map(\.name) == ["Moby-Dick - Herman Melville"])
+  }
+
+  @Test func aBookNotOnTheKindleSendsAtOnce() async {
+    let (panel, _, channel) = await harness.pluggedInPanel(listing: [sendlesPDF])
+
+    await panel.quickSend(BookID(rawValue: "b"))
+    await panel.queue.waitUntilFinished()
+
+    #expect(panel.duplicateReview == nil)
+    #expect(channel.deliveries.map(\.name) == ["Dracula - Bram Stoker"])
+  }
+
+  @Test func unpluggingTheKindleDropsTheSheet() async {
+    let (panel, _, channel) = await harness.pluggedInPanel(listing: [sendlesPDF])
+    await panel.quickSend(BookID(rawValue: "a"))
+    #expect(panel.duplicateReview != nil)
+
+    harness.monitor.update([])
+
+    #expect(await eventually { panel.duplicateReview == nil })
+    #expect(channel.deliveries.isEmpty)
+    #expect(panel.queue.isEmpty)
+  }
+
+  @Test func aSecondSendWhileTheKindleIsBeingReadIsIgnored() async {
+    let (panel, kindle, channel) = await harness.pluggedInPanel(listing: [])
+    let gate = Signal()
+    kindle.gate = gate
+    let first = Task { await panel.quickSend(BookID(rawValue: "b")) }
+    #expect(await eventually { panel.kindle.state == .reading(done: 0, total: 0) })
+
+    await panel.quickSend(BookID(rawValue: "a"))
+    await gate.fire()
+    await first.value
+    await panel.queue.waitUntilFinished()
+
+    #expect(channel.deliveries.map(\.name) == ["Dracula - Bram Stoker"])
   }
 }

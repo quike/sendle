@@ -98,6 +98,14 @@ package final class DuplicateReviewModel {
     current.match.confidence == .sure && current.replace != .unavailable ? .replace : .skip
   }
 
+  /// Another undecided duplicate of the same confidence is left for the choice to reach.
+  package var canApplyToRest: Bool {
+    cases.contains {
+      $0.id != current.id && decisions[$0.id] == nil
+        && $0.match.confidence == current.match.confidence
+    }
+  }
+
   package var note: String {
     switch current.replace {
     case .inPlace:
