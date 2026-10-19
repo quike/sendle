@@ -29,6 +29,14 @@ public final class LibraryViewModel {
       if filter != oldValue { scrollToTop() }
     }
   }
+  /// Nil shows every format.
+  package var format: BookFormat? {
+    didSet {
+      refreshItems()
+      if format != oldValue { scrollToTop() }
+    }
+  }
+  package private(set) var kindleMatches: KindleMatches?
   package private(set) var layout = LibraryLayout.grid
   package private(set) var sort = LibrarySort.recent
   package private(set) var jumpBar = JumpBarStyle.full
@@ -105,10 +113,13 @@ public final class LibraryViewModel {
   /// The kind the library plans its books for and wears the colour of: the active destination's, or the saved choice.
   package var activeKind: DestinationKind { activeDestination?.kind ?? preferredDestination }
 
-  /// Covers carry their format only where the filter lets formats mix.
-  package var showsFormatOnCovers: Bool {
-    showsFormat && (filter == .all || filter == .notSent)
+  /// The scopes on offer: the Kindle ones once the plugged-in Kindle has been read.
+  package var filters: [LibraryFilter] {
+    LibraryFilter.allCases.filter { kindleMatches != nil || !$0.needsKindle }
   }
+
+  /// Covers carry their format only where the format menu lets formats mix.
+  package var showsFormatOnCovers: Bool { showsFormat && format == nil }
 
   package var isKindlePluggedIn: Bool { !volumes.isEmpty }
 
@@ -172,6 +183,16 @@ public final class LibraryViewModel {
     }
     reloading = next
     await next.value
+  }
+
+  /// What the plugged-in Kindle holds, or nil once it's gone; its scopes go with it.
+  package func showKindleMatches(_ matches: KindleMatches?) {
+    kindleMatches = matches
+    if matches == nil, filter.needsKindle {
+      filter = .all
+    } else {
+      refreshItems()
+    }
   }
 
   package func refreshHistory() async {
@@ -305,9 +326,9 @@ public final class LibraryViewModel {
   /// Rebuilds what the layouts show, and drops selected books that are no longer among it.
   private func refreshItems() {
     let newestFirst = LibraryItems.make(
-      books: books, sends: sends, filter: filter, query: query,
-      destination: activeKind,
-      converterAvailable: converterAvailable, now: now())
+      books: books, sends: sends, filter: filter, format: format, query: query,
+      destination: activeKind, converterAvailable: converterAvailable, kindle: kindleMatches,
+      now: now())
     items = LibraryOrder.sorted(newestFirst, by: sort, book: \.book)
     recentItems = Array(newestFirst.prefix(8))
     index = sort == .recent ? nil : AlphabetIndex(books: items.map(\.book), sort: sort)

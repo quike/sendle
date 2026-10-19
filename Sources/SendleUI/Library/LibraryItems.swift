@@ -14,15 +14,22 @@ package enum LibraryItems {
     books: [Book],
     sends: [BookID: BookSends],
     filter: LibraryFilter,
+    format: BookFormat?,
     query: String,
     destination: DestinationKind,
     converterAvailable: Bool,
+    kindle: KindleMatches?,
     now: Date
   ) -> [BookItemViewModel] {
     let words = query.split(whereSeparator: \.isWhitespace)
     return
       books
-      .filter { filter.includes($0, wasSent: sends[$0.id] != nil) && matches($0, words) }
+      .filter { book in
+        (format == nil || book.format == format)
+          && filter.includes(
+            book, wasSent: sends[book.id] != nil, onKindle: kindle?.byBook[book.id]?.confidence)
+          && matches(book, words)
+      }
       .map {
         BookItemViewModel(
           book: $0, sends: sends[$0.id], destination: destination,

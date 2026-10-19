@@ -320,7 +320,7 @@ struct LibraryViewModelTests {
     await model.appear()
     model.selectAll()
 
-    model.filter = .pdf
+    model.format = .pdf
 
     #expect(model.selection.ids == [BookID(rawValue: "m")])
   }
@@ -473,16 +473,37 @@ struct LibraryViewModelTests {
     #expect(model.jumpBar == .compact)
   }
 
-  @Test(arguments: [
-    (LibraryFilter.all, true), (.notSent, true), (.epub, false), (.pdf, false),
-  ])
-  func showsTheFormatOnCoversWhereTheFormatsMix(filter: LibraryFilter, shows: Bool) async {
+  @Test func coversShowTheirFormatUnlessOneFormatIsChosen() async {
     let (model, _) = makeModel()
     await model.start()
+    #expect(model.showsFormatOnCovers)
 
-    model.filter = filter
+    model.format = .epub
 
-    #expect(model.showsFormatOnCovers == shows)
+    #expect(!model.showsFormatOnCovers)
+  }
+
+  @Test func kindleScopesShowOnlyWhileAKindleIsPluggedIn() async {
+    let (model, _) = makeModel()
+    await model.start()
+    await model.appear()
+    #expect(model.filters == [.all, .notSent])
+
+    model.showKindleMatches(.empty)
+
+    #expect(model.filters == [.all, .notSent, .onKindle, .notOnKindle])
+  }
+
+  @Test func aKindleThatGoesTakesItsScopeWithIt() async {
+    let (model, _) = makeModel()
+    await model.start()
+    await model.appear()
+    model.showKindleMatches(.empty)
+    model.filter = .onKindle
+
+    model.showKindleMatches(nil)
+
+    #expect(model.filter == .all)
   }
 
   @Test func hidesTheFormatUnderEveryFilterWhenTheSettingIsOff() async {
@@ -556,7 +577,7 @@ struct LibraryViewModelTests {
     #expect(model.topBook == nil)
     #expect(model.scrollToTopRequests == 1)
 
-    model.filter = .epub
+    model.format = .epub
     model.query = "e"
     #expect(model.scrollToTopRequests == 3)
   }

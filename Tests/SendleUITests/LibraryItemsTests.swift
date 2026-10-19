@@ -14,12 +14,14 @@ struct LibraryItemsTests {
     _ books: [Book],
     sends: [SendRecord] = [],
     filter: LibraryFilter = .all,
+    format: BookFormat? = nil,
     query: String = "",
-    to destination: DestinationKind = .email
+    to destination: DestinationKind = .email,
+    kindle: KindleMatches? = nil
   ) -> [BookItemViewModel] {
     LibraryItems.make(
-      books: books, sends: LibraryItems.sendsByBook(in: sends), filter: filter, query: query,
-      destination: destination, converterAvailable: false, now: now)
+      books: books, sends: LibraryItems.sendsByBook(in: sends), filter: filter, format: format,
+      query: query, destination: destination, converterAvailable: false, kindle: kindle, now: now)
   }
 
   func sent(
@@ -31,9 +33,28 @@ struct LibraryItemsTests {
   }
 
   @Test func filtersByFormat() {
-    #expect(items([moby, manual], filter: .epub).map(\.id) == [moby.id])
-    #expect(items([moby, manual], filter: .pdf).map(\.id) == [manual.id])
-    #expect(items([moby, manual], filter: .all).map(\.id) == [moby.id, manual.id])
+    #expect(items([moby, manual], format: .epub).map(\.id) == [moby.id])
+    #expect(items([moby, manual], format: .pdf).map(\.id) == [manual.id])
+    #expect(items([moby, manual]).map(\.id) == [moby.id, manual.id])
+    #expect(items([moby, manual], filter: .notSent, format: .pdf).map(\.id) == [manual.id])
+  }
+
+  @Test func onKindleIncludesSureAndMaybeAndNotOnKindleIsTheRest() {
+    let kindle = KindleMatches(
+      byBook: [
+        moby.id: KindleMatch(book: .fixture(), confidence: .sure, reason: .sendleName),
+        jane.id: KindleMatch(
+          book: .fixture(title: "Jane Eyre"), confidence: .maybe, reason: .titleAndAuthor),
+      ],
+      onKindle: [:])
+
+    #expect(
+      items([moby, jane, manual], filter: .onKindle, kindle: kindle).map(\.id) == [
+        moby.id, jane.id,
+      ]
+    )
+    #expect(
+      items([moby, jane, manual], filter: .notOnKindle, kindle: kindle).map(\.id) == [manual.id])
   }
 
   @Test func notSentHidesBooksAlreadyDelivered() {

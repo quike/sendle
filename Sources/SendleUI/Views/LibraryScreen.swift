@@ -214,14 +214,57 @@ struct FilterBar: View {
 
   var body: some View {
     HStack(spacing: 5) {
-      ForEach(LibraryFilter.allCases, id: \.self) { filter in
+      ForEach(library.filters, id: \.self) { filter in
         Button(filter.title) { library.filter = filter }
           .buttonStyle(FilterPillStyle(isOn: library.filter == filter))
           .accessibilityAddTraits(library.filter == filter ? .isSelected : [])
       }
       Spacer(minLength: 0)
+      FormatMenu(library: library)
       SortMenu(library: library)
       LayoutSwitcher(library: library)
+    }
+  }
+}
+
+/// All formats, EPUB or PDF.
+struct FormatMenu: View {
+  @Bindable var library: LibraryViewModel
+
+  var body: some View {
+    Menu {
+      choice(nil, "All formats")
+      ForEach(BookFormat.allCases, id: \.self) { choice($0, $0.rawValue.uppercased()) }
+    } label: {
+      Text(label)
+        .font(.system(size: 10.5, weight: .semibold))
+        .foregroundStyle(Theme.text)
+        .padding(.horizontal, 8)
+        .frame(height: 24)
+        .glass(cornerRadius: 9)
+        .contentShape(Rectangle())
+    }
+    .menuStyle(.button)
+    .buttonStyle(.plain)
+    .menuIndicator(.hidden)
+    .fixedSize()
+    .help("Show one format")
+    .accessibilityLabel("Format")
+    .accessibilityValue(label)
+  }
+
+  private var label: String { library.format.map { $0.rawValue.uppercased() } ?? "All formats" }
+
+  @ViewBuilder
+  private func choice(_ format: BookFormat?, _ title: String) -> some View {
+    Button {
+      library.format = format
+    } label: {
+      if format == library.format {
+        Label(title, systemImage: "checkmark")
+      } else {
+        Text(title)
+      }
     }
   }
 }

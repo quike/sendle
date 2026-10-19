@@ -2,25 +2,28 @@ import SendleDomain
 
 package enum LibraryFilter: String, CaseIterable, Sendable {
   case all
-  case epub
-  case pdf
   case notSent
+  case onKindle
+  case notOnKindle
 
   package var title: String {
     switch self {
     case .all: "All"
-    case .epub: "EPUB"
-    case .pdf: "PDF"
     case .notSent: "Not sent"
+    case .onKindle: "On Kindle"
+    case .notOnKindle: "Not on Kindle"
     }
   }
 
-  func includes(_ book: Book, wasSent: Bool) -> Bool {
+  /// The scopes that only make sense while a Kindle's books are known.
+  var needsKindle: Bool { self == .onKindle || self == .notOnKindle }
+
+  func includes(_ book: Book, wasSent: Bool, onKindle: MatchConfidence?) -> Bool {
     switch self {
     case .all: true
-    case .epub: book.format == .epub
-    case .pdf: book.format == .pdf
     case .notSent: !wasSent
+    case .onKindle: onKindle != nil
+    case .notOnKindle: onKindle == nil
     }
   }
 }
