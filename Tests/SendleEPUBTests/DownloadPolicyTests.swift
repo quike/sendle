@@ -1,5 +1,5 @@
 import Darwin
-import SendleCovers
+import SendleEPUB
 import Testing
 
 struct DownloadPolicyTests {
