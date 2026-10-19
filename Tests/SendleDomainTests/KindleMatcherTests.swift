@@ -24,6 +24,14 @@ struct KindleMatcherTests {
     #expect(found?.reason == .editionKey)
   }
 
+  @Test func anEditionASINOfAnotherTitleAndAuthorIsNoMatch() {
+    let found = match(
+      moby,
+      [.fixture(title: "Dracula", authors: ["Bram Stoker"], source: .sendle, asin: "SNEDITION1")],
+      editionASINs: [moby.id: ["SNEDITION1"]])
+    #expect(found == nil)
+  }
+
   @Test func equalISBNsAreSureWhateverTheirForm() {
     let found = match(
       moby, [.fixture(title: "Other", isbn: "978-0-306-40615-7")],

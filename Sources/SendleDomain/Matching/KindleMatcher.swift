@@ -140,7 +140,12 @@ public enum KindleMatcher {
 
     func reason(matching candidate: Candidate) -> MatchReason? {
       let kindle = candidate.book
-      if let asin = kindle.asin, asins.contains(asin) { return .editionKey }
+      // A placeholder identifier can give unrelated EPUBs one edition key.
+      if let asin = kindle.asin, asins.contains(asin),
+        titleKey == candidate.titleKey || !authors.isDisjoint(with: candidate.authors)
+      {
+        return .editionKey
+      }
       if let isbn, isbn == candidate.isbn { return .isbn }
       if sameContent.contains(ContentPair(book: book.id, kindleBook: kindle.id)) {
         return .sameContent
