@@ -3,6 +3,7 @@ import SendleDomain
 import SendleTestSupport
 import SendleUI
 import Testing
+import os
 
 @MainActor @Suite(.timeLimit(.minutes(1)))
 struct KindleViewModelTests {
@@ -100,6 +101,7 @@ struct KindleViewModelTests {
     kindle.gate = gate
     let model = makeModel()
     let first = Task { await model.follow(.fixture(), books: []) }
+    #expect(await eventually { model.state == .reading(done: 0, total: 0) })
     let second = Task { await model.refresh() }
     await gate.fire()
     await first.value
@@ -201,5 +203,117 @@ struct KindleViewModelTests {
     await model.refresh()
     #expect(model.state == .loaded)
     #expect(model.listing?.books.count == 1)
+  }
+
+  @Test func startsListsAtTheTopWhenWhatTheyShowChanges() async {
+    let model = makeModel()
+    await model.follow(.fixture(), books: [])
+    var requests = model.scrollToTopRequests
+    func bumped() -> Bool {
+      defer { requests = model.scrollToTopRequests }
+      return model.scrollToTopRequests == requests + 1
+    }
+    model.query = "a"
+    #expect(bumped())
+    model.scope = .fromSendle
+    #expect(bumped())
+    model.scope = .all
+    #expect(bumped())
+    model.format = "txt"
+    #expect(bumped())
+    model.sort = .title
+    #expect(bumped())
+  }
+
+  @Test func leavesTheScrollAloneWhenNothingChanged() async {
+    let model = makeModel()
+    await model.follow(.fixture(), books: [])
+    let requests = model.scrollToTopRequests
+    model.query = ""
+    model.scope = .all
+    model.format = nil
+    model.sort = .recent
+    #expect(model.scrollToTopRequests == requests)
+  }
+
+  @Test func startsAtTheTopOnAnotherKindle() async {
+    let model = makeModel()
+    await model.follow(.fixture(name: "Kindle"), books: [])
+    let requests = model.scrollToTopRequests
+    await model.follow(.fixture(name: "Kindle Oasis"), books: [])
+    #expect(model.scrollToTopRequests > requests)
+  }
+
+  @Test func manyRefreshesWhileOneWaitsReadOnce() async {
+    let gate = Signal()
+    kindle.gate = gate
+    let model = makeModel()
+    let first = Task { await model.follow(.fixture(), books: []) }
+    #expect(await eventually { model.state == .reading(done: 0, total: 0) })
+    let refreshes = (0..<4).map { _ in Task { await model.refresh() } }
+    await gate.fire()
+    await first.value
+    for refresh in refreshes { await refresh.value }
+    #expect(kindle.listings == 2)
+  }
+
+  @Test func aNewKindleDoesNotWaitForMatchingTheOldOne() async {
+    let reader = GatedEditionReader()
+    let model = KindleViewModel(
+      library: kindle,
+      match: MatchKindleBooks(
+        editions: reader, digests: FakeFileDigester(), asins: FakeASINScheme(),
+        history: InMemorySendHistoryStore()))
+    kindle.result = .success(.fixture([.fixture(isbn: "9780141439518")]))
+    let epub = Book.fixture(id: "epub")
+    let first = Task { await model.follow(.fixture(name: "A"), books: [epub]) }
+    #expect(await eventually { reader.calls == 1 })
+
+    await model.follow(.fixture(name: "B"), books: [epub])
+
+    #expect(model.volume == .fixture(name: "B"))
+    #expect(model.matches != nil)
+    await first.value
+  }
+
+  @Test func matchesFinishedForAKindleThatWentAreNeverTold() async {
+    let reader = GatedEditionReader()
+    let model = KindleViewModel(
+      library: kindle,
+      match: MatchKindleBooks(
+        editions: reader, digests: FakeFileDigester(), asins: FakeASINScheme(),
+        history: InMemorySendHistoryStore()))
+    var told: [KindleMatches?] = []
+    model.onMatchesChange = { told.append($0) }
+    kindle.result = .success(
+      .fixture([
+        .fixture(isbn: "9780141439518"), .fixture(path: "Moby-Dick - Herman Melville.azw3"),
+      ]))
+    let first = Task { await model.follow(.fixture(name: "A"), books: [moby]) }
+    #expect(await eventually { reader.calls == 1 })
+    kindle.result = .success(.fixture([]))
+
+    await model.follow(.fixture(name: "B"), books: [moby])
+    await first.value
+
+    #expect(told.compactMap { $0 }.allSatisfy { $0.byBook[moby.id] == nil })
+    #expect(model.matches?.byBook[moby.id] == nil)
+    #expect(model.matches != nil)
+  }
+}
+
+/// Its first read waits until the reading task is cancelled, then answers as if it had finished.
+final class GatedEditionReader: EditionReader {
+  private let count = OSAllocatedUnfairLock(initialState: 0)
+
+  var calls: Int { count.withLock { $0 } }
+
+  func editions(of books: [Book]) async -> [BookID: Edition] {
+    let call = count.withLock {
+      $0 += 1
+      return $0
+    }
+    if call == 1 { _ = await Signal().waitUnlessCancelled() }
+    return [:]
   }
 }

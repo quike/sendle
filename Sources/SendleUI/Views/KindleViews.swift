@@ -33,6 +33,8 @@ struct KindleContent: View {
 }
 
 private struct KindleBooks: View {
+  private static let top = "top"
+
   let panel: PanelModel
   let isEmpty: Bool
 
@@ -48,22 +50,26 @@ private struct KindleBooks: View {
         symbol: "magnifyingglass", title: "No books match",
         message: "Try another search or filter.")
     } else {
-      ScrollView {
-        VStack(alignment: .leading, spacing: 0) {
-          switch panel.library.layout {
-          case .grid:
-            SectionLabel("On this Kindle").padding(.bottom, 7)
-            KindleGrid(kindle: kindle, items: items)
-          case .list:
-            SectionLabel("On this Kindle").padding(.bottom, 4)
-            KindleList(kindle: kindle, items: items)
-          case .shelf:
-            KindleShelf(kindle: kindle, items: items, recent: kindle.recentItems)
+      ScrollViewReader { proxy in
+        ScrollView {
+          VStack(alignment: .leading, spacing: 0) {
+            switch panel.library.layout {
+            case .grid:
+              SectionLabel("On this Kindle").padding(.bottom, 7)
+              KindleGrid(kindle: kindle, items: items)
+            case .list:
+              SectionLabel("On this Kindle").padding(.bottom, 4)
+              KindleList(kindle: kindle, items: items)
+            case .shelf:
+              KindleShelf(kindle: kindle, items: items, recent: kindle.recentItems)
+            }
           }
+          .id(Self.top)
+          .padding(.bottom, 6)
         }
-        .padding(.bottom, 6)
+        .scrollIndicators(.never)
+        .onChange(of: kindle.scrollToTopRequests) { proxy.scrollTo(Self.top, anchor: .top) }
       }
-      .scrollIndicators(.never)
     }
   }
 }

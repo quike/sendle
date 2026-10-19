@@ -21,19 +21,21 @@ public final class KindleViewModel {
     didSet { refreshItems() }
   }
   package var query = "" {
-    didSet { refreshItems() }
+    didSet { listChanged(query != oldValue) }
   }
   package var scope = KindleScope.all {
-    didSet { refreshItems() }
+    didSet { listChanged(scope != oldValue) }
   }
   /// A lowercased extension; nil shows every format.
   package var format: String? {
-    didSet { refreshItems() }
+    didSet { listChanged(format != oldValue) }
   }
   /// Shared with the library's sort, which saves it.
   package var sort = LibrarySort.recent {
-    didSet { refreshItems() }
+    didSet { listChanged(sort != oldValue) }
   }
+  /// Bumped when a new query, scope, format, sort or Kindle should start at the top of the list.
+  package private(set) var scrollToTopRequests = 0
   /// The books the scope, format and search show, in the sort's order.
   package private(set) var items: [KindleItemViewModel] = []
   /// The newest books on screen, whatever the sort, for the shelf.
@@ -47,6 +49,10 @@ public final class KindleViewModel {
   private var books: [Book] = []
   /// Reads and matches run one after another, so a slow older one can't replace a newer one.
   @ObservationIgnored private var queue: Task<Void, Never>?
+  /// The queued work, so a Kindle that goes can cancel what is matching it.
+  @ObservationIgnored private var queued: [UUID: Task<Void, Never>] = [:]
+  /// A read is queued and hasn't started, so asking for another adds nothing.
+  @ObservationIgnored private var isReadQueued = false
   @ObservationIgnored private var reading: Task<Result<KindleListing, KindleListingError>, Never>?
   /// Changes with each Kindle followed, so work for one that went is dropped.
   @ObservationIgnored private var epoch = 0
@@ -85,7 +91,7 @@ public final class KindleViewModel {
     if volume != self.volume {
       forget()
       self.volume = volume
-      await enqueue { await $0.read() }
+      await queueRead()
     } else if libraryChanged, listing != nil {
       await rematch()
     }
@@ -93,8 +99,8 @@ public final class KindleViewModel {
 
   /// Reads the Kindle again, after the read in progress if there is one.
   package func refresh() async {
-    guard volume != nil else { return }
-    await enqueue { await $0.read() }
+    guard volume != nil, !isReadQueued else { return }
+    await queueRead()
   }
 
   /// Matches the library against the listing already read.
@@ -104,6 +110,11 @@ public final class KindleViewModel {
   }
 
   // MARK: Private
+
+  private func listChanged(_ changed: Bool) {
+    if changed { scrollToTopRequests += 1 }
+    refreshItems()
+  }
 
   /// Rebuilds what the layouts show; a format that left with its books is dropped.
   private func refreshItems() {
@@ -125,6 +136,9 @@ public final class KindleViewModel {
   private func forget() {
     epoch += 1
     reading?.cancel()
+    queued.values.forEach { $0.cancel() }
+    isReadQueued = false
+    scrollToTopRequests += 1
     covers.reset()
     volume = nil
     listing = nil
@@ -137,16 +151,27 @@ public final class KindleViewModel {
     setMatches(nil)
   }
 
+  private func queueRead() async {
+    isReadQueued = true
+    await enqueue {
+      $0.isReadQueued = false
+      await $0.read()
+    }
+  }
+
   private func enqueue(_ work: @escaping @MainActor (KindleViewModel) async -> Void) async {
     let previous = queue
     let epoch = epoch
+    let id = UUID()
     let next = Task { [weak self] in
       await previous?.value
       guard let self, self.epoch == epoch else { return }
       await work(self)
     }
     queue = next
+    queued[id] = next
     await next.value
+    queued[id] = nil
   }
 
   private func read() async {

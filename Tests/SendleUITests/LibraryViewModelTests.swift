@@ -274,6 +274,35 @@ struct LibraryViewModelTests {
     #expect(await eventually { model.activeDestination == .usb(oasis) })
   }
 
+  @Test func theKindleReadStaysWhileItIsPluggedInAndAnotherArrives() async {
+    let basic = KindleVolume.fixture(name: "Kindle Basic")
+    let paperwhite = KindleVolume.fixture(name: "Kindle Paperwhite")
+    let (model, _) = makeModel()
+    await model.start()
+    monitor.update([paperwhite])
+    #expect(await eventually { model.kindleVolume == paperwhite })
+
+    monitor.update([basic, paperwhite])
+    #expect(await eventually { model.destinations.count == 3 })
+    #expect(model.kindleVolume == paperwhite)
+
+    monitor.update([basic])
+    #expect(await eventually { model.kindleVolume == basic })
+  }
+
+  @Test func theChosenKindleIsTheOneRead() async {
+    let oasis = KindleVolume.fixture(name: "Kindle Oasis")
+    let (model, _) = makeModel()
+    await model.start()
+    monitor.update([kindle, oasis])
+    #expect(await eventually { model.destinations.count == 3 })
+    #expect(model.kindleVolume == kindle)
+
+    await model.activate(.usb(oasis))
+
+    #expect(model.kindleVolume == oasis)
+  }
+
   @Test func activeKindFollowsTheActiveDestination() async {
     let (model, _) = makeModel()
     await model.start()

@@ -323,11 +323,12 @@ package struct FilterBar: View {
   }
 
   package var body: some View {
-    FilterRow(library: library) {
+    FilterRow(library: library, selected: library.filter) {
       ForEach(library.filters, id: \.self) { filter in
         Button(filter.title) { library.filter = filter }
           .buttonStyle(FilterPillStyle(isOn: library.filter == filter))
           .accessibilityAddTraits(library.filter == filter ? .isSelected : [])
+          .id(filter)
       }
     } format: {
       FormatMenu(library: library)
@@ -341,11 +342,12 @@ struct KindleFilterBar: View {
   @Bindable var kindle: KindleViewModel
 
   var body: some View {
-    FilterRow(library: library, sortHelp: "Sort this Kindle") {
+    FilterRow(library: library, selected: kindle.scope, sortHelp: "Sort this Kindle") {
       ForEach(KindleScope.allCases, id: \.self) { scope in
         Button(scope.title) { kindle.scope = scope }
           .buttonStyle(FilterPillStyle(isOn: kindle.scope == scope))
           .accessibilityAddTraits(kindle.scope == scope ? .isSelected : [])
+          .id(scope)
       }
     } format: {
       KindleFormatMenu(kindle: kindle)
@@ -353,19 +355,41 @@ struct KindleFilterBar: View {
   }
 }
 
-/// Scope pills that scroll when they don't fit, beside the menus and layouts that stay put.
-private struct FilterRow<Scopes: View, Format: View>: View {
+/// Scope pills that scroll when they don't fit, beside the menus and layouts that stay put. The
+/// chosen pill is kept in view and the strip fades where it is cut off.
+private struct FilterRow<Scopes: View, Format: View, Selection: Hashable>: View {
+  private static var fadeWidth: CGFloat { 14 }
+
   let library: LibraryViewModel
+  let selected: Selection
   var sortHelp = "Sort the library"
   @ViewBuilder let scopes: Scopes
   @ViewBuilder let format: Format
+  @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
   var body: some View {
     HStack(spacing: 5) {
-      ScrollView(.horizontal) {
-        HStack(spacing: 5) { scopes }
+      ScrollViewReader { proxy in
+        ScrollView(.horizontal) {
+          HStack(spacing: 5) { scopes }.padding(.trailing, Self.fadeWidth)
+        }
+        .scrollIndicators(.never)
+        .mask(alignment: .trailing) {
+          HStack(spacing: 0) {
+            Rectangle()
+            LinearGradient(
+              colors: [.black, .clear], startPoint: .leading, endPoint: .trailing
+            )
+            .frame(width: Self.fadeWidth)
+          }
+        }
+        .onAppear { proxy.scrollTo(selected, anchor: .center) }
+        .onChange(of: selected) {
+          withAnimation(reduceMotion ? nil : Theme.press) {
+            proxy.scrollTo(selected, anchor: .center)
+          }
+        }
       }
-      .scrollIndicators(.never)
       format
       SortMenu(library: library, help: sortHelp)
       LayoutSwitcher(library: library)

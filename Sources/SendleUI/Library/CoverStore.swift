@@ -53,11 +53,12 @@ package final class CoverCache<Key: Hashable> {
     }
     loads[key] = task
     await task.value
-    loads[key] = nil
+    if loads[key] == task { loads[key] = nil }
   }
 
   package func removeAll() {
     slots = [:]
+    loads = [:]
   }
 }
 

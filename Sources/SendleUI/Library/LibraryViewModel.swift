@@ -61,6 +61,9 @@ public final class LibraryViewModel {
   package private(set) var preferredDestination = DestinationKind.email
   /// The Kindle chosen among several. It isn't saved: a Kindle's id is where it mounts.
   private var preferredVolume: KindleVolume?
+  /// The Kindle read while email is the destination: it stays while plugged in, so another one
+  /// arriving doesn't switch what the Kindle side shows.
+  private var readVolume: KindleVolume?
   package private(set) var selection = Selection()
   package var hovered: BookID?
   /// Told when a reload fails but the books from the last good one stay on screen.
@@ -127,8 +130,9 @@ public final class LibraryViewModel {
 
   package var isKindlePluggedIn: Bool { !volumes.isEmpty }
 
-  /// The Kindle to read: the active destination's when it is USB, otherwise the first plugged in.
-  package var kindleVolume: KindleVolume? { activeDestination?.volume ?? volumes.first }
+  /// The Kindle to read: the active destination's when it is USB, otherwise the one already read
+  /// while it is plugged in, otherwise the first.
+  package var kindleVolume: KindleVolume? { activeDestination?.volume ?? readVolume }
 
   /// Something to send to; the selection itself only ever holds books that can go there.
   package var canSend: Bool { activeDestination != nil }
@@ -331,6 +335,7 @@ public final class LibraryViewModel {
     volumes = destinations.compactMap {
       if case .usb(let volume) = $0 { volume } else { nil }
     }
+    if readVolume.map({ !volumes.contains($0) }) ?? true { readVolume = volumes.first }
     refreshItems()
     onKindleInputsChange?()
   }

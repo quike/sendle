@@ -44,6 +44,26 @@ struct PanelKindleTests {
     #expect(await eventually { panel.side == .library && panel.library.kindleMatches == nil })
   }
 
+  @Test func unpluggingTheKindleMidListingGoesBackToTheLibrary() async {
+    let gate = Signal()
+    let kindle = FakeKindleLibrary(.success(.fixture([.fixture()])))
+    kindle.gate = gate
+    let (panel, _) = harness.makePanel(kindle: kindle)
+    await panel.launch()
+    harness.monitor.update([.fixture()])
+    #expect(await eventually { panel.kindle.state == .reading(done: 0, total: 0) })
+    panel.showSide(.kindle)
+
+    harness.monitor.update([])
+    #expect(await eventually { panel.side == .library && panel.kindle.state == .idle })
+    await gate.fire()
+    await panel.kindle.rematch()
+
+    #expect(panel.kindle.listing == nil)
+    #expect(panel.library.kindleMatches == nil)
+    #expect(panel.side == .library)
+  }
+
   @Test func theKindleFollowsTheDestinationsVolume() async {
     let kindle = FakeKindleLibrary()
     let oasis = KindleVolume.fixture(name: "Kindle Oasis")

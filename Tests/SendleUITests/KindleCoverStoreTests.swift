@@ -89,4 +89,25 @@ struct KindleCoverStoreTests {
     store.reset()
     #expect(store.slot(for: book, size: .large).isPending)
   }
+
+  @Test func aReadStartedBeforeAResetDoesNotStandInForALaterOne() async {
+    let cache = CoverCache<Int>()
+    let started = Signal()
+    let gate = Signal()
+    let old = Task {
+      await cache.load(1) {
+        await started.fire()
+        await gate.wait()
+        return .image(Data("old".utf8))
+      }
+    }
+    await started.wait()
+
+    cache.removeAll()
+    await cache.load(1) { .image(Data("new".utf8)) }
+    await gate.fire()
+    await old.value
+
+    #expect(cache.slot(for: 1).data == Data("new".utf8))
+  }
 }

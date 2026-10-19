@@ -23,10 +23,10 @@ package enum Formatting {
 
   /// "12 Oct 2025", in English whatever the Mac's locale.
   package static func day(_ date: Date, in zone: TimeZone = .current) -> String {
-    let formatter = DateFormatter()
-    formatter.locale = Locale(identifier: "en_US_POSIX")
-    formatter.timeZone = zone
-    formatter.dateFormat = "d MMM yyyy"
-    return formatter.string(from: date)
+    date.formatted(
+      Date.VerbatimFormatStyle(
+        format: "\(day: .defaultDigits) \(month: .abbreviated) \(year: .defaultDigits)",
+        locale: Locale(identifier: "en_US_POSIX"), timeZone: zone,
+        calendar: Calendar(identifier: .gregorian)))
   }
 }
