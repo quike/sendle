@@ -1,5 +1,4 @@
 import Foundation
-import ImageIO
 import UniformTypeIdentifiers
 
 /// A Kindle's library doesn't draw a sideloaded book's cover from the book. It looks in

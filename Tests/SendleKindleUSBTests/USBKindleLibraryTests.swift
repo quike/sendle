@@ -154,4 +154,65 @@ struct USBKindleLibraryTests {
         "info USB Read Kindle (device TEST-UUID): 1 books, 1 read and 0 from the cache, in ")
         == true)
   }
+
+  @Test func aFolderItCannotReadIsAnErrorNotAnEmptyShelf() async throws {
+    try tree.write("Sub/a.txt", "x")
+    try tree.write("b.txt", "x")
+    let sub = tree.documents.appending(path: "Sub")
+    try FileManager.default.setAttributes([.posixPermissions: 0], ofItemAtPath: sub.path)
+    defer {
+      try? FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: sub.path)
+    }
+    await #expect(throws: KindleListingError.self) {
+      _ = try await library().listing(of: tree.volume, progress: { _, _ in })
+    }
+    #expect(!FileManager.default.fileExists(atPath: tree.cacheFile("TEST-UUID").path))
+  }
+
+  @Test func aDocumentsFolderItCannotReadIsAnErrorNotAnEmptyShelf() async throws {
+    try tree.write("a.txt", "x")
+    let documents = tree.documents
+    try FileManager.default.setAttributes([.posixPermissions: 0], ofItemAtPath: documents.path)
+    defer {
+      try? FileManager.default.setAttributes(
+        [.posixPermissions: 0o755], ofItemAtPath: documents.path)
+    }
+    do {
+      _ = try await library().listing(of: tree.volume, progress: { _, _ in })
+      Issue.record("an unreadable Kindle listed as empty")
+    } catch {
+      guard case .unreadable = error else {
+        Issue.record("expected .unreadable, got \(error)")
+        return
+      }
+    }
+  }
+
+  @Test func listingLeavesTheKindleAsItWas() async throws {
+    try tree.write("a.azw3", MOBIBuilder.book(exth: [(503, "A"), (113, "SN5T2DYX77")]))
+    try tree.write("b.pdf", makePDF(title: "B", author: nil))
+    try tree.write("Downloads/Items01/C_B007978NPG.kfx", "kfx")
+    try tree.write("Downloads/Items01/C_B007978NPG.sdr/assets/voucher", "v")
+    try tree.write("notes.txt", "x")
+    try tree.writeRoot("system/thumbnails/thumbnail_SN5T2DYX77_EBOK_portrait.jpg", "jpg")
+    let before = try snapshot()
+    let library = library()
+    _ = try await library.listing(of: tree.volume, progress: { _, _ in })
+    _ = try await library.listing(of: tree.volume, progress: { _, _ in })
+    #expect(try snapshot() == before)
+    #expect(!(try snapshot().keys.contains { $0.contains("._") }))
+  }
+
+  /// Each entry's path with its size and date, so a new, removed or touched file shows.
+  private func snapshot() throws -> [String: String] {
+    var result: [String: String] = [:]
+    for path in try FileManager.default.subpathsOfDirectory(atPath: tree.root.path) {
+      let attributes = try FileManager.default.attributesOfItem(
+        atPath: tree.root.appending(path: path).path)
+      let size = (attributes[.size] as? NSNumber)?.int64Value ?? 0
+      let date = (attributes[.modificationDate] as? Date)?.timeIntervalSince1970 ?? 0
+      result[path] = "\(size) \(date)"
+    }
+    return result
+  }
 }

@@ -6,8 +6,13 @@ import UniformTypeIdentifiers
 
 /// The cover of a book on a Kindle, read from the Kindle and never written to it.
 package enum KindleCovers {
-  /// The Kindle's own thumbnail comes first, since that is the cover its library shows.
+  /// A cover record larger than this is a damaged offset, not a picture.
+  static let maxEmbeddedCover = 8 << 20
+
+  /// The Kindle's own thumbnail comes first, since that is the cover its library shows. A book
+  /// that can't be opened is `.unreadable`, one that opens without a cover is `.none`.
   package static func cover(of book: KindleBook, onKindleAt root: URL, maxPixel: Int) -> Cover {
+    if Task.isCancelled { return .unreadable }
     if let thumbnail = thumbnail(of: book, onKindleAt: root),
       let png = KindleImages.scaled(thumbnail, maxPixel: maxPixel, as: .png)
     {
@@ -15,12 +20,11 @@ package enum KindleCovers {
     }
     let file = root.appending(path: "documents").appending(path: book.id.relativePath)
     guard FileManager.default.fileExists(atPath: file.path) else { return .unreadable }
-    let image: Data?
-    switch book.format {
-    case "pdf": image = firstPage(ofPDFAt: file, maxPixel: maxPixel)
-    case "txt", "kfx": image = nil
-    default: image = embeddedCover(ofMobiAt: file)
-    }
+    let format = book.format
+    if format == "txt" || format == "kfx" { return .none }
+    guard let bytes = FileBytes(url: file), !Task.isCancelled else { return .unreadable }
+    let image =
+      format == "pdf" ? firstPage(ofPDFAt: file, maxPixel: maxPixel) : embeddedCover(in: bytes)
     return image.flatMap { KindleImages.scaled($0, maxPixel: maxPixel, as: .png) }.map(Cover.image)
       ?? .none
   }
@@ -32,8 +36,8 @@ package enum KindleCovers {
         .appending(path: "thumbnail_\(asin)_\(type)_portrait.jpg"))
   }
 
-  private static func embeddedCover(ofMobiAt file: URL) -> Data? {
-    guard let bytes = FileBytes(url: file), let range = MobiLayout(bytes)?.cover else { return nil }
+  private static func embeddedCover(in bytes: FileBytes) -> Data? {
+    guard let range = MobiLayout(bytes)?.cover, range.count <= maxEmbeddedCover else { return nil }
     return bytes.bytes(range).map { Data($0) }
   }
 

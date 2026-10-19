@@ -80,6 +80,14 @@ public struct KindleBook: Identifiable, Hashable, Sendable, Codable {
     self.modified = modified
   }
 
+  public func withSource(_ source: KindleBookSource) -> KindleBook {
+    KindleBook(
+      id: id, title: title, authors: authors, source: source, asin: asin,
+      documentType: documentType, isbn: isbn, publisher: publisher,
+      asinFollowsFileName: asinFollowsFileName, isProtected: isProtected, byteCount: byteCount,
+      modified: modified)
+  }
+
   /// The lowercased extension.
   public var format: String {
     let name = fileName

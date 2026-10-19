@@ -46,7 +46,7 @@ public struct USBKindleLibrary: KindleLibrary {
     let start = clock.now
     let documents = volume.mountURL.appending(path: "documents", directoryHint: .isDirectory)
     guard Self.isFolder(documents) else { throw .deviceDisconnected }
-    let files = Self.files(under: documents)
+    let files = try Self.files(under: documents)
     let calibreLibrary = FileManager.default.fileExists(
       atPath: volume.mountURL.appending(path: "metadata.calibre").path)
     let device = deviceKey(volume)
@@ -54,24 +54,30 @@ public struct USBKindleLibrary: KindleLibrary {
     var reused = 0
     await progress(0, files.count)
     var books: [KindleBook] = []
+    var cacheable: [KindleBook] = []
     for (index, file) in files.enumerated() {
       if Task.isCancelled { throw .cancelled }
       guard Self.isFolder(documents) else { throw .deviceDisconnected }
       if let book = cached[file.relativePath], book.byteCount == file.size,
         book.modified == file.modified
       {
-        books.append(book.detectingSource(calibreLibrary: calibreLibrary))
+        let book = book.withSource(
+          KindleBookSource.detect(
+            relativePath: book.id.relativePath, asin: book.asin, calibreLibrary: calibreLibrary))
+        books.append(book)
+        cacheable.append(book)
         reused += 1
       } else {
-        books.append(
-          KindleBookReader.read(
-            file.url, relativePath: file.relativePath, size: file.size, modified: file.modified,
-            calibreLibrary: calibreLibrary))
+        let reading = KindleBookReader.read(
+          file.url, relativePath: file.relativePath, size: file.size, modified: file.modified,
+          calibreLibrary: calibreLibrary)
+        books.append(reading.book)
+        if reading.readHeaders { cacheable.append(reading.book) }
       }
       await progress(index + 1, files.count)
     }
     guard Self.isFolder(documents) else { throw .deviceDisconnected }
-    cache.save(books, device: device)
+    cache.save(cacheable, device: device)
     log.info(
       .usb,
       "Read \(volume.name) (device \(device)): \(books.count) books, "
@@ -97,14 +103,19 @@ public struct USBKindleLibrary: KindleLibrary {
   ]
 
   /// The books under `documents`, in path order. A name starting with "." or a folder ending
-  /// ".sdr" (a book's sidecar) is not a book, nor is anything inside it.
-  private static func files(under documents: URL) -> [File] {
+  /// ".sdr" (a book's sidecar) is not a book, nor is anything inside it. A folder that can't be
+  /// read fails the listing, since a partial one would pass for a Kindle without those books.
+  private static func files(under documents: URL) throws(KindleListingError) -> [File] {
+    let failure = FirstError()
     guard
       let walker = FileManager.default.enumerator(
         at: documents, includingPropertiesForKeys: keys, options: [],
-        errorHandler: { _, _ in true })
-    else { return [] }
-    let rootComponents = documents.resolvingSymlinksInPath().pathComponents.count
+        errorHandler: { _, error in
+          failure.record(error)
+          return false
+        })
+    else { throw .unreadable(documents.lastPathComponent) }
+    let prefix = documents.path + "/"
     var files: [File] = []
     while let url = walker.nextObject() as? URL {
       let name = url.lastPathComponent
@@ -117,14 +128,34 @@ public struct USBKindleLibrary: KindleLibrary {
         name.caseInsensitiveCompare("My Clippings.txt") != .orderedSame,
         KindleBookReader.formats.contains(url.pathExtension.lowercased())
       else { continue }
-      let relative = url.resolvingSymlinksInPath().pathComponents.dropFirst(rootComponents)
       files.append(
         File(
-          url: url, relativePath: relative.joined(separator: "/"),
+          url: url, relativePath: relativePath(of: url, under: documents, prefix: prefix),
           size: Int64(values?.fileSize ?? 0),
           modified: values?.contentModificationDate ?? .distantPast))
     }
+    if let error = failure.error {
+      throw isFolder(documents) ? .unreadable(error.localizedDescription) : .deviceDisconnected
+    }
     return files.sorted { $0.relativePath < $1.relativePath }
+  }
+
+  /// The enumerator hands back paths under the URL it was given, unless it resolved a link on the way.
+  private static func relativePath(of url: URL, under documents: URL, prefix: String) -> String {
+    if url.path.hasPrefix(prefix) { return String(url.path.dropFirst(prefix.count)) }
+    let root = documents.resolvingSymlinksInPath().pathComponents.count
+    return url.resolvingSymlinksInPath().pathComponents.dropFirst(root).joined(separator: "/")
+  }
+
+  private final class FirstError: @unchecked Sendable {
+    private let lock = NSLock()
+    private var first: (any Error)?
+
+    var error: (any Error)? { lock.withLock { first } }
+
+    func record(_ error: any Error) {
+      lock.withLock { first = first ?? error }
+    }
   }
 
   private static func isFolder(_ url: URL) -> Bool {
@@ -136,18 +167,5 @@ public struct USBKindleLibrary: KindleLibrary {
   private static func availableCapacity(_ mount: URL) -> Int64? {
     (try? mount.resourceValues(forKeys: [.volumeAvailableCapacityKey]))?
       .volumeAvailableCapacity.map(Int64.init)
-  }
-}
-
-extension KindleBook {
-  /// The book with its source worked out again, since `metadata.calibre` may have come or gone.
-  fileprivate func detectingSource(calibreLibrary: Bool) -> KindleBook {
-    KindleBook(
-      id: id, title: title, authors: authors,
-      source: KindleBookSource.detect(
-        relativePath: id.relativePath, asin: asin, calibreLibrary: calibreLibrary),
-      asin: asin, documentType: documentType, isbn: isbn, publisher: publisher,
-      asinFollowsFileName: asinFollowsFileName, isProtected: isProtected, byteCount: byteCount,
-      modified: modified)
   }
 }

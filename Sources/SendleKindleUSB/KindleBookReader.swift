@@ -12,9 +12,15 @@ package enum KindleBookReader {
   ]
   private static let drmionMagic: [UInt8] = [0xEA, 0x44, 0x52, 0x4D, 0x49, 0x4F, 0x4E, 0xEE]
 
+  package struct Reading {
+    package let book: KindleBook
+    /// False when the file's headers couldn't be read, so the book is listed by its file name.
+    package let readHeaders: Bool
+  }
+
   package static func read(
     _ file: URL, relativePath: String, size: Int64, modified: Date, calibreLibrary: Bool
-  ) -> KindleBook {
+  ) -> Reading {
     let parsed = KindleFileName.parse(relativePath)
     let format = file.pathExtension.lowercased()
     var details = Details(title: parsed.title, authors: parsed.authors)
@@ -28,7 +34,7 @@ package enum KindleBookReader {
     let asinFollowsFileName =
       details.asin != nil
       && details.asin == AZW3Metadata.asin(for: file.deletingPathExtension().lastPathComponent)
-    return KindleBook(
+    let book = KindleBook(
       id: KindleBookID(relativePath: relativePath),
       title: details.title,
       authors: details.authors,
@@ -42,6 +48,7 @@ package enum KindleBookReader {
       isProtected: details.isProtected,
       byteCount: size,
       modified: modified)
+    return Reading(book: book, readHeaders: details.readHeaders)
   }
 
   private struct Details {
@@ -52,11 +59,14 @@ package enum KindleBookReader {
     var isbn: String?
     var publisher: String?
     var isProtected = false
+    var readHeaders = true
   }
 
   private static func mobiDetails(of file: URL, filling details: Details) -> Details {
     guard let bytes = FileBytes(url: file), let metadata = MobiMetadata(bytes) else {
-      return details
+      var result = details
+      result.readHeaders = false
+      return result
     }
     var result = details
     result.title = metadata.title ?? details.title
@@ -70,7 +80,11 @@ package enum KindleBookReader {
   }
 
   private static func pdfDetails(of file: URL, filling details: Details) -> Details {
-    guard let document = PDFDocument(url: file) else { return details }
+    guard let document = PDFDocument(url: file) else {
+      var result = details
+      result.readHeaders = false
+      return result
+    }
     var result = details
     let attributes = document.documentAttributes
     if let title = text(attributes?[PDFDocumentAttribute.titleAttribute]) { result.title = title }

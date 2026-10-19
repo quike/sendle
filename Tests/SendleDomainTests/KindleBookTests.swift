@@ -70,4 +70,19 @@ struct KindleBookTests {
       book.url(on: .fixture()).path
         == "/Volumes/Kindle/documents/Abreu, Andrea/Panza de burro - Andrea Abreu.AZW3")
   }
+
+  @Test func withSourceChangesOnlyTheSource() {
+    let book = KindleBook.fixture(
+      asin: "SN5T2DYX77", documentType: "EBOK", isbn: "9780306406157", publisher: "Penguin",
+      asinFollowsFileName: true, isProtected: true)
+    let moved = book.withSource(.calibre)
+    #expect(moved.source == .calibre)
+    #expect(
+      moved
+        == KindleBook(
+          id: book.id, title: book.title, authors: book.authors, source: .calibre, asin: book.asin,
+          documentType: book.documentType, isbn: book.isbn, publisher: book.publisher,
+          asinFollowsFileName: true, isProtected: true, byteCount: book.byteCount,
+          modified: book.modified))
+  }
 }

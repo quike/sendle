@@ -42,6 +42,38 @@ struct KindleListingCacheTests {
     #expect(log.summary.last?.contains("1 read and 0 from the cache") == true)
   }
 
+  @Test func aNewDateAloneIsReadAgain() async throws {
+    try tree.write("a.txt", "x")
+    try touch("a.txt", 1_700_000_000)
+    _ = try await library().listing(of: tree.volume, progress: { _, _ in })
+    try tree.write("a.txt", "y")
+    try touch("a.txt", 1_700_000_100)
+    _ = try await library().listing(of: tree.volume, progress: { _, _ in })
+    #expect(log.summary.last?.contains("1 read and 0 from the cache") == true)
+  }
+
+  @Test func theSameSizeAndDateIsNotReadAgain() async throws {
+    try tree.write("a.txt", "x")
+    try touch("a.txt", 1_700_000_000)
+    _ = try await library().listing(of: tree.volume, progress: { _, _ in })
+    try tree.write("a.txt", "y")
+    try touch("a.txt", 1_700_000_000)
+    _ = try await library().listing(of: tree.volume, progress: { _, _ in })
+    #expect(log.summary.last?.contains("0 read and 1 from the cache") == true)
+  }
+
+  @Test func aBookItCouldNotOpenIsNotCached() async throws {
+    try tree.write("A - B.azw3", MOBIBuilder.book(exth: [(503, "A"), (113, "SN5T2DYX77")]))
+    let file = tree.documents.appending(path: "A - B.azw3")
+    try FileManager.default.setAttributes([.posixPermissions: 0], ofItemAtPath: file.path)
+    let name = try await library().listing(of: tree.volume, progress: { _, _ in }).books.first
+    #expect(name?.asin == nil)
+    #expect(KindleListingCache(directory: tree.cache).load(device: "TEST-UUID").isEmpty)
+    try FileManager.default.setAttributes([.posixPermissions: 0o644], ofItemAtPath: file.path)
+    let book = try await library().listing(of: tree.volume, progress: { _, _ in }).books.first
+    #expect(book?.asin == "SN5T2DYX77")
+  }
+
   @Test func eachKindleHasItsOwnCache() async throws {
     try tree.write("a.txt", "x")
     _ = try await library(device: "ONE").listing(of: tree.volume, progress: { _, _ in })
@@ -122,5 +154,11 @@ struct KindleListingCacheTests {
   @Test func theDeviceIsItsVolumeUUIDOrItsName() {
     #expect(USBKindleLibrary.deviceKey(uuid: "1234-ABCD", name: "Kindle") == "1234-ABCD")
     #expect(USBKindleLibrary.deviceKey(uuid: nil, name: "Kindle") == "Kindle")
+  }
+
+  private func touch(_ path: String, _ time: TimeInterval) throws {
+    try FileManager.default.setAttributes(
+      [.modificationDate: Date(timeIntervalSince1970: time)],
+      ofItemAtPath: tree.documents.appending(path: path).path)
   }
 }

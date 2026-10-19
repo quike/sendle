@@ -77,6 +77,49 @@ struct KindleCoversTests {
     }
   }
 
+  @Test func aBookItCannotOpenIsUnreadableNotCoverless() throws {
+    for name in ["a.azw3", "b.pdf"] { try tree.write(name, "x") }
+    let files = ["a.azw3", "b.pdf"].map { tree.documents.appending(path: $0).path }
+    for file in files {
+      try FileManager.default.setAttributes([.posixPermissions: 0], ofItemAtPath: file)
+    }
+    defer {
+      for file in files {
+        try? FileManager.default.setAttributes([.posixPermissions: 0o644], ofItemAtPath: file)
+      }
+    }
+    for path in ["a.azw3", "b.pdf"] {
+      #expect(
+        KindleCovers.cover(of: .fixture(path: path), onKindleAt: tree.root, maxPixel: 120)
+          == .unreadable)
+    }
+  }
+
+  @Test func anOversizedEmbeddedCoverIsLeftAlone() throws {
+    let cover = makeJPEG(width: 80, height: 110) + Data(count: 9 << 20)
+    try tree.write("big.azw3", MOBIBuilder.book(exth: [(503, "Big")], cover: cover))
+    #expect(
+      KindleCovers.cover(of: .fixture(path: "big.azw3"), onKindleAt: tree.root, maxPixel: 120)
+        == .none)
+  }
+
+  @Test func aCancelledCoverReadsNothing() async throws {
+    try tree.write(
+      "a.azw3", MOBIBuilder.book(exth: [(503, "A")], cover: makeJPEG(width: 80, height: 110)))
+    let library = USBKindleLibrary(
+      cacheDirectory: tree.cache, deviceKey: { _ in "K" }, freeSpace: { _ in nil },
+      log: FakeActivityLog())
+    let volume = tree.volume
+    let started = Signal()
+    let task = Task {
+      await started.wait()
+      return await library.cover(of: .fixture(path: "a.azw3"), on: volume, maxPixel: 120)
+    }
+    task.cancel()
+    await started.fire()
+    #expect(await task.value == .unreadable)
+  }
+
   @Test func neverWritesToTheKindle() throws {
     try tree.write(
       "a.azw3",
