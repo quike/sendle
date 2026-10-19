@@ -62,7 +62,7 @@ struct EmailDeliveryChannelTests {
   ) async -> SendFailure? {
     do {
       try await channel(transport, email: email, log: log).deliver(
-        file, named: "Moby-Dick - Herman Melville"
+        file, named: "Moby-Dick"
       ) { _ in }
       return nil
     } catch {
@@ -82,9 +82,19 @@ struct EmailDeliveryChannelTests {
     #expect(written.contains("AUTH PLAIN \(plainToken)\r\n"))
     #expect(written.contains { $0.hasPrefix("MAIL FROM:<me@gmail.com>") })
     #expect(written.contains("RCPT TO:<reader@kindle.com>\r\n"))
-    #expect(message.contains("Subject: Moby-Dick - Herman Melville\r\n"))
-    #expect(message.contains("filename=\"Moby-Dick - Herman Melville.epub\""))
+    #expect(message.contains("Subject: Moby-Dick\r\n"))
+    #expect(message.contains("filename=\"Moby-Dick.epub\""))
     #expect(transport.written.last == "QUIT\r\n")
+  }
+
+  @Test func keepsAccentsAndColonsInTheSubjectAndAttachmentName() async throws {
+    let transport = ScriptedSMTPTransport(accepting())
+
+    try await channel(transport).deliver(try file(), named: "Édité: Suite") { _ in }
+
+    let message = transport.written.drop { $0 != "DATA\r\n" }.dropFirst().joined()
+    #expect(message.contains("Subject: =?UTF-8?B?w4lkaXTDqTogU3VpdGU=?=\r\n"))
+    #expect(message.contains("filename*=UTF-8''%C3%89dit%C3%A9%3A%20Suite.epub"))
   }
 
   @Test(arguments: [

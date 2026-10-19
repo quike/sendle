@@ -63,7 +63,7 @@ struct SendBooksTests {
         .uploading(book.id, fraction: 1),
         .sent(book.id, fixes: [.addedLanguage]),
       ])
-    #expect(harness.channel.deliveries.map(\.name) == ["Moby-Dick - Herman Melville"])
+    #expect(harness.channel.deliveries.map(\.name) == ["Moby-Dick"])
     #expect(harness.channel.deliveries.map(\.file.format) == [.epub])
     #expect(harness.channels.requestedDestinations == [email])
     #expect(
@@ -162,6 +162,7 @@ struct SendBooksTests {
 
     #expect(harness.converter.convertedFiles.map(\.format) == [.epub])
     #expect(harness.channel.deliveries.map(\.file.format) == [.azw3])
+    #expect(harness.channel.deliveries.map(\.name) == ["Moby-Dick - Herman Melville"])
     #expect(events.last == .sent(book.id, fixes: [.addedXMLDeclaration]))
   }
 

@@ -134,7 +134,8 @@ public struct SendBooks: Sendable {
       case .deliver:
         let channel = try await channels.channel(for: destination)
         try await deliver(
-          file, named: FileNaming.baseName(for: book), via: channel, to: destination
+          file, named: FileNaming.deliveryName(for: book, to: destination.kind), via: channel,
+          to: destination
         ) { fraction in
           await onEvent(.uploading(book.id, fraction: fraction))
         }
