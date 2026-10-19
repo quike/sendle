@@ -4,6 +4,7 @@ import SendleDomain
 /// Every setting the search can find, in the order the sections list them.
 package enum SettingsItem: CaseIterable, Sendable {
   case launchAtLogin
+  case controls
   case jumpBar
   case showFormat
   case showLogs
@@ -21,6 +22,7 @@ package enum SettingsItem: CaseIterable, Sendable {
   package var title: String {
     switch self {
     case .launchAtLogin: "Launch at login"
+    case .controls: "Controls"
     case .jumpBar: "A–Z bar"
     case .showFormat: "Show book format"
     case .showLogs: "Show logs"
@@ -39,7 +41,7 @@ package enum SettingsItem: CaseIterable, Sendable {
 
   package var section: SettingsSection {
     switch self {
-    case .launchAtLogin, .jumpBar, .showFormat, .showLogs: .general
+    case .launchAtLogin, .controls, .jumpBar, .showFormat, .showLogs: .general
     case .kindleAddresses, .addAddress, .approvedSenders: .kindle
     case .mailProvider, .senderAddress, .appPassword, .mailServer, .sendTest: .sender
     case .boko, .bokoLocation: .usb
@@ -56,6 +58,7 @@ package enum SettingsItem: CaseIterable, Sendable {
   var keywords: [String] {
     switch self {
     case .launchAtLogin: ["startup", "start", "open"]
+    case .controls: ["attached", "floating", "send bar", "cards", "detached"]
     case .jumpBar: ["a-z", "az", "alphabet", "letters", "index", "sort", "rail", "jump"]
     case .showFormat: ["epub", "pdf", "badge", "label", "cover", "type"]
     case .showLogs: ["debug", "troubleshooting", "diagnostics"]

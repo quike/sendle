@@ -502,6 +502,17 @@ struct LibraryViewModelTests {
     #expect(model.jumpBar == .compact)
   }
 
+  @Test func startsWithTheRememberedControlsAndFollowsAChange() async throws {
+    let (model, settings) = makeModel(AppSettings(controls: .floating))
+    await model.start()
+    #expect(model.controls == .floating)
+
+    try await settings.update { $0.controls = .attached }
+    await model.refreshSettings()
+
+    #expect(model.controls == .attached)
+  }
+
   @Test func coversShowTheirFormatUnlessOneFormatIsChosen() async {
     let (model, _) = makeModel()
     await model.start()

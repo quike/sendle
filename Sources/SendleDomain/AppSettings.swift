@@ -19,12 +19,21 @@ public enum JumpBarStyle: String, Sendable, Codable, CaseIterable {
   case compact
 }
 
+/// Where the send bar and the A–Z bar sit.
+public enum ControlsStyle: String, Sendable, Codable, CaseIterable {
+  /// Inside the panel's card.
+  case attached
+  /// On cards of their own, below and beside the panel's card.
+  case floating
+}
+
 public struct AppSettings: Hashable, Sendable, Codable {
   public var email: EmailSettings?
   public var layout: LibraryLayout
   public var activeDestination: DestinationKind
   public var sort: LibrarySort
   public var jumpBar: JumpBarStyle
+  public var controls: ControlsStyle
   public var showsFormat: Bool
   public var showsLogs: Bool
   /// Kindle addresses kept for later; `email.kindleAddress` is the active one.
@@ -40,6 +49,7 @@ public struct AppSettings: Hashable, Sendable, Codable {
     activeDestination: DestinationKind = .email,
     sort: LibrarySort = .recent,
     jumpBar: JumpBarStyle = .full,
+    controls: ControlsStyle = .attached,
     showsFormat: Bool = true,
     showsLogs: Bool = false,
     kindleAddresses: [KindleEmail] = [],
@@ -50,6 +60,7 @@ public struct AppSettings: Hashable, Sendable, Codable {
     self.activeDestination = activeDestination
     self.sort = sort
     self.jumpBar = jumpBar
+    self.controls = controls
     self.showsFormat = showsFormat
     self.showsLogs = showsLogs
     self.kindleAddresses = kindleAddresses
@@ -66,6 +77,8 @@ public struct AppSettings: Hashable, Sendable, Codable {
       (try? container.decodeIfPresent(DestinationKind.self, forKey: .activeDestination)) ?? .email
     sort = (try? container.decodeIfPresent(LibrarySort.self, forKey: .sort)) ?? .recent
     jumpBar = (try? container.decodeIfPresent(JumpBarStyle.self, forKey: .jumpBar)) ?? .full
+    controls =
+      (try? container.decodeIfPresent(ControlsStyle.self, forKey: .controls)) ?? .attached
     showsFormat = (try? container.decodeIfPresent(Bool.self, forKey: .showsFormat)) ?? true
     showsLogs = (try? container.decodeIfPresent(Bool.self, forKey: .showsLogs)) ?? false
     kindleAddresses =

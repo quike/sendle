@@ -116,6 +116,9 @@ public final class PanelModel {
   /// The logs button shows while Settings › General › Show logs is on.
   package var showsLogs: Bool { settings.showsLogs }
 
+  /// Settings › General › Controls: the send bar and the A–Z bar inside the card, or floating.
+  package var controls: ControlsStyle { library.controls }
+
   /// Kindle covers carry their format, as the library's do, until the format menu picks one.
   package var showsFormatOnKindleCovers: Bool { library.showsFormat && kindle.format == nil }
 

@@ -25,6 +25,14 @@ struct SettingsSearchTests {
     #expect(SettingsItem.showFormat.section == .general)
   }
 
+  @Test func findsTheControlsStyleByNameAndByItsChoices() {
+    #expect(SettingsSearch.results(for: "controls") == [.controls])
+    #expect(SettingsSearch.results(for: "floating") == [.controls])
+    #expect(SettingsSearch.results(for: "send bar") == [.controls])
+    #expect(SettingsItem.controls.title == "Controls")
+    #expect(SettingsItem.controls.section == .general)
+  }
+
   @Test func anEmptySearchFindsNothing() {
     #expect(SettingsSearch.results(for: "  ").isEmpty)
   }

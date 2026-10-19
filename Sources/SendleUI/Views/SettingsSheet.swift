@@ -255,6 +255,27 @@ private struct GeneralPage: View {
       SectionLabel("Library")
       SettingsGroup {
         HStack(spacing: 10) {
+          RowText(
+            title: "Controls",
+            detail: "The send bar and the A–Z bar, inside the panel or on cards of their own.")
+          Spacer(minLength: 8)
+          Picker(
+            "Controls",
+            selection: Binding(
+              get: { settings.controls },
+              set: { style in Task { await settings.setControls(style) } })
+          ) {
+            Text("Attached").tag(ControlsStyle.attached)
+            Text("Floating").tag(ControlsStyle.floating)
+          }
+          .pickerStyle(.segmented)
+          .labelsHidden()
+          .fixedSize()
+        }
+        .padding(12)
+        .settingsHighlight(settings.highlighted == .controls)
+        RowDivider()
+        HStack(spacing: 10) {
           RowText(title: "A–Z bar", detail: "Shown while the library is sorted by title or author.")
           Spacer(minLength: 8)
           Picker(

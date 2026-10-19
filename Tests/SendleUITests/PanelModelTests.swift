@@ -668,6 +668,16 @@ struct PanelModelTests {
     #expect(panel.library.jumpBar == .compact)
   }
 
+  @Test func aControlsStyleChosenInSettingsReachesThePanel() async {
+    let (panel, _) = harness.makePanel()
+    await panel.launch()
+    await panel.openSettings(.general)
+
+    await panel.settings.setControls(.floating)
+
+    #expect(panel.controls == .floating)
+  }
+
   @Test func aTestEmailThatSavedANewSetupShowsItsChip() async {
     let (panel, _) = harness.makePanel(AppSettings())
     await panel.launch()

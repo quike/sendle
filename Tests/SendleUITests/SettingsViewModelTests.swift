@@ -65,7 +65,8 @@ struct SettingsViewModelTests {
     #expect(model.section == nil)
     #expect(
       SettingsSection.allCases.map { model.summary(of: $0) } == [
-        "Doesn't open at login · A–Z bar: Full · Formats on · Logs off", "reader@kindle.com",
+        "Doesn't open at login · Controls: Attached · A–Z bar: Full · Formats on · Logs off",
+        "reader@kindle.com",
         "Gmail · me@gmail.com", "boko not found",
       ])
   }
@@ -145,7 +146,29 @@ struct SettingsViewModelTests {
     #expect(changes == 2)
     #expect(
       model.summary(of: .general)
-        == "Doesn't open at login · A–Z bar: Compact · Formats on · Logs on")
+        == "Doesn't open at login · Controls: Attached · A–Z bar: Compact · Formats on · Logs on")
+  }
+
+  @Test func savesTheControlsStyleAtOnceAndSaysSo() async {
+    let model = makeModel()
+    var changes = 0
+    model.onChange = { changes += 1 }
+    await model.open(at: .general)
+    #expect(model.controls == .attached)
+
+    await model.setControls(.floating)
+
+    #expect(await settings.settings.controls == .floating)
+    #expect(changes == 1)
+    #expect(model.summary(of: .general).contains("Controls: Floating"))
+  }
+
+  @Test func readsTheControlsStyleBeforeSettingsOpen() async {
+    let model = makeModel(InMemorySettingsStore(AppSettings(controls: .floating)))
+
+    await model.start()
+
+    #expect(model.controls == .floating)
   }
 
   @Test func savesTheFormatChoiceAtOnceAndSaysSo() async {
@@ -161,7 +184,7 @@ struct SettingsViewModelTests {
     #expect(changes == 1)
     #expect(
       model.summary(of: .general)
-        == "Doesn't open at login · A–Z bar: Full · Formats off · Logs off")
+        == "Doesn't open at login · Controls: Attached · A–Z bar: Full · Formats off · Logs off")
   }
 
   // MARK: Kindle addresses
@@ -324,7 +347,7 @@ struct SettingsViewModelTests {
     #expect(model.launchAtLoginNote?.contains("Login Items") == true)
     #expect(
       model.summary(of: .general)
-        == "Waiting for approval · A–Z bar: Full · Formats on · Logs off")
+        == "Waiting for approval · Controls: Attached · A–Z bar: Full · Formats on · Logs off")
   }
 
   @Test func explainsWhyLaunchAtLoginCouldNotChange() async {

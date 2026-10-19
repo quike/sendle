@@ -38,7 +38,7 @@ struct AppSettingsTests {
   @Test func roundTripsThroughJSON() throws {
     let settings = AppSettings(
       email: .fixture, layout: .shelf, activeDestination: .usb, sort: .author,
-      jumpBar: .compact, showsFormat: false, showsLogs: true,
+      jumpBar: .compact, controls: .floating, showsFormat: false, showsLogs: true,
       kindleAddresses: [.fixture, KindleEmail(rawValue: "pw5@kindle.com")],
       bokoPath: "/Users/reader/bin/boko")
     let data = try JSONEncoder().encode(settings)
@@ -56,6 +56,7 @@ struct AppSettingsTests {
     #expect(settings.layout == .list)
     #expect(settings.sort == .recent)
     #expect(settings.jumpBar == .full)
+    #expect(settings.controls == .attached)
     #expect(settings.showsFormat)
     #expect(!settings.showsLogs)
     #expect(settings.bokoPath == nil)
@@ -106,7 +107,7 @@ struct AppSettingsTests {
   @Test func unknownValuesFromNewerVersionsFallBackToDefaults() throws {
     let json = #"""
       {"layout": "carousel", "activeDestination": "bluetooth", "sort": "rating",
-      "jumpBar": "huge", "showsFormat": "yes", "showsLogs": "yes", "kindleAddresses": 7, "bokoPath": false}
+      "jumpBar": "huge", "controls": "hovering", "showsFormat": "yes", "showsLogs": "yes", "kindleAddresses": 7, "bokoPath": false}
       """#
     let settings = try JSONDecoder().decode(AppSettings.self, from: Data(json.utf8))
     #expect(settings == .defaults)
@@ -130,5 +131,6 @@ struct PersistedEnumTests {
     #expect(SendOutcome.allCases.map(\.rawValue) == ["sent", "failed", "unconfirmed"])
     #expect(LibrarySort.allCases.map(\.rawValue) == ["recent", "title", "author"])
     #expect(JumpBarStyle.allCases.map(\.rawValue) == ["full", "compact"])
+    #expect(ControlsStyle.allCases.map(\.rawValue) == ["attached", "floating"])
   }
 }
