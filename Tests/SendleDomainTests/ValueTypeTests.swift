@@ -58,6 +58,9 @@ struct ByteCountTests {
     #expect(ByteCount.text(3_584) == "4 KB")
     #expect(ByteCount.text(1_400_000) == "1.4 MB")
     #expect(ByteCount.text(3_100_000_000) == "3.1 GB")
+    #expect(ByteCount.text(999_000_000_000) == "999 GB")
+    #expect(ByteCount.text(3_417_000_000_000) == "3.4 TB")
+    #expect(ByteCount.text(12_800_000_000_000) == "13 TB")
     #expect(ByteCount.text(21_234_000, precise: true) == "21.2 MB")
   }
 }

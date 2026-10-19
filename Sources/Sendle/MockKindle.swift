@@ -4,7 +4,7 @@ import PDFKit
 import SendleKindleUSB
 
 /// The files of a Kindle as snapshot mode mounts it, laid out for the fixture library's books:
-/// Sendle's own copies, a copy of another edition, a calibre book, downloads, a PDF and a note.
+/// Sendle's own copies, a copy of another edition, a calibre book, downloads, a PDF and notes.
 enum MockKindle {
   private struct Book {
     let path: String
@@ -72,6 +72,8 @@ enum MockKindle {
       path: "Downloads/Items01/The Hobbit_B007978NPG.kfx", date: "2026-08-21T07:15:00Z",
       contents: .other("mock kfx")),
     Book(path: "1984.pdf", date: "2026-10-03T13:00:00Z", contents: .pdf(title: "1984")),
+    Book(
+      path: "Beowulf.txt", date: "2026-08-02T10:00:00Z", contents: .other("Beowulf")),
     Book(path: "My notes.txt", date: "2026-07-09T16:30:00Z", contents: .other("Notes")),
   ]
 

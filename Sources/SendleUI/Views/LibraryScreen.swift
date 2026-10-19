@@ -341,7 +341,7 @@ package struct FilterBar: View {
   }
 
   package var body: some View {
-    FilterRow(library: library, selected: library.filter) {
+    FilterRow(library: library, title: "Library", selected: library.filter) {
       ForEach(library.filters, id: \.self) { filter in
         Button(filter.title) { library.filter = filter }
           .buttonStyle(FilterPillStyle(isOn: library.filter == filter))
@@ -360,7 +360,10 @@ struct KindleFilterBar: View {
   @Bindable var kindle: KindleViewModel
 
   var body: some View {
-    FilterRow(library: library, selected: kindle.scope, sortHelp: "Sort this Kindle") {
+    FilterRow(
+      library: library, title: "On this Kindle", selected: kindle.scope,
+      sortHelp: "Sort this Kindle"
+    ) {
       ForEach(KindleScope.allCases, id: \.self) { scope in
         Button(scope.title) { kindle.scope = scope }
           .buttonStyle(FilterPillStyle(isOn: kindle.scope == scope))
@@ -373,12 +376,14 @@ struct KindleFilterBar: View {
   }
 }
 
-/// Scope pills that scroll when they don't fit, beside the menus and layouts that stay put. The
-/// chosen pill is kept in view and the strip fades where it is cut off.
+/// The scope pills on a row of their own, with the list's title above the menus and layouts. The
+/// pills scroll if they ever don't fit: the chosen one is kept in view and the strip fades where
+/// it is cut off.
 private struct FilterRow<Scopes: View, Format: View, Selection: Hashable>: View {
   private static var fadeWidth: CGFloat { 14 }
 
   let library: LibraryViewModel
+  let title: String
   let selected: Selection
   var sortHelp = "Sort the library"
   @ViewBuilder let scopes: Scopes
@@ -386,7 +391,7 @@ private struct FilterRow<Scopes: View, Format: View, Selection: Hashable>: View 
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
   var body: some View {
-    HStack(spacing: 5) {
+    VStack(alignment: .leading, spacing: 8) {
       ScrollViewReader { proxy in
         ScrollView(.horizontal) {
           HStack(spacing: 5) { scopes }.padding(.trailing, Self.fadeWidth)
@@ -408,9 +413,12 @@ private struct FilterRow<Scopes: View, Format: View, Selection: Hashable>: View 
           }
         }
       }
-      format
-      SortMenu(library: library, help: sortHelp)
-      LayoutSwitcher(library: library)
+      HStack(spacing: 5) {
+        SectionLabel(title)
+        format
+        SortMenu(library: library, help: sortHelp)
+        LayoutSwitcher(library: library)
+      }
     }
   }
 }
@@ -648,10 +656,8 @@ struct LibraryContent: View {
             VStack(alignment: .leading, spacing: 0) {
               switch library.layout {
               case .grid:
-                SectionLabel("Library").padding(.bottom, 7)
                 BookGrid(panel: panel, items: items)
               case .list:
-                SectionLabel("Library").padding(.bottom, 4)
                 BookList(panel: panel, items: items)
               case .shelf:
                 BookShelf(panel: panel, items: items, recent: library.recentItems)

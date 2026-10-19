@@ -55,10 +55,8 @@ private struct KindleBooks: View {
           VStack(alignment: .leading, spacing: 0) {
             switch panel.library.layout {
             case .grid:
-              SectionLabel("On this Kindle").padding(.bottom, 7)
               KindleGrid(kindle: kindle, items: items)
             case .list:
-              SectionLabel("On this Kindle").padding(.bottom, 4)
               KindleList(kindle: kindle, items: items)
             case .shelf:
               KindleShelf(kindle: kindle, items: items, recent: kindle.recentItems)

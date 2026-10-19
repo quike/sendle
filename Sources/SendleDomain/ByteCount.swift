@@ -7,10 +7,10 @@ public enum ByteCount {
   public static func text(_ bytes: Int64, precise: Bool = false) -> String {
     guard bytes >= 1_000 else { return bytes == 1 ? "1 byte" : "\(bytes) bytes" }
     var value = Double(bytes) / 1_000
-    for unit in ["KB", "MB", "GB"] {
+    for unit in ["KB", "MB", "GB", "TB"] {
       let decimal = precise || (unit != "KB" && value < 10)
       let rounded = decimal ? (value * 10).rounded() / 10 : value.rounded()
-      if rounded < 1_000 || unit == "GB" {
+      if rounded < 1_000 || unit == "TB" {
         return rounded == rounded.rounded() && !precise
           ? "\(Int(rounded)) \(unit)" : String(format: "%.1f %@", rounded, unit)
       }

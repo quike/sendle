@@ -59,7 +59,20 @@ struct DuplicateReviewModelTests {
     let model = DuplicateReviewModel(cases: [duplicate("a", .sure, .unavailable)])
     #expect(model.choices == [.skip, .keepBoth])
     #expect(model.defaultChoice == .skip)
-    #expect(model.note == "Sendle can replace only copies it made. Skip it, or keep both.")
+    #expect(
+      model.note
+        == "Sendle didn't put this copy on the Kindle, so it won't replace it. Skip it, or keep both."
+    )
+  }
+
+  @Test func aCopyOfSendlesWithAnotherNameSaysSo() {
+    let model = DuplicateReviewModel(cases: [
+      duplicate("a", .maybe, .unavailable, kindle: .fixture(source: .sendle))
+    ])
+    #expect(
+      model.note
+        == "This copy has another name on the Kindle, so Sendle won't replace it. Skip it, or keep both."
+    )
   }
 
   @Test func refusesAChoiceItDoesNotOffer() {

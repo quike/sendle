@@ -115,7 +115,11 @@ package final class DuplicateReviewModel {
         ? "Replace removes only the download; the book stays in your Amazon library."
         : "Replace removes this copy with its reading position, bookmarks and highlights."
     case .unavailable:
-      "Sendle can replace only copies it made. Skip it, or keep both."
+      current.match.book.source == .sendle
+        ? "This copy has another name on the Kindle, so Sendle won't replace it. "
+          + "Skip it, or keep both."
+        : "Sendle didn't put this copy on the Kindle, so it won't replace it. "
+          + "Skip it, or keep both."
     }
   }
 

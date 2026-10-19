@@ -27,4 +27,8 @@ struct FilterBarTests {
   @Test func theBarFitsTheContentWidthBeforeAKindleAddsScopes() async {
     #expect(await idealWidth(withKindle: false) <= contentWidth)
   }
+
+  @Test func allFourLibraryScopesFitTheContentWidth() async {
+    #expect(await idealWidth(withKindle: true) <= contentWidth)
+  }
 }

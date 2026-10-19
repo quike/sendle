@@ -110,7 +110,7 @@ enum Snapshot {
     await write(window, "library-usb-3.png", to: folder)
   }
 
-  /// Plugs in the mock Kindle, holds its first read at the third of nine books, then lets it finish
+  /// Plugs in the mock Kindle, holds its first read at the third book, then lets it finish
   /// and shows what the library and the Kindle side make of it.
   private static func renderKindle(
     _ panel: PanelModel, window: NSWindow, kindles: SnapshotKindles,
@@ -120,7 +120,7 @@ enum Snapshot {
     kindleLibrary.hold()
     kindles.plugIn()
     await panel.library.activate(.usb)
-    await until { panel.kindle.state == .reading(done: 3, total: 9) }
+    await until { panel.kindle.state == .reading(done: 3, total: 10) }
     panel.showSide(.kindle)
     await write(window, "kindle-reading.png", to: folder)
     await panel.library.setLayout(.grid)

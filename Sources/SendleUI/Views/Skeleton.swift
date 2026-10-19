@@ -94,10 +94,8 @@ struct SkeletonBooks: View {
     VStack(alignment: .leading, spacing: 0) {
       switch layout {
       case .grid:
-        label.padding(.bottom, 7)
         grid
       case .list:
-        label.padding(.bottom, 4)
         rows(7)
       case .shelf:
         label
