@@ -67,6 +67,15 @@ package struct KindleItemViewModel: Identifiable, Hashable, Sendable {
   }
 }
 
+extension SortFields {
+  /// A Kindle book files under its title and first author.
+  package init(_ item: KindleItemViewModel) {
+    self.init(
+      title: item.title, author: item.book.authors.first, tiebreak: item.title,
+      id: item.id.relativePath)
+  }
+}
+
 package enum KindleItems {
   /// The books a scope, format and search show, newest file first.
   package static func make(

@@ -622,8 +622,6 @@ struct SideSwitch: View {
 }
 
 struct LibraryContent: View {
-  private static let top = "top"
-
   let panel: PanelModel
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -649,37 +647,18 @@ struct LibraryContent: View {
     if items.isEmpty {
       EmptyLibraryView(isFiltered: !library.books.isEmpty)
     } else {
-      let fullRail = library.showsRail && library.jumpBar == .full
-      GeometryReader { geometry in
-        ScrollViewReader { proxy in
-          ScrollView {
-            VStack(alignment: .leading, spacing: 0) {
-              switch library.layout {
-              case .grid:
-                BookGrid(panel: panel, items: items)
-              case .list:
-                BookList(panel: panel, items: items)
-              case .shelf:
-                BookShelf(panel: panel, items: items, recent: library.recentItems)
-              }
-            }
-            .id(Self.top)
-            .padding(.trailing, fullRail ? AlphabetRail.reservedWidth : 0)
-            .padding(.bottom, library.selection.isEmpty ? 6 : 70)
-          }
-          .scrollIndicators(.never)
-          .scrollPosition(id: Bindable(library).topBook, anchor: .top)
-          .onChange(of: library.scrollToTopRequests) { proxy.scrollTo(Self.top, anchor: .top) }
-        }
-        .overlay(alignment: .trailing) {
-          if library.showsRail {
-            AlphabetRail(library: library).padding(.bottom, library.selection.isEmpty ? 0 : 64)
-          }
-        }
-        // The compact A–Z bar shows while the pointer is near the right edge, the bar included.
-        .onContinuousHover { phase in
-          guard case .active(let point) = phase else { return library.isRailHovered = false }
-          library.isRailHovered = point.x > geometry.size.width - 36
+      BooksScroll(
+        jump: library.letterJump, style: library.jumpBar,
+        scrollToTopRequests: library.scrollToTopRequests,
+        bottomRoom: library.selection.isEmpty ? 0 : 64
+      ) {
+        switch library.layout {
+        case .grid:
+          BookGrid(panel: panel, items: items)
+        case .list:
+          BookList(panel: panel, items: items)
+        case .shelf:
+          BookShelf(panel: panel, items: items, recent: library.recentItems)
         }
       }
     }

@@ -474,12 +474,12 @@ struct LibraryViewModelTests {
     let (model, settings) = makeModel()
     await model.appear()
     #expect(model.items.map(\.title) == ["Moby-Dick", "Emma", "Candide"])
-    #expect(model.index == nil)
+    #expect(model.letterJump.index == nil)
 
     await model.setSort(.title)
 
     #expect(model.items.map(\.title) == ["Candide", "Emma", "Moby-Dick"])
-    #expect(model.index?.lettersWithBooks == ["C", "E", "M"])
+    #expect(model.letterJump.index?.lettersWithBooks == ["C", "E", "M"])
     #expect(await settings.settings.sort == .title)
   }
 
@@ -602,7 +602,7 @@ struct LibraryViewModelTests {
 
     #expect(model.items.map(\.title) == ["Candide", "Emma", "Moby-Dick"])
     model.query = "mm"
-    #expect(model.index?.lettersWithBooks == ["E"])
+    #expect(model.letterJump.index?.lettersWithBooks == ["E"])
   }
 
   @Test func theShelfShowsTheNewestBooksWhateverTheSort() async {
@@ -620,15 +620,15 @@ struct LibraryViewModelTests {
     await model.start()
     await model.appear()
 
-    model.jump(to: "M")
-    #expect(model.topBook == BookID(rawValue: "Middlemarch"))
-    #expect(model.currentLetter == "M")
+    model.letterJump.jump(to: "M")
+    #expect(model.letterJump.top == BookID(rawValue: "Middlemarch"))
+    #expect(model.letterJump.currentLetter == "M")
 
-    model.jump(to: "D")
-    #expect(model.topBook == BookID(rawValue: "Emma"))
+    model.letterJump.jump(to: "D")
+    #expect(model.letterJump.top == BookID(rawValue: "Emma"))
 
-    model.topBook = BookID(rawValue: "Candide")
-    #expect(model.currentLetter == "C")
+    model.letterJump.top = BookID(rawValue: "Candide")
+    #expect(model.letterJump.currentLetter == "C")
   }
 
   @Test func aNewSortFilterOrSearchStartsAtTheTop() async {
@@ -637,9 +637,9 @@ struct LibraryViewModelTests {
     await model.start()
     await model.appear()
 
-    model.topBook = BookID(rawValue: "Emma")
+    model.letterJump.top = BookID(rawValue: "Emma")
     await model.setSort(.title)
-    #expect(model.topBook == nil)
+    #expect(model.letterJump.top == nil)
     #expect(model.scrollToTopRequests == 1)
 
     model.format = .epub
@@ -652,7 +652,7 @@ struct LibraryViewModelTests {
     let (model, _) = makeModel()
     await model.start()
     await model.appear()
-    model.topBook = BookID(rawValue: "Emma")
+    model.letterJump.top = BookID(rawValue: "Emma")
 
     model.filter = .all
     model.query = ""
@@ -660,7 +660,7 @@ struct LibraryViewModelTests {
     await model.reload()
     await model.refreshHistory()
 
-    #expect(model.topBook == BookID(rawValue: "Emma"))
+    #expect(model.letterJump.top == BookID(rawValue: "Emma"))
     #expect(model.scrollToTopRequests == 0)
   }
 
@@ -670,12 +670,12 @@ struct LibraryViewModelTests {
     await model.start()
     await model.appear()
 
-    model.drag(to: "E")
-    #expect(model.draggedLetter == "E")
-    #expect(model.topBook == BookID(rawValue: "Emma"))
+    model.letterJump.drag(to: "E")
+    #expect(model.letterJump.draggedLetter == "E")
+    #expect(model.letterJump.top == BookID(rawValue: "Emma"))
 
-    model.endDrag()
-    #expect(model.draggedLetter == nil)
+    model.letterJump.endDrag()
+    #expect(model.letterJump.draggedLetter == nil)
   }
 
   @Test func theRailShowsWhileSortedByTitleOrAuthor() async {
@@ -683,14 +683,14 @@ struct LibraryViewModelTests {
     let (model, _) = makeModel()
     await model.start()
     await model.appear()
-    #expect(!model.showsRail)
+    #expect(!model.letterJump.isShown)
 
     await model.setSort(.author)
-    #expect(model.showsRail)
-    #expect(model.railLetters == AlphabetIndex.letters)
+    #expect(model.letterJump.isShown)
+    #expect(model.letterJump.letters(model.jumpBar) == LibraryOrder.letters)
 
     model.query = "nothing like this"
-    #expect(!model.showsRail)
+    #expect(!model.letterJump.isShown)
   }
 
   @Test func theCompactRailListsOnlyLettersWithBooks() async {
@@ -699,7 +699,7 @@ struct LibraryViewModelTests {
     await model.start()
     await model.appear()
 
-    #expect(model.railLetters == ["E", "M"])
+    #expect(model.letterJump.letters(model.jumpBar) == ["E", "M"])
   }
 
   @Test func namesTheSorts() {

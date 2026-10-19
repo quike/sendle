@@ -33,8 +33,6 @@ struct KindleContent: View {
 }
 
 private struct KindleBooks: View {
-  private static let top = "top"
-
   let panel: PanelModel
   let isEmpty: Bool
 
@@ -50,23 +48,20 @@ private struct KindleBooks: View {
         symbol: "magnifyingglass", title: "No books match",
         message: "Try another search or filter.")
     } else {
-      ScrollViewReader { proxy in
-        ScrollView {
-          VStack(alignment: .leading, spacing: 0) {
-            switch panel.library.layout {
-            case .grid:
-              KindleGrid(kindle: kindle, items: items)
-            case .list:
-              KindleList(kindle: kindle, items: items)
-            case .shelf:
-              KindleShelf(kindle: kindle, items: items, recent: kindle.recentItems)
-            }
-          }
-          .id(Self.top)
-          .padding(.bottom, 6)
+      let style = panel.library.jumpBar
+      // Letter headers come with the full A–Z bar, as in the library.
+      let headers = style == .full ? kindle.letterJump.index : nil
+      BooksScroll(
+        jump: kindle.letterJump, style: style, scrollToTopRequests: kindle.scrollToTopRequests
+      ) {
+        switch panel.library.layout {
+        case .grid:
+          KindleGrid(kindle: kindle, items: items)
+        case .list:
+          KindleList(kindle: kindle, items: items, headers: headers)
+        case .shelf:
+          KindleShelf(kindle: kindle, items: items, recent: kindle.recentItems, headers: headers)
         }
-        .scrollIndicators(.never)
-        .onChange(of: kindle.scrollToTopRequests) { proxy.scrollTo(Self.top, anchor: .top) }
       }
     }
   }
@@ -96,6 +91,7 @@ struct KindleGrid: View {
         .transition(Theme.entrance(index: index, reduceMotion: reduceMotion))
       }
     }
+    .scrollTargetLayout()
     .padding(.horizontal, 4)
   }
 }
@@ -103,15 +99,22 @@ struct KindleGrid: View {
 struct KindleList: View {
   let kindle: KindleViewModel
   let items: [KindleItemViewModel]
+  let headers: AlphabetIndex<KindleBookID>?
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
   var body: some View {
     LazyVStack(spacing: 2) {
       ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
-        KindleRow(kindle: kindle, item: item)
-          .transition(Theme.entrance(index: index, reduceMotion: reduceMotion))
+        VStack(alignment: .leading, spacing: 2) {
+          if let letter = headers?.header(before: item.id) {
+            LetterHeader(letter: letter)
+          }
+          KindleRow(kindle: kindle, item: item)
+        }
+        .transition(Theme.entrance(index: index, reduceMotion: reduceMotion))
       }
     }
+    .scrollTargetLayout()
   }
 }
 
@@ -120,6 +123,7 @@ struct KindleShelf: View {
   let kindle: KindleViewModel
   let items: [KindleItemViewModel]
   let recent: [KindleItemViewModel]
+  let headers: AlphabetIndex<KindleBookID>?
 
   var body: some View {
     VStack(alignment: .leading, spacing: 0) {
@@ -137,7 +141,7 @@ struct KindleShelf: View {
       }
       .scrollIndicators(.never)
       SectionLabel("All books").padding(.top, 6).padding(.bottom, 4)
-      KindleList(kindle: kindle, items: items)
+      KindleList(kindle: kindle, items: items, headers: headers)
     }
   }
 }

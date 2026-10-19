@@ -114,9 +114,9 @@ struct AlphabetIndexTests {
   }
 
   @Test func theRailListsEveryLetterThenHash() {
-    #expect(AlphabetIndex.letters.count == 27)
-    #expect(AlphabetIndex.letters.first == "A")
-    #expect(AlphabetIndex.letters.last == "#")
+    #expect(LibraryOrder.letters.count == 27)
+    #expect(LibraryOrder.letters.first == "A")
+    #expect(LibraryOrder.letters.last == "#")
   }
 
   @Test func anEmptyOrUnsortedLibraryHasNoLetters() {

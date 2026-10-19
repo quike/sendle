@@ -42,6 +42,7 @@ public final class KindleViewModel {
   package private(set) var recentItems: [KindleItemViewModel] = []
   /// The formats on the Kindle, as lowercased extensions.
   package private(set) var formats: [String] = []
+  package let letterJump = LetterJump<KindleBookID>()
   package let covers: KindleCoverStore
   /// Told whenever the library's matches against the Kindle change, nil once there is no Kindle.
   @ObservationIgnored package var onMatchesChange: (@MainActor (KindleMatches?) -> Void)?
@@ -168,8 +169,13 @@ public final class KindleViewModel {
   }
 
   private func listChanged(_ changed: Bool) {
-    if changed { scrollToTopRequests += 1 }
+    if changed { scrollToTop() }
     refreshItems()
+  }
+
+  private func scrollToTop() {
+    letterJump.top = nil
+    scrollToTopRequests += 1
   }
 
   /// Rebuilds what the layouts show; a format that left with its books is dropped.
@@ -181,12 +187,10 @@ public final class KindleViewModel {
     }
     let newestFirst = KindleItems.make(
       books: listing?.books ?? [], matches: matches, scope: scope, format: format, query: query)
-    items = LibraryOrder.sorted(newestFirst, by: sort) {
-      SortFields(
-        title: $0.title, author: $0.book.authors.first, tiebreak: $0.title,
-        id: $0.id.relativePath)
-    }
+    items = LibraryOrder.sorted(newestFirst, by: sort, fields: SortFields.init)
     recentItems = Array(newestFirst.prefix(8))
+    letterJump.index =
+      sort == .recent ? nil : AlphabetIndex(items, sort: sort, id: \.id, fields: SortFields.init)
   }
 
   private func forget() {
@@ -194,7 +198,7 @@ public final class KindleViewModel {
     reading?.cancel()
     queued.values.forEach { $0.cancel() }
     isReadQueued = false
-    scrollToTopRequests += 1
+    scrollToTop()
     covers.reset()
     volume = nil
     listing = nil

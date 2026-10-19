@@ -26,6 +26,9 @@ package struct SortFields {
 
 /// The library's order under each sort, and the A–Z bar's letter for each book.
 package enum LibraryOrder {
+  /// The A–Z bar's letters, A to Z then `#`.
+  package static let letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ#".map(String.init)
+
   /// Title and author run A to Z, then `#` (digits, other scripts), then books with no author.
   /// Recently added keeps the order the books come in, which is newest first.
   package static func sorted(_ books: [Book], by sort: LibrarySort) -> [Book] {
@@ -52,8 +55,12 @@ package enum LibraryOrder {
 
   /// "A" to "Z" or "#"; nil while sorted by when the books were added.
   package static func letter(for book: Book, by sort: LibrarySort) -> String? {
+    letter(for: SortFields(book), by: sort)
+  }
+
+  package static func letter(for fields: SortFields, by sort: LibrarySort) -> String? {
     guard sort != .recent else { return nil }
-    return SortKey(SortFields(book), sort).letter
+    return SortKey(fields, sort).letter
   }
 }
 
@@ -95,7 +102,7 @@ private struct SortKey {
     }
     text = String(source.drop { !$0.isLetter && !$0.isNumber })
     letter = Self.letter(of: text)
-    rank = AlphabetIndex.letters.firstIndex(of: letter) ?? AlphabetIndex.letters.count - 1
+    rank = LibraryOrder.letters.firstIndex(of: letter) ?? LibraryOrder.letters.count - 1
   }
 
   /// Accents and case fall away, so "É" and "Ñ" file under E and N.
@@ -104,47 +111,56 @@ private struct SortKey {
     let folded = String(first).folding(
       options: [.diacriticInsensitive, .caseInsensitive], locale: Locale(identifier: "en_US_POSIX")
     ).uppercased()
-    return AlphabetIndex.letters.dropLast().contains(folded) ? folded : "#"
+    return LibraryOrder.letters.dropLast().contains(folded) ? folded : "#"
   }
 }
 
-/// Where each letter of the A–Z bar leads in the books on screen.
-package struct AlphabetIndex: Equatable, Sendable {
-  package static let letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ#".map(String.init)
-
+/// Where each letter of the A–Z bar leads among the books on screen, the library's or a Kindle's.
+package struct AlphabetIndex<ID: Hashable & Sendable>: Equatable, Sendable {
   /// The letters that have books, in the bar's order.
   package let lettersWithBooks: [String]
-  private let firstBooks: [String: BookID]
-  private let letters: [BookID: String]
+  private let firstBooks: [String: ID]
+  private let letters: [ID: String]
 
-  /// `books` must already be in `sort` order.
-  package init(books: [Book], sort: LibrarySort) {
-    var firstBooks: [String: BookID] = [:]
-    var letters: [BookID: String] = [:]
-    for book in books {
-      guard let letter = LibraryOrder.letter(for: book, by: sort) else { continue }
-      letters[book.id] = letter
-      if firstBooks[letter] == nil { firstBooks[letter] = book.id }
+  /// `elements` must already be in `sort` order.
+  package init<Element>(
+    _ elements: [Element], sort: LibrarySort, id: (Element) -> ID,
+    fields: (Element) -> SortFields
+  ) {
+    var firstBooks: [String: ID] = [:]
+    var letters: [ID: String] = [:]
+    for element in elements {
+      guard let letter = LibraryOrder.letter(for: fields(element), by: sort) else { continue }
+      let id = id(element)
+      letters[id] = letter
+      if firstBooks[letter] == nil { firstBooks[letter] = id }
     }
     self.firstBooks = firstBooks
     self.letters = letters
-    lettersWithBooks = Self.letters.filter { firstBooks[$0] != nil }
+    lettersWithBooks = LibraryOrder.letters.filter { firstBooks[$0] != nil }
   }
 
   /// The first book under `letter`; a letter without books leads to the next one that has some,
   /// or past the end, to the last one.
-  package func target(for letter: String) -> BookID? {
-    guard let position = Self.letters.firstIndex(of: letter) else { return nil }
-    let next = Self.letters[position...].first { firstBooks[$0] != nil }
+  package func target(for letter: String) -> ID? {
+    guard let position = LibraryOrder.letters.firstIndex(of: letter) else { return nil }
+    let next = LibraryOrder.letters[position...].first { firstBooks[$0] != nil }
     return (next ?? lettersWithBooks.last).flatMap { firstBooks[$0] }
   }
 
-  package func letter(of id: BookID) -> String? {
+  package func letter(of id: ID) -> String? {
     letters[id]
   }
 
   /// The letter whose header goes above `id`, when it is the first book under it.
-  package func header(before id: BookID) -> String? {
+  package func header(before id: ID) -> String? {
     letters[id].flatMap { firstBooks[$0] == id ? $0 : nil }
+  }
+}
+
+extension AlphabetIndex where ID == BookID {
+  /// `books` must already be in `sort` order.
+  package init(books: [Book], sort: LibrarySort) {
+    self.init(books, sort: sort, id: \.id, fields: SortFields.init)
   }
 }

@@ -236,6 +236,56 @@ struct KindleViewModelTests {
     #expect(model.scrollToTopRequests == requests)
   }
 
+  @Test func theAZBarJumpsAmongTheKindlesBooksByTitle() async {
+    kindle.result = .success(.fixture(threeBooks))
+    let model = makeModel()
+    await model.follow(.fixture(), books: [])
+    #expect(!model.letterJump.isShown)
+
+    model.sort = .title
+    #expect(model.letterJump.isShown)
+    #expect(model.letterJump.index?.lettersWithBooks == ["C", "E", "M"])
+    model.letterJump.jump(to: "D")
+    #expect(model.letterJump.top == KindleBookID(relativePath: "e.azw3"))
+    #expect(model.letterJump.currentLetter == "E")
+    model.letterJump.drag(to: "M")
+    #expect(model.letterJump.draggedLetter == "M")
+    #expect(model.letterJump.top == KindleBookID(relativePath: "m.azw3"))
+  }
+
+  @Test func theAZBarFilesAKindleBookUnderItsFirstAuthor() async {
+    kindle.result = .success(.fixture(threeBooks))
+    let model = makeModel()
+    await model.follow(.fixture(), books: [])
+
+    model.sort = .author
+    #expect(model.letterJump.index?.lettersWithBooks == ["H", "J", "V"])
+    #expect(model.letterJump.letters(.compact) == ["H", "J", "V"])
+    #expect(model.letterJump.letters(.full) == LibraryOrder.letters)
+  }
+
+  @Test func whatTheKindleSideShowsChangingStartsTheAZBarAtTheTop() async {
+    kindle.result = .success(.fixture(threeBooks))
+    let model = makeModel()
+    await model.follow(.fixture(), books: [])
+    model.sort = .title
+    model.letterJump.jump(to: "M")
+
+    model.query = "e"
+    #expect(model.letterJump.top == nil)
+    #expect(model.letterJump.index?.lettersWithBooks == ["C", "E", "M"])
+    model.query = "emma"
+    #expect(model.letterJump.index?.lettersWithBooks == ["E"])
+  }
+
+  var threeBooks: [KindleBook] {
+    [
+      .fixture(path: "m.azw3", title: "Moby-Dick", authors: ["Herman Melville"]),
+      .fixture(path: "e.azw3", title: "Emma", authors: ["Jane Austen", "Another Author"]),
+      .fixture(path: "c.azw3", title: "Candide", authors: ["Voltaire"]),
+    ]
+  }
+
   @Test func startsAtTheTopOnAnotherKindle() async {
     let model = makeModel()
     await model.follow(.fixture(name: "Kindle"), books: [])

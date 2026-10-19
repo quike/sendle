@@ -58,18 +58,18 @@ enum Snapshot {
       let layout = panel.library.layout
       await panel.library.setSort(.title)
       await panel.library.setLayout(.list)
-      panel.library.jump(to: "M")
+      panel.library.letterJump.jump(to: "M")
       await write(window, "library-az-full.png", to: folder)
       await panel.settings.setJumpBar(.compact)
-      panel.library.drag(to: "P")
+      panel.library.letterJump.drag(to: "P")
       await write(window, "library-az-compact.png", to: folder)
-      panel.library.endDrag()
+      panel.library.letterJump.endDrag()
       await panel.library.setLayout(.grid)
-      panel.library.isRailHovered = true
+      panel.library.letterJump.isHovered = true
       await write(window, "library-az-compact-hover.png", to: folder)
-      panel.library.isRailHovered = false
+      panel.library.letterJump.isHovered = false
       await panel.settings.setJumpBar(.full)
-      panel.library.jump(to: "W")
+      panel.library.letterJump.jump(to: "W")
       await write(window, "library-az-grid.png", to: folder)
       await panel.library.setSort(.recent)
       await panel.library.setLayout(layout)
@@ -160,6 +160,19 @@ enum Snapshot {
     panel.kindle.scope = .notInLibrary
     await write(window, "kindle-not-in-library.png", to: folder)
     panel.kindle.scope = .all
+    await panel.library.setSort(.title)
+    for layout in [LibraryLayout.grid, .list] {
+      await panel.library.setLayout(layout)
+      panel.kindle.letterJump.jump(to: "C")
+      await write(window, "kindle-az-\(layout.rawValue).png", to: folder)
+    }
+    await panel.settings.setJumpBar(.compact)
+    await panel.library.setLayout(.grid)
+    panel.kindle.letterJump.isHovered = true
+    await write(window, "kindle-az-compact.png", to: folder)
+    panel.kindle.letterJump.isHovered = false
+    await panel.settings.setJumpBar(.full)
+    await panel.library.setSort(.recent)
     await panel.library.setLayout(saved)
     panel.showSide(.library)
 

@@ -46,7 +46,7 @@ struct BookList: View {
   var body: some View {
     let library = panel.library
     // Letter headers come with the full A–Z bar, as in Contacts.
-    let headers = library.jumpBar == .full ? library.index : nil
+    let headers = library.jumpBar == .full ? library.letterJump.index : nil
     LazyVStack(spacing: 2) {
       ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
         VStack(alignment: .leading, spacing: 2) {
@@ -62,7 +62,7 @@ struct BookList: View {
   }
 }
 
-private struct LetterHeader: View {
+struct LetterHeader: View {
   let letter: String
 
   var body: some View {

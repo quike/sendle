@@ -1,25 +1,27 @@
+import SendleDomain
 import SwiftUI
 
 /// The A–Z bar down the right edge of the books: click or drag a letter to jump there. The full
 /// bar always shows every letter; the compact one shows the letters with books while the pointer
-/// is near it (`isRailHovered`, which the library's scroll view sets), on a dark capsule so it
-/// reads over the covers it floats on.
-struct AlphabetRail: View {
-  static let width: CGFloat = 16
+/// is near it (`isHovered`, which the books' scroll view sets), on a dark capsule so it reads over
+/// the covers it floats on.
+struct AlphabetRail<ID: Hashable & Sendable>: View {
+  static var width: CGFloat { 16 }
   /// What the full bar takes from the books: itself plus the grid's column spacing.
-  static let reservedWidth: CGFloat = width + 10
-  private static let compactLetterHeight: CGFloat = 14
+  static var reservedWidth: CGFloat { width + 10 }
+  private static var compactLetterHeight: CGFloat { 14 }
   /// Room between the compact bar's letters and its capsule.
-  private static let capsuleInset: CGFloat = 4
+  private static var capsuleInset: CGFloat { 4 }
 
-  let library: LibraryViewModel
+  let jump: LetterJump<ID>
+  let style: JumpBarStyle
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
   var body: some View {
-    let isFull = library.jumpBar == .full
-    let isShown = isFull || library.isRailHovered || library.draggedLetter != nil
+    let isFull = style == .full
+    let isShown = isFull || jump.isHovered || jump.draggedLetter != nil
     GeometryReader { geometry in
-      let letters = library.railLetters
+      let letters = jump.letters(style)
       let height =
         isFull
         ? geometry.size.height
@@ -28,7 +30,7 @@ struct AlphabetRail: View {
           geometry.size.height - 2 * Self.capsuleInset)
       HStack(spacing: 6) {
         Spacer(minLength: 0)
-        if let dragged = library.draggedLetter {
+        if let dragged = jump.draggedLetter {
           Text(dragged)
             .font(.system(size: 28, weight: .bold))
             .frame(width: 56, height: 56)
@@ -58,10 +60,10 @@ struct AlphabetRail: View {
   }
 
   private func letterColumn(_ letters: [String], height: CGFloat) -> some View {
-    let withBooks = Set(library.index?.lettersWithBooks ?? [])
+    let withBooks = Set(jump.index?.lettersWithBooks ?? [])
     return VStack(spacing: 0) {
       ForEach(letters, id: \.self) { letter in
-        let isCurrent = (library.draggedLetter ?? library.currentLetter) == letter
+        let isCurrent = (jump.draggedLetter ?? jump.currentLetter) == letter
         Text(letter)
           .font(.system(size: 9, weight: .bold))
           .foregroundStyle(
@@ -79,19 +81,59 @@ struct AlphabetRail: View {
         .onChanged { value in
           if let letter = RailLayout.letter(at: value.location.y, height: height, letters: letters)
           {
-            library.drag(to: letter)
+            jump.drag(to: letter)
           }
         }
-        .onEnded { _ in library.endDrag() }
+        .onEnded { _ in jump.endDrag() }
     )
     .accessibilityElement(children: .ignore)
     .accessibilityLabel("Jump to letter")
-    .accessibilityValue(library.currentLetter ?? "")
+    .accessibilityValue(jump.currentLetter ?? "")
     .accessibilityAdjustableAction { direction in
-      let shown = library.index?.lettersWithBooks ?? []
-      let current = library.currentLetter.flatMap { shown.firstIndex(of: $0) } ?? -1
+      let shown = jump.index?.lettersWithBooks ?? []
+      let current = jump.currentLetter.flatMap { shown.firstIndex(of: $0) } ?? -1
       let next = direction == .increment ? current + 1 : current - 1
-      if shown.indices.contains(next) { library.jump(to: shown[next]) }
+      if shown.indices.contains(next) { jump.jump(to: shown[next]) }
+    }
+  }
+}
+
+/// The books' scroll view, with the A–Z bar over its right edge while sorted by title or author.
+/// The compact bar shows while the pointer is near the right edge, the bar included.
+struct BooksScroll<ID: Hashable & Sendable, Content: View>: View {
+  private static var top: String { "top" }
+
+  let jump: LetterJump<ID>
+  let style: JumpBarStyle
+  /// Bumped when the list should start at the top again.
+  let scrollToTopRequests: Int
+  /// Room kept clear at the bottom, for the send bar.
+  var bottomRoom: CGFloat = 0
+  @ViewBuilder let content: Content
+
+  var body: some View {
+    let fullRail = jump.isShown && style == .full
+    GeometryReader { geometry in
+      ScrollViewReader { proxy in
+        ScrollView {
+          VStack(alignment: .leading, spacing: 0) { content }
+            .id(Self.top)
+            .padding(.trailing, fullRail ? AlphabetRail<ID>.reservedWidth : 0)
+            .padding(.bottom, 6 + bottomRoom)
+        }
+        .scrollIndicators(.never)
+        .scrollPosition(id: Bindable(jump).top, anchor: .top)
+        .onChange(of: scrollToTopRequests) { proxy.scrollTo(Self.top, anchor: .top) }
+      }
+      .overlay(alignment: .trailing) {
+        if jump.isShown {
+          AlphabetRail(jump: jump, style: style).padding(.bottom, bottomRoom)
+        }
+      }
+      .onContinuousHover { phase in
+        guard case .active(let point) = phase else { return jump.isHovered = false }
+        jump.isHovered = point.x > geometry.size.width - 36
+      }
     }
   }
 }

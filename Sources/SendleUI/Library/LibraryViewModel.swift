@@ -46,16 +46,9 @@ public final class LibraryViewModel {
   package private(set) var items: [BookItemViewModel] = []
   /// The newest books on screen, whatever the sort, for the shelf.
   package private(set) var recentItems: [BookItemViewModel] = []
-  /// The A–Z bar's letters, while sorted by title or author.
-  package private(set) var index: AlphabetIndex?
-  /// The book at the top of the scrolled list; setting it scrolls there.
-  package var topBook: BookID?
+  package let letterJump = LetterJump<BookID>()
   /// Bumped when a new sort, filter or search should start at the top of the list.
   package private(set) var scrollToTopRequests = 0
-  /// The letter under the pointer while it drags along the A–Z bar.
-  package private(set) var draggedLetter: String?
-  /// The pointer is over the compact A–Z bar, which shows only then.
-  package var isRailHovered = false
   package private(set) var destinations: [Destination] = []
   package private(set) var hasKindleEmail = false
   package private(set) var preferredDestination = DestinationKind.email
@@ -224,35 +217,6 @@ public final class LibraryViewModel {
     show(ObserveDestinations.destinations(email: email, volumes: volumes))
   }
 
-  // MARK: A–Z bar
-
-  package var showsRail: Bool { index != nil && !items.isEmpty }
-
-  /// Every letter on the full bar; only the letters with books on the compact one.
-  package var railLetters: [String] {
-    jumpBar == .full ? AlphabetIndex.letters : index?.lettersWithBooks ?? []
-  }
-
-  /// The letter of the book at the top of the list.
-  package var currentLetter: String? {
-    topBook.flatMap { index?.letter(of: $0) }
-  }
-
-  package func jump(to letter: String) {
-    guard let target = index?.target(for: letter) else { return }
-    topBook = target
-  }
-
-  package func drag(to letter: String) {
-    guard letter != draggedLetter else { return }
-    draggedLetter = letter
-    jump(to: letter)
-  }
-
-  package func endDrag() {
-    draggedLetter = nil
-  }
-
   // MARK: Choices
 
   package func setLayout(_ layout: LibraryLayout) async {
@@ -348,12 +312,12 @@ public final class LibraryViewModel {
       now: now())
     items = LibraryOrder.sorted(newestFirst, by: sort, book: \.book)
     recentItems = Array(newestFirst.prefix(8))
-    index = sort == .recent ? nil : AlphabetIndex(books: items.map(\.book), sort: sort)
+    letterJump.index = sort == .recent ? nil : AlphabetIndex(books: items.map(\.book), sort: sort)
     selection.keep(in: items)
   }
 
   private func scrollToTop() {
-    topBook = nil
+    letterJump.top = nil
     scrollToTopRequests += 1
   }
 
