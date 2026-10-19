@@ -1,7 +1,8 @@
 import SendleDomain
 import SwiftUI
 
-/// What Sendle did underneath: search, area pills, level bubbles and the lines.
+/// What Sendle did underneath: search, area pills, level bubbles and the lines, on a sheet over
+/// the screen the logs were opened from.
 struct LogsScreen: View {
   let panel: PanelModel
 
@@ -35,6 +36,8 @@ struct LogsScreen: View {
       LogList(logs: logs).padding(.top, 10)
     }
     .padding(14)
+    .frame(maxWidth: .infinity, maxHeight: .infinity)
+    .background(CardBackground())
   }
 }
 
@@ -143,12 +146,10 @@ private struct LogList: View {
       .onChange(of: logs.revealRequests) {
         if let target = logs.scrollTarget { proxy.scrollTo(target, anchor: .top) }
       }
+      // The newest lines are there as the logs come up, before any scroll could run.
+      .defaultScrollAnchor(logs.scrollTarget == nil ? .bottom : .top)
       .onAppear {
-        if let target = logs.scrollTarget {
-          proxy.scrollTo(target, anchor: .top)
-        } else {
-          proxy.scrollTo(Self.bottom, anchor: .bottom)
-        }
+        if let target = logs.scrollTarget { proxy.scrollTo(target, anchor: .top) }
       }
     }
   }

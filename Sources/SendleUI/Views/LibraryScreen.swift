@@ -65,12 +65,16 @@ struct LibraryScreen: View {
         )
         .padding(.top, 10)
       }
-      if isKindleSide {
-        KindleContent(panel: panel).padding(.top, BooksArea.controlsGap)
-      } else {
-        LibraryContent(panel: panel).padding(.top, BooksArea.controlsGap)
+      ZStack(alignment: .top) {
+        if isKindleSide {
+          KindleContent(panel: panel).transition(books(.kindle))
+        } else {
+          LibraryContent(panel: panel).transition(books(.library))
+        }
       }
+      .padding(.top, BooksArea.controlsGap)
     }
+    .animation(ScreenMotion.animation(reduceMotion: reduceMotion), value: panel.side)
     .padding(BooksArea.screenPadding)
     .overlay(alignment: .bottom) {
       if panel.showsSendBar {
@@ -80,6 +84,10 @@ struct LibraryScreen: View {
       }
     }
     .animation(reduceMotion ? nil : Theme.press, value: panel.showsSendBar)
+  }
+
+  private func books(_ side: LibrarySide) -> AnyTransition {
+    ScreenMotion.books(side, reduceMotion: reduceMotion).transition
   }
 
   private var subtitle: String {

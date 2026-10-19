@@ -58,7 +58,7 @@ public final class PanelModel {
   @ObservationIgnored private let log: any ActivityLog
   @ObservationIgnored private var accessWatch: Task<Void, Never>?
   /// Where the logs go back to, and whether the settings sheet was over it.
-  @ObservationIgnored private var beforeLogs = (route: PanelRoute.library, showedSettings: false)
+  private var beforeLogs = (route: PanelRoute.library, showedSettings: false)
   /// Bumped by every open and close, so an opening that a newer one replaced leaves the state alone.
   @ObservationIgnored private var session = 0
   /// What the review is about: sent, minus the skips, once it finishes. Keep both copies are named
@@ -432,6 +432,9 @@ public final class PanelModel {
     logs.start()
     if let subject { logs.reveal(subject) } else { logs.showNewest() }
   }
+
+  /// The screen the logs slide up over while they are open, otherwise the one showing.
+  package var screenUnderLogs: PanelRoute { route == .logs ? beforeLogs.route : route }
 
   package func closeLogs() {
     logs.stop()

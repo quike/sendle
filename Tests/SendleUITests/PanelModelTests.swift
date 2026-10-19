@@ -564,6 +564,24 @@ struct PanelModelTests {
     #expect(panel.route == .library)
   }
 
+  /// The logs slide up over the screen they were opened from, which stays under them.
+  @Test func theLogsCoverTheScreenTheyWereOpenedFrom() async {
+    let (panel, _) = harness.makePanel()
+    #expect(panel.screenUnderLogs == .library)
+
+    panel.openLogs()
+    #expect(panel.route == .logs)
+    #expect(panel.screenUnderLogs == .library)
+    panel.closeLogs()
+
+    panel.showSetup(at: .kindleEmail)
+    panel.openLogs()
+    #expect(panel.screenUnderLogs == .setup)
+    panel.closeLogs()
+    #expect(panel.route == .setup)
+    #expect(panel.screenUnderLogs == .setup)
+  }
+
   @Test func aFailedBookOpensItsStory() async {
     let (panel, _) = harness.makePanel()
     log.heading(.book(BookID(rawValue: "a")), .mail, "Moby-Dick · reader@kindle.com")

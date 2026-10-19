@@ -23,25 +23,31 @@ public struct PanelView: View {
     let margins = panel.windowMargins
     let card = CGRect(origin: CGPoint(x: margins.leading, y: margins.top), size: Theme.cardSize)
     PanelChrome(arrowOffset: arrowOffset, margins: margins) {
+      let isShowingLogs = panel.route == .logs
+      let sheet = ScreenMotion.sheet(reduceMotion: reduceMotion).transition
+      let motion = ScreenMotion.animation(reduceMotion: reduceMotion)
       ZStack {
         Group {
-          switch panel.route {
-          case .library: LibraryScreen(panel: panel)
+          switch panel.screenUnderLogs {
+          case .library, .logs: LibraryScreen(panel: panel)
           case .setup: SetupScreen(panel: panel)
           case .queue: QueueScreen(panel: panel)
-          case .logs: LogsScreen(panel: panel)
           }
         }
-        .disabled(panel.isShowingSettings || panel.duplicateReview != nil)
+        .disabled(panel.isShowingSettings || panel.duplicateReview != nil || isShowingLogs)
         if panel.isShowingSettings {
-          SettingsSheet(panel: panel).transition(.move(edge: .bottom))
+          SettingsSheet(panel: panel).transition(sheet)
+        }
+        if isShowingLogs {
+          LogsScreen(panel: panel).transition(sheet)
         }
         if let review = panel.duplicateReview {
-          DuplicateSheet(panel: panel, review: review).transition(.move(edge: .bottom))
+          DuplicateSheet(panel: panel, review: review).transition(sheet)
         }
       }
-      .animation(reduceMotion ? nil : Theme.press, value: panel.isShowingSettings)
-      .animation(reduceMotion ? nil : Theme.press, value: panel.duplicateReview != nil)
+      .animation(motion, value: panel.isShowingSettings)
+      .animation(motion, value: isShowingLogs)
+      .animation(motion, value: panel.duplicateReview != nil)
     }
     .overlayPreferenceValue(BooksAreaKey.self) { books in
       GeometryReader { proxy in

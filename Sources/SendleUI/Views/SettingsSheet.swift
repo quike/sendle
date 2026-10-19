@@ -5,26 +5,37 @@ import SwiftUI
 /// section. Each page is its own view, so a future window can show them beside a sidebar.
 struct SettingsSheet: View {
   let panel: PanelModel
+  @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
   var body: some View {
     let settings = panel.settings
     VStack(alignment: .leading, spacing: 0) {
       SettingsHeader(panel: panel)
-      if let section = settings.section {
-        ScrollView {
-          page(section).padding(.top, 14).padding(.bottom, 8)
+      ZStack(alignment: .top) {
+        if let section = settings.section {
+          VStack(alignment: .leading, spacing: 0) {
+            ScrollView {
+              page(section).padding(.top, 14).padding(.bottom, 8)
+            }
+            .scrollIndicators(.never)
+            if section == .sender, settings.hasEmailSetup {
+              SaveRow(panel: panel)
+            }
+          }
+          .transition(motion(section))
+        } else {
+          SettingsFrontPage(panel: panel).transition(motion(nil))
         }
-        .scrollIndicators(.never)
-        if section == .sender, settings.hasEmailSetup {
-          SaveRow(panel: panel)
-        }
-      } else {
-        SettingsFrontPage(panel: panel)
       }
     }
+    .animation(ScreenMotion.animation(reduceMotion: reduceMotion), value: settings.section == nil)
     .padding(14)
     .frame(maxWidth: .infinity, maxHeight: .infinity)
     .background(CardBackground())
+  }
+
+  private func motion(_ section: SettingsSection?) -> AnyTransition {
+    ScreenMotion.settingsPage(section, reduceMotion: reduceMotion).transition
   }
 
   @ViewBuilder
@@ -390,6 +401,7 @@ private struct KindlePage: View {
 private struct KindleAddressRow: View {
   let settings: SettingsViewModel
   let address: KindleEmail
+  @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
   var body: some View {
     let isActive = settings.activeKindleAddress == address
@@ -401,6 +413,7 @@ private struct KindleAddressRow: View {
           Circle()
             .strokeBorder(isActive ? Theme.accent : Theme.faint, lineWidth: isActive ? 4 : 1.5)
             .frame(width: 14, height: 14)
+            .animation(reduceMotion ? nil : Theme.press, value: isActive)
           Text(address.rawValue).font(.system(size: 12)).lineLimit(1).truncationMode(.middle)
           Spacer(minLength: 6)
         }

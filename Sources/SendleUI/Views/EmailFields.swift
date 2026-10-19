@@ -146,6 +146,7 @@ struct SenderFields: View {
 /// One tile per mail provider, in its brand's colour with a glyph Sendle draws: no company logos.
 struct ProviderTiles: View {
   @Bindable var form: EmailForm
+  @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
   var body: some View {
     HStack(spacing: 6) {
@@ -179,6 +180,7 @@ struct ProviderTiles: View {
         .accessibilityAddTraits(isOn ? .isSelected : [])
       }
     }
+    .animation(reduceMotion ? nil : Theme.press, value: form.provider)
   }
 }
 

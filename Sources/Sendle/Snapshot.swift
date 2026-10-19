@@ -98,6 +98,11 @@ enum Snapshot {
       await panel.openSettings(section)
       await write(window, "settings-\(section.rawValue).png", to: folder)
     }
+    await panel.openSettings(.sender)
+    let provider = panel.settings.form.provider
+    panel.settings.form.provider = .custom
+    await write(window, "settings-sender-custom.png", to: folder)
+    panel.settings.form.provider = provider
     panel.closeSettings()
     panel.skipSetup()
     await renderKindle(panel, window: window, kindles: kindles, library: kindleLibrary, to: folder)
@@ -242,6 +247,9 @@ enum Snapshot {
 
     await panel.openSettings(.general)
     await write(window, "floating-settings-general.png", to: folder)
+    await panel.settings.setJumpBar(.compact)
+    await write(window, "floating-settings-general-compact.png", to: folder)
+    await panel.settings.setJumpBar(.full)
     panel.closeSettings()
 
     await panel.library.setSort(.recent)
@@ -268,7 +276,8 @@ enum Snapshot {
           let ids = panel.kindle.items.map(\.id)
           panel.kindle.letterJump.top = ids[ids.count / 3]
         }
-        try? await Task.sleep(for: .milliseconds(400))
+        // Past the side switch's slide, so only the new side's books are left to scroll.
+        try? await Task.sleep(for: .seconds(1))
         scrollBooks(in: window, by: 37)
         await write(window, "\(prefix)-margins-\(side)-\(layout.rawValue).png", to: folder)
       }
