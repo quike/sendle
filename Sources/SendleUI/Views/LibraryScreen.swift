@@ -764,7 +764,7 @@ struct SendBar: View {
     }
     .padding(.leading, 12)
     .padding(8)
-    .background(Color(hex: 0x161b29).opacity(0.96), in: shape)
+    .background(Theme.floating, in: shape)
     .overlay(shape.strokeBorder(Color.white.opacity(0.1)))
     .shadow(color: .black.opacity(0.5), radius: 14, y: 8)
   }

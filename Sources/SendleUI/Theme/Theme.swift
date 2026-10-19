@@ -17,6 +17,8 @@ package enum Theme {
   package static let brandStart = Color(hex: 0x7c5cff)
   /// Links and the light blue of active text, such as "Open Amazon's settings ↗".
   package static let link = Color(hex: 0x9cc2ff)
+  /// What floats over the books, such as the send bar, and reads over any cover.
+  package static let floating = Color(hex: 0x161b29).opacity(0.96)
 
   package static let brand = LinearGradient(
     colors: [brandStart, accent], startPoint: .topLeading, endPoint: .bottomTrailing)

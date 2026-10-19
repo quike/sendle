@@ -64,8 +64,11 @@ enum Snapshot {
       panel.library.drag(to: "P")
       await write(window, "library-az-compact.png", to: folder)
       panel.library.endDrag()
-      await panel.settings.setJumpBar(.full)
       await panel.library.setLayout(.grid)
+      panel.library.isRailHovered = true
+      await write(window, "library-az-compact-hover.png", to: folder)
+      panel.library.isRailHovered = false
+      await panel.settings.setJumpBar(.full)
       panel.library.jump(to: "W")
       await write(window, "library-az-grid.png", to: folder)
       await panel.library.setSort(.recent)

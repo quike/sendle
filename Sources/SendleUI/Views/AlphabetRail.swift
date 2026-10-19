@@ -2,12 +2,15 @@ import SwiftUI
 
 /// The A–Z bar down the right edge of the books: click or drag a letter to jump there. The full
 /// bar always shows every letter; the compact one shows the letters with books while the pointer
-/// is near it (`isRailHovered`, which the library's scroll view sets).
+/// is near it (`isRailHovered`, which the library's scroll view sets), on a dark capsule so it
+/// reads over the covers it floats on.
 struct AlphabetRail: View {
   static let width: CGFloat = 16
   /// What the full bar takes from the books: itself plus the grid's column spacing.
   static let reservedWidth: CGFloat = width + 10
   private static let compactLetterHeight: CGFloat = 14
+  /// Room between the compact bar's letters and its capsule.
+  private static let capsuleInset: CGFloat = 4
 
   let library: LibraryViewModel
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -20,22 +23,31 @@ struct AlphabetRail: View {
       let height =
         isFull
         ? geometry.size.height
-        : min(CGFloat(letters.count) * Self.compactLetterHeight, geometry.size.height)
+        : min(
+          CGFloat(letters.count) * Self.compactLetterHeight,
+          geometry.size.height - 2 * Self.capsuleInset)
       HStack(spacing: 6) {
         Spacer(minLength: 0)
         if let dragged = library.draggedLetter {
           Text(dragged)
             .font(.system(size: 28, weight: .bold))
             .frame(width: 56, height: 56)
-            .background(
-              Color(hex: 0x161b29).opacity(0.96), in: RoundedRectangle(cornerRadius: 16)
-            )
+            .background(Theme.floating, in: RoundedRectangle(cornerRadius: 16))
             .overlay(RoundedRectangle(cornerRadius: 16).strokeBorder(Color.white.opacity(0.12)))
             .shadow(color: .black.opacity(0.5), radius: 12, y: 6)
             .allowsHitTesting(false)
             .accessibilityHidden(true)
         }
-        letterColumn(letters, height: height, isFull: isFull)
+        letterColumn(letters, height: height)
+          .padding(isFull ? 0 : Self.capsuleInset)
+          .background {
+            if !isFull {
+              Capsule()
+                .fill(Theme.floating)
+                .overlay(Capsule().strokeBorder(Color.white.opacity(0.12)))
+                .shadow(color: .black.opacity(0.45), radius: 8, y: 3)
+            }
+          }
           .opacity(isShown ? 1 : 0)
           .allowsHitTesting(isShown)
       }
@@ -45,7 +57,7 @@ struct AlphabetRail: View {
     .frame(width: 120)
   }
 
-  private func letterColumn(_ letters: [String], height: CGFloat, isFull: Bool) -> some View {
+  private func letterColumn(_ letters: [String], height: CGFloat) -> some View {
     let withBooks = Set(library.index?.lettersWithBooks ?? [])
     return VStack(spacing: 0) {
       ForEach(letters, id: \.self) { letter in
@@ -61,9 +73,6 @@ struct AlphabetRail: View {
       }
     }
     .frame(width: Self.width, height: height)
-    .background(
-      isFull ? .clear : Color.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 8)
-    )
     .contentShape(Rectangle())
     .gesture(
       DragGesture(minimumDistance: 0)
