@@ -118,19 +118,20 @@ struct DestinationChips: View {
         .help("Plug in a Kindle with its USB cable to copy books to it")
       }
       ForEach(destinations, id: \.self) { destination in
-        Button {
-          Task { await library.activate(destination) }
-        } label: {
-          Chip(
-            title: destination.label, symbol: destination.symbol,
-            tint: Theme.tint(for: destination.kind),
-            isActive: destination == library.activeDestination)
-        }
-        .buttonStyle(.plain)
-        .help(destination.chipHelp)
-        .accessibilityLabel(destination.spokenName)
         if case .usb(let volume) = destination {
-          EjectButton(panel: panel, volume: volume)
+          KindleChip(panel: panel, destination: destination, volume: volume)
+        } else {
+          Button {
+            Task { await library.activate(destination) }
+          } label: {
+            Chip(
+              title: destination.label, symbol: destination.symbol,
+              tint: Theme.tint(for: destination.kind),
+              isActive: destination == library.activeDestination)
+          }
+          .buttonStyle(.plain)
+          .help(destination.chipHelp)
+          .accessibilityLabel(destination.spokenName)
         }
       }
       if !library.hasKindleEmail, !isKindleSide {
@@ -145,8 +146,58 @@ struct DestinationChips: View {
   }
 }
 
+/// A plugged-in Kindle's chip. Eject slides in at its right edge while the pointer is on it, and
+/// VoiceOver finds it as an action.
+private struct KindleChip: View {
+  let panel: PanelModel
+  let destination: Destination
+  let volume: KindleVolume
+  @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+  var body: some View {
+    let isActive = destination == panel.library.activeDestination
+    let showsEject = panel.showsEject(in: volume)
+    let tint = Theme.tint(for: destination.kind)
+    HStack(spacing: 0) {
+      Button {
+        Task { await panel.library.activate(destination) }
+      } label: {
+        ChipLabel(
+          title: destination.label, symbol: destination.symbol, tint: tint, isActive: isActive,
+          trailingPadding: showsEject ? 6 : 10)
+      }
+      .buttonStyle(.plain)
+      .help(destination.chipHelp)
+      .accessibilityLabel(destination.spokenName)
+      .accessibilityAddTraits(isActive ? .isSelected : [])
+      .accessibilityActions {
+        if let name = panel.ejectActionName(for: volume) {
+          Button(name) { Task { await panel.eject(volume) } }
+        }
+      }
+      if showsEject {
+        EjectButton(panel: panel, volume: volume)
+          .padding(.trailing, 3)
+          .transition(.move(edge: .trailing).combined(with: .opacity))
+      }
+    }
+    .chipShape(tint: tint, isActive: isActive)
+    .onHover { isHovering in
+      if isHovering {
+        panel.hoveredChip = volume
+      } else if panel.hoveredChip == volume {
+        panel.hoveredChip = nil
+      }
+    }
+    .onDisappear {
+      if panel.hoveredChip == volume { panel.hoveredChip = nil }
+    }
+    .animation(reduceMotion ? nil : Theme.press, value: showsEject)
+  }
+}
+
 /// Ejects a plugged-in Kindle, except while a book is being copied to it.
-struct EjectButton: View {
+private struct EjectButton: View {
   let panel: PanelModel
   let volume: KindleVolume
 
@@ -159,10 +210,10 @@ struct EjectButton: View {
         if panel.ejecting == volume {
           ProgressView().controlSize(.mini)
         } else {
-          Image(systemName: "eject.fill").font(.system(size: 9, weight: .bold))
+          Image(systemName: "eject.fill").font(.system(size: 8, weight: .bold))
         }
       }
-      .frame(width: 26, height: 26)
+      .frame(width: 20, height: 20)
       .background(Theme.glass, in: Circle())
       .overlay(Circle().strokeBorder(Theme.line))
       .contentShape(Circle())
@@ -191,7 +242,20 @@ struct Chip: View {
   let isActive: Bool
 
   var body: some View {
-    let shape = Capsule()
+    ChipLabel(title: title, symbol: symbol, tint: tint, isActive: isActive)
+      .chipShape(tint: tint, isActive: isActive)
+      .accessibilityAddTraits(isActive ? .isSelected : [])
+  }
+}
+
+private struct ChipLabel: View {
+  let title: String
+  let symbol: String
+  var tint: Color?
+  let isActive: Bool
+  var trailingPadding: CGFloat = 10
+
+  var body: some View {
     HStack(spacing: 6) {
       Image(systemName: symbol)
         .font(.system(size: 10, weight: .semibold))
@@ -202,11 +266,18 @@ struct Chip: View {
     .fixedSize()
     .font(.system(size: 11, weight: .semibold))
     .foregroundStyle(isActive ? Theme.text : Color.white.opacity(0.7))
-    .padding(.horizontal, 10)
+    .padding(.leading, 10)
+    .padding(.trailing, trailingPadding)
     .padding(.vertical, 6)
-    .background(isActive ? (tint ?? Theme.accent).opacity(0.18) : Theme.glass, in: shape)
-    .overlay(shape.strokeBorder(isActive ? (tint ?? Theme.accent).opacity(0.85) : Theme.line))
-    .accessibilityAddTraits(isActive ? .isSelected : [])
+  }
+}
+
+extension View {
+  fileprivate func chipShape(tint: Color?, isActive: Bool) -> some View {
+    let shape = Capsule()
+    return
+      background(isActive ? (tint ?? Theme.accent).opacity(0.18) : Theme.glass, in: shape)
+      .overlay(shape.strokeBorder(isActive ? (tint ?? Theme.accent).opacity(0.85) : Theme.line))
   }
 }
 

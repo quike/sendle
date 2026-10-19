@@ -36,6 +36,8 @@ public final class PanelModel {
   package private(set) var notice: Problem?
   /// The Kindle being ejected, while it is.
   package private(set) var ejecting: KindleVolume?
+  /// The Kindle chip under the pointer.
+  package var hoveredChip: KindleVolume?
   /// Bumped by ⌘F; the search field takes the keyboard when it changes.
   package private(set) var searchFocusRequests = 0
   /// The status item's centre, measured from the card's left edge, where the arrow points.
@@ -278,6 +280,16 @@ public final class PanelModel {
   /// A Kindle stays put while a book is being copied to it.
   package func canEject(_ volume: KindleVolume) -> Bool {
     ejecting == nil && !isCopying(to: volume)
+  }
+
+  /// Eject sits inside the Kindle's chip while the pointer is on it, and while it ejects.
+  package func showsEject(in volume: KindleVolume) -> Bool {
+    hoveredChip == volume || ejecting == volume
+  }
+
+  /// What VoiceOver offers on the chip; nil where Eject would be refused.
+  package func ejectActionName(for volume: KindleVolume) -> String? {
+    canEject(volume) ? "Eject \(volume.name)" : nil
   }
 
   private func isCopying(to volume: KindleVolume) -> Bool {

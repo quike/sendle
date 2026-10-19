@@ -140,4 +140,56 @@ struct PanelKindleTests {
     #expect(kindle.listings == 1)
     #expect(panel.library.kindleMatches?.byBook[BookID(rawValue: "a")]?.reason == .emailedTitle)
   }
+
+  @Test func ejectShowsInsideTheChipOnHover() async {
+    let (panel, _) = harness.makePanel()
+    await panel.launch()
+    let kindle = KindleVolume.fixture()
+    #expect(!panel.showsEject(in: kindle))
+    panel.hoveredChip = kindle
+    #expect(panel.showsEject(in: kindle))
+    #expect(!panel.showsEject(in: .fixture(name: "Kindle Oasis")))
+    panel.hoveredChip = nil
+    #expect(!panel.showsEject(in: kindle))
+  }
+
+  @Test func ejectStaysInTheChipWhileTheKindleEjects() async {
+    let gate = Signal()
+    let kindle = KindleVolume.fixture()
+    let ejector = FakeKindleEjector(gate: gate)
+    let (panel, _) = harness.makePanel(ejector: ejector)
+    harness.monitor.update([kindle])
+    await panel.launch()
+    #expect(await eventually { panel.library.isKindlePluggedIn })
+
+    let ejecting = Task { await panel.eject(kindle) }
+    #expect(await eventually { panel.ejecting == kindle })
+    #expect(panel.showsEject(in: kindle))
+    #expect(panel.ejectActionName(for: kindle) == nil)
+
+    await gate.fire()
+    await ejecting.value
+    #expect(!panel.showsEject(in: kindle))
+  }
+
+  @Test func ejectIsAnAccessibilityActionExceptDuringACopy() async {
+    let kindle = KindleVolume.fixture()
+    harness.library.result = .success([.fixture(id: "a", format: .pdf)])
+    let channel = FakeDeliveryChannel(.hangUntilCancelled)
+    let (panel, _) = harness.makePanel(
+      AppSettings(email: .fixture, activeDestination: .usb), channel: channel)
+    harness.monitor.update([kindle])
+    await panel.launch()
+    await panel.panelDidOpen()
+    #expect(await eventually { panel.library.activeDestination == .usb(kindle) })
+    #expect(panel.ejectActionName(for: kindle) == "Eject Kindle")
+
+    panel.quickSend(BookID(rawValue: "a"))
+    await channel.waitUntilDeliveryStarts()
+    #expect(panel.ejectActionName(for: kindle) == nil)
+
+    panel.queue.cancel()
+    await panel.queue.waitUntilFinished()
+    #expect(panel.ejectActionName(for: kindle) == "Eject Kindle")
+  }
 }
