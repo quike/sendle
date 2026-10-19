@@ -49,7 +49,7 @@ public struct AppSettings: Hashable, Sendable, Codable {
     activeDestination: DestinationKind = .email,
     sort: LibrarySort = .recent,
     jumpBar: JumpBarStyle = .full,
-    controls: ControlsStyle = .attached,
+    controls: ControlsStyle = .floating,
     showsFormat: Bool = true,
     showsLogs: Bool = false,
     kindleAddresses: [KindleEmail] = [],
@@ -78,7 +78,7 @@ public struct AppSettings: Hashable, Sendable, Codable {
     sort = (try? container.decodeIfPresent(LibrarySort.self, forKey: .sort)) ?? .recent
     jumpBar = (try? container.decodeIfPresent(JumpBarStyle.self, forKey: .jumpBar)) ?? .full
     controls =
-      (try? container.decodeIfPresent(ControlsStyle.self, forKey: .controls)) ?? .attached
+      (try? container.decodeIfPresent(ControlsStyle.self, forKey: .controls)) ?? .floating
     showsFormat = (try? container.decodeIfPresent(Bool.self, forKey: .showsFormat)) ?? true
     showsLogs = (try? container.decodeIfPresent(Bool.self, forKey: .showsLogs)) ?? false
     kindleAddresses =

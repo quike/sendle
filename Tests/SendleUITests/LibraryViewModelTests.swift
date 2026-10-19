@@ -503,14 +503,14 @@ struct LibraryViewModelTests {
   }
 
   @Test func startsWithTheRememberedControlsAndFollowsAChange() async throws {
-    let (model, settings) = makeModel(AppSettings(controls: .floating))
+    let (model, settings) = makeModel(AppSettings(controls: .attached))
     await model.start()
-    #expect(model.controls == .floating)
+    #expect(model.controls == .attached)
 
-    try await settings.update { $0.controls = .attached }
+    try await settings.update { $0.controls = .floating }
     await model.refreshSettings()
 
-    #expect(model.controls == .attached)
+    #expect(model.controls == .floating)
   }
 
   @Test func coversShowTheirFormatUnlessOneFormatIsChosen() async {

@@ -56,7 +56,7 @@ struct AppSettingsTests {
     #expect(settings.layout == .list)
     #expect(settings.sort == .recent)
     #expect(settings.jumpBar == .full)
-    #expect(settings.controls == .attached)
+    #expect(settings.controls == .floating)
     #expect(settings.showsFormat)
     #expect(!settings.showsLogs)
     #expect(settings.bokoPath == nil)
@@ -97,6 +97,12 @@ struct AppSettingsTests {
     #expect(AppSettings().showsFormat)
     let settings = try JSONDecoder().decode(AppSettings.self, from: Data("{}".utf8))
     #expect(settings.showsFormat)
+  }
+
+  @Test func theControlsFloatUnlessTheUserAttachedThem() throws {
+    #expect(AppSettings().controls == .floating)
+    let saved = try JSONEncoder().encode(AppSettings(controls: .attached))
+    #expect(try JSONDecoder().decode(AppSettings.self, from: saved).controls == .attached)
   }
 
   @Test func missingKeysFallBackToDefaults() throws {

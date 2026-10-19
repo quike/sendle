@@ -40,7 +40,7 @@ public final class LibraryViewModel {
   package private(set) var layout = LibraryLayout.grid
   package private(set) var sort = LibrarySort.recent
   package private(set) var jumpBar = JumpBarStyle.full
-  package private(set) var controls = ControlsStyle.attached
+  package private(set) var controls = ControlsStyle.floating
   package private(set) var showsFormat = true
   /// The books the filter and search show, in the sort's order. Built once per change: with
   /// hundreds of books, building them on every read slowed each render.

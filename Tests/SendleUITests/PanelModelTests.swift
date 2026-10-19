@@ -671,7 +671,7 @@ struct PanelModelTests {
   // MARK: Floating controls
 
   @Test func attachedControlsKeepTheSendBarAndTheAZBarInTheCard() async {
-    let (panel, _) = harness.makePanel()
+    let (panel, _) = harness.makePanel(AppSettings(email: .fixture, controls: .attached))
     await panel.launch()
     await panel.panelDidOpen()
     #expect(!panel.showsSendBar)
@@ -758,9 +758,11 @@ struct PanelModelTests {
     await panel.launch()
     await panel.openSettings(.general)
 
-    await panel.settings.setControls(.floating)
-
     #expect(panel.controls == .floating)
+
+    await panel.settings.setControls(.attached)
+
+    #expect(panel.controls == .attached)
   }
 
   @Test func aTestEmailThatSavedANewSetupShowsItsChip() async {

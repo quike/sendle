@@ -15,7 +15,7 @@ public final class SettingsViewModel {
   package private(set) var launchAtLogin = LoginItemStatus.disabled
   package private(set) var launchAtLoginError: String?
   package private(set) var jumpBar = JumpBarStyle.full
-  package private(set) var controls = ControlsStyle.attached
+  package private(set) var controls = ControlsStyle.floating
   package private(set) var showsFormat = true
   package private(set) var showsLogs = false
   package private(set) var kindleAddresses: [KindleEmail] = []

@@ -47,6 +47,8 @@ enum Snapshot {
       contentRect: NSRect(origin: .zero, size: PanelView.windowSize), styleMask: .borderless,
       backing: .buffered, defer: false)
     window.contentView = NSHostingView(rootView: PanelView(panel: panel))
+    // Attached until renderFloating, so the window needs no room for the floating cards.
+    await panel.settings.setControls(.attached)
     await write(window, "library-loading.png", to: folder)
     await composition.launch()
     await panel.panelDidOpen()

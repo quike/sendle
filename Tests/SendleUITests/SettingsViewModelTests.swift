@@ -65,7 +65,7 @@ struct SettingsViewModelTests {
     #expect(model.section == nil)
     #expect(
       SettingsSection.allCases.map { model.summary(of: $0) } == [
-        "Doesn't open at login · Controls: Attached · A–Z bar: Full · Formats on · Logs off",
+        "Doesn't open at login · Controls: Floating · A–Z bar: Full · Formats on · Logs off",
         "reader@kindle.com",
         "Gmail · me@gmail.com", "boko not found",
       ])
@@ -146,7 +146,7 @@ struct SettingsViewModelTests {
     #expect(changes == 2)
     #expect(
       model.summary(of: .general)
-        == "Doesn't open at login · Controls: Attached · A–Z bar: Compact · Formats on · Logs on")
+        == "Doesn't open at login · Controls: Floating · A–Z bar: Compact · Formats on · Logs on")
   }
 
   @Test func savesTheControlsStyleAtOnceAndSaysSo() async {
@@ -154,21 +154,21 @@ struct SettingsViewModelTests {
     var changes = 0
     model.onChange = { changes += 1 }
     await model.open(at: .general)
-    #expect(model.controls == .attached)
+    #expect(model.controls == .floating)
 
-    await model.setControls(.floating)
+    await model.setControls(.attached)
 
-    #expect(await settings.settings.controls == .floating)
+    #expect(await settings.settings.controls == .attached)
     #expect(changes == 1)
-    #expect(model.summary(of: .general).contains("Controls: Floating"))
+    #expect(model.summary(of: .general).contains("Controls: Attached"))
   }
 
   @Test func readsTheControlsStyleBeforeSettingsOpen() async {
-    let model = makeModel(InMemorySettingsStore(AppSettings(controls: .floating)))
+    let model = makeModel(InMemorySettingsStore(AppSettings(controls: .attached)))
 
     await model.start()
 
-    #expect(model.controls == .floating)
+    #expect(model.controls == .attached)
   }
 
   @Test func savesTheFormatChoiceAtOnceAndSaysSo() async {
@@ -184,7 +184,7 @@ struct SettingsViewModelTests {
     #expect(changes == 1)
     #expect(
       model.summary(of: .general)
-        == "Doesn't open at login · Controls: Attached · A–Z bar: Full · Formats off · Logs off")
+        == "Doesn't open at login · Controls: Floating · A–Z bar: Full · Formats off · Logs off")
   }
 
   // MARK: Kindle addresses
@@ -347,7 +347,7 @@ struct SettingsViewModelTests {
     #expect(model.launchAtLoginNote?.contains("Login Items") == true)
     #expect(
       model.summary(of: .general)
-        == "Waiting for approval · Controls: Attached · A–Z bar: Full · Formats on · Logs off")
+        == "Waiting for approval · Controls: Floating · A–Z bar: Full · Formats on · Logs off")
   }
 
   @Test func explainsWhyLaunchAtLoginCouldNotChange() async {
