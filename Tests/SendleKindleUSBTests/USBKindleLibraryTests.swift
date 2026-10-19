@@ -10,10 +10,9 @@ struct USBKindleLibraryTests {
   let log = FakeActivityLog()
   let alice = "Alice's Adventures in Wonderland - Lewis Carroll"
 
-  func library(free: Int64? = 3_100_000_000) -> USBKindleLibrary {
+  func library(device: String = "TEST-UUID", free: Int64? = 3_100_000_000) -> USBKindleLibrary {
     USBKindleLibrary(
-      cacheDirectory: tree.cache, deviceKey: { _ in "TEST-UUID" }, freeSpace: { _ in free },
-      log: log)
+      cacheDirectory: tree.cache, deviceKey: { _ in device }, freeSpace: { _ in free }, log: log)
   }
 
   @Test func listsEveryBookUnderDocuments() async throws {
@@ -150,6 +149,9 @@ struct USBKindleLibraryTests {
   @Test func logsWhatItRead() async throws {
     try tree.write("a.txt", "x")
     _ = try await library().listing(of: tree.volume, progress: { _, _ in })
-    #expect(log.summary.last?.hasPrefix("info USB Read Kindle: 1 books in ") == true)
+    #expect(
+      log.summary.last?.hasPrefix(
+        "info USB Read Kindle (device TEST-UUID): 1 books, 1 read and 0 from the cache, in ")
+        == true)
   }
 }
