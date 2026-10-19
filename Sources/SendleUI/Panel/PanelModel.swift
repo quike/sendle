@@ -52,6 +52,7 @@ public final class PanelModel {
 
   @ObservationIgnored private weak var system: (any SystemActions)?
   @ObservationIgnored private let ejector: any KindleEjector
+  @ObservationIgnored private let log: any ActivityLog
   @ObservationIgnored private var accessWatch: Task<Void, Never>?
   /// Where the logs go back to, and whether the settings sheet was over it.
   @ObservationIgnored private var beforeLogs = (route: PanelRoute.library, showedSettings: false)
@@ -70,7 +71,8 @@ public final class PanelModel {
     queue: SendQueueViewModel,
     logs: LogsViewModel,
     kindle: KindleViewModel,
-    ejector: any KindleEjector
+    ejector: any KindleEjector,
+    log: any ActivityLog = NoActivityLog()
   ) {
     self.library = library
     self.setup = setup
@@ -80,6 +82,7 @@ public final class PanelModel {
     self.logs = logs
     self.kindle = kindle
     self.ejector = ejector
+    self.log = log
     library.reportProblem = { [weak self] problem in self?.show(notice: problem) }
     library.onKindleInputsChange = { [weak self] in self?.followKindle() }
     library.onSortChange = { [weak kindle] in kindle?.sort = $0 }
@@ -261,14 +264,29 @@ public final class PanelModel {
       guard library.activeDestination == destination, check != .interrupted else {
         return stopSend(to: destination)
       }
-      if case .checked(let duplicates, let listing) = check, !duplicates.isEmpty {
+      switch check {
+      case .checked(let duplicates, let listing) where !duplicates.isEmpty:
         guard !queue.isRunning else { return }
         pendingSend = (books, destination, listing)
         duplicateReview = DuplicateReviewModel(cases: duplicates)
         return
+      case .unreadable(let error):
+        log.warning(
+          .usb,
+          "Couldn't check \(volume.name) for duplicates: \(Self.reason(error)); sending as before")
+      case .checked, .interrupted:
+        break
       }
     }
     start(books, to: destination)
+  }
+
+  private static func reason(_ error: KindleListingError) -> String {
+    switch error {
+    case .unreadable(let detail): detail
+    case .deviceDisconnected: "it was unplugged"
+    case .cancelled: "the read was cancelled"
+    }
   }
 
   /// Nothing goes to a Kindle whose books were checked against another one.
@@ -317,20 +335,24 @@ public final class PanelModel {
     var taken = Set(
       pending.listing.books.filter { !$0.id.relativePath.contains("/") }
         .map { $0.stem.lowercased() })
+    let kindleName = pending.destination.volume?.name ?? "the Kindle"
     var copies: [BookID: KindleCopy] = [:]
     var books: [Book] = []
     for book in pending.books {
       switch review.decisions[book.id] {
       case .skip?:
+        log.info(.usb, "Skipped \(book.title): \(kindleName) already has it")
         continue
       case .keepBoth?:
         let copy = FileNaming.nextFreeCopy(for: book, taken: taken)
-        taken.insert(FileNaming.copyName(for: book, copy: copy).lowercased())
+        let name = FileNaming.copyName(for: book, copy: copy)
+        taken.insert(name.lowercased())
         copies[book.id] = .keepBoth(copy)
+        log.info(.usb, "Keeping both: \(book.title) goes as \(name)")
       case .replace?:
-        if let asin = review.cases.first(where: { $0.id == book.id })?.match.book.asin {
-          copies[book.id] = .replacing(asin: asin)
-        }
+        guard let old = review.cases.first(where: { $0.id == book.id })?.match.book else { break }
+        if let asin = old.asin { copies[book.id] = .replacing(asin: asin) }
+        log.info(.usb, "Replacing documents/\(old.id.relativePath) on \(kindleName)")
       case nil:
         break
       }

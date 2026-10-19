@@ -438,6 +438,41 @@ struct PanelKindleTests {
 
     #expect(panel.duplicateReview == nil)
     #expect(channel.deliveries.map(\.name) == ["Moby-Dick - Herman Melville"])
+    #expect(
+      harness.log.summary.contains(
+        "warning USB Couldn't check Kindle for duplicates: I/O error; sending as before"))
+  }
+
+  @Test func eachDecisionIsLogged() async {
+    let twin = KindleBook.fixture(
+      path: "Dracula - Bram Stoker.pdf", title: "Dracula", authors: ["Bram Stoker"],
+      source: .sendle, asin: "SNDRACULA1", asinFollowsFileName: true)
+    let (panel, _, _) = await harness.pluggedInPanel(listing: [sendlesPDF, twin])
+    panel.library.selectAll()
+    await panel.sendSelection()
+
+    for _ in 1...2 {
+      panel.choose(panel.duplicateReview?.current.book.title == "Moby-Dick" ? .skip : .keepBoth)
+    }
+    await panel.queue.waitUntilFinished()
+
+    #expect(
+      Set(harness.log.messages(in: .usb).prefix(2)) == [
+        "Skipped Moby-Dick: Kindle already has it",
+        "Keeping both: Dracula goes as Dracula - Bram Stoker (2)",
+      ])
+  }
+
+  @Test func aReplaceIsLogged() async {
+    let (panel, _, _) = await harness.pluggedInPanel(listing: [sendlesPDF])
+    await panel.quickSend(BookID(rawValue: "a"))
+
+    panel.chooseDefault()
+    await panel.queue.waitUntilFinished()
+
+    #expect(
+      harness.log.messages(in: .usb).first
+        == "Replacing documents/Moby-Dick - Herman Melville.pdf on Kindle")
   }
 
   @Test func aBookNotOnTheKindleSendsAtOnce() async {

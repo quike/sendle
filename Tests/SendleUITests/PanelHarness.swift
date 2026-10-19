@@ -71,7 +71,7 @@ struct PanelHarness {
           history: history,
           retryDelay: .zero, sleep: { _ in })),
       logs: LogsViewModel(feed: log), kindle: makeKindleModel(reading: kindle, history: history),
-      ejector: ejector ?? self.ejector)
+      ejector: ejector ?? self.ejector, log: log)
     panel.attach(system)
     return (panel, settings)
   }

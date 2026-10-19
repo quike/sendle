@@ -71,7 +71,7 @@ struct Composition {
           channels: channels, preparer: KindleEPUBPreparer(), converter: converter,
           staging: staging, history: history, log: log)),
       logs: LogsViewModel(feed: log), kindle: kindle,
-      ejector: VolumeEjector(log: log))
+      ejector: VolumeEjector(log: log), log: log)
     self.settings = settings
     self.chooseTool = chooseTool
     // Clears folders an interrupted send left behind.
