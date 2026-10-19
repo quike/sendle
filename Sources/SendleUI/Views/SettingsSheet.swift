@@ -276,7 +276,8 @@ private struct GeneralPage: View {
         HStack(spacing: 10) {
           RowText(
             title: "Show book format",
-            detail: "A small format label, like EPUB or PDF, on covers in All and Not sent.")
+            detail:
+              "A small format label, like EPUB or PDF, on covers in the library and on the Kindle.")
           Spacer(minLength: 8)
           Toggle(
             "Show book format",
