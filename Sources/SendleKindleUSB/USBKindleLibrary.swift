@@ -81,7 +81,7 @@ public struct USBKindleLibrary: KindleLibrary {
   }
 
   public func cover(of book: KindleBook, on volume: KindleVolume, maxPixel: Int) async -> Cover {
-    .none
+    KindleCovers.cover(of: book, onKindleAt: volume.mountURL, maxPixel: maxPixel)
   }
 
   private struct File {

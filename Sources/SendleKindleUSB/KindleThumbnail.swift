@@ -23,7 +23,8 @@ enum KindleThumbnail {
     let system = root.appending(path: "system", directoryHint: .isDirectory)
     guard FileManager.default.fileExists(atPath: system.path) else { return .noSystemFolder }
     guard let data = try? Data(contentsOf: book), let metadata = AZW3Metadata(data),
-      let cover = metadata.cover, let jpeg = jpeg(from: cover)
+      let cover = metadata.cover,
+      let jpeg = KindleImages.scaled(cover, maxPixel: maxPixelSize, as: .jpeg)
     else { return .noCover }
     let folder = system.appending(path: "thumbnails", directoryHint: .isDirectory)
     let name = "thumbnail_\(metadata.asin)_\(metadata.documentType)_portrait.jpg"
@@ -38,23 +39,5 @@ enum KindleThumbnail {
     } catch {
       return .failed(error.localizedDescription)
     }
-  }
-
-  /// `cover` as a JPEG no larger than `maxPixelSize` on its longer side.
-  private static func jpeg(from cover: Data) -> Data? {
-    let options: [CFString: Any] = [
-      kCGImageSourceCreateThumbnailFromImageAlways: true,
-      kCGImageSourceCreateThumbnailWithTransform: true,
-      kCGImageSourceThumbnailMaxPixelSize: maxPixelSize,
-    ]
-    let data = NSMutableData()
-    guard let source = CGImageSourceCreateWithData(cover as CFData, nil),
-      let image = CGImageSourceCreateThumbnailAtIndex(source, 0, options as CFDictionary),
-      let destination = CGImageDestinationCreateWithData(
-        data, UTType.jpeg.identifier as CFString, 1, nil)
-    else { return nil }
-    CGImageDestinationAddImage(
-      destination, image, [kCGImageDestinationLossyCompressionQuality: 0.85] as CFDictionary)
-    return CGImageDestinationFinalize(destination) ? data as Data : nil
   }
 }
