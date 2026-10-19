@@ -140,6 +140,8 @@ struct KindleShelf: View {
         .padding(.horizontal, 6)
         .padding(.vertical, 8)
       }
+      // Not past the trailing edge, which keeps the A–Z bar's gutter.
+      .scrollOverflow([.vertical, .leading])
       .scrollIndicators(.never)
       SectionLabel("All books").padding(.top, 6).padding(.bottom, 4)
       KindleList(kindle: kindle, items: items, headers: headers)

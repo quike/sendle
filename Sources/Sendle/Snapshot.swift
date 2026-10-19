@@ -71,6 +71,7 @@ enum Snapshot {
       await panel.settings.setJumpBar(.full)
       panel.library.letterJump.jump(to: "W")
       await write(window, "library-az-grid.png", to: folder)
+      await renderGridEdges(panel, window: window, to: folder)
       await panel.library.setSort(.recent)
       await panel.library.setLayout(layout)
       panel.library.selectAll()
@@ -161,9 +162,9 @@ enum Snapshot {
     await write(window, "kindle-not-in-library.png", to: folder)
     panel.kindle.scope = .all
     await panel.library.setSort(.title)
-    for layout in [LibraryLayout.grid, .list] {
+    for (layout, letter) in [(LibraryLayout.grid, "C"), (.list, "M")] {
       await panel.library.setLayout(layout)
-      panel.kindle.letterJump.jump(to: "C")
+      panel.kindle.letterJump.jump(to: letter)
       await write(window, "kindle-az-\(layout.rawValue).png", to: folder)
     }
     await panel.settings.setJumpBar(.compact)
@@ -191,6 +192,32 @@ enum Snapshot {
     }
     _ = panel.library.clearSelection()
     await panel.library.setSort(.recent)
+  }
+
+  /// Selected and lifted covers in the grid's outer columns and its top and bottom rows.
+  private static func renderGridEdges(_ panel: PanelModel, window: NSWindow, to folder: URL) async {
+    let ids = panel.library.items.map(\.id)
+    guard ids.count > 6 else { return }
+    for (name, top, selected, hovered) in [
+      ("library-grid-edges-top", ids[0], [ids[0], ids[2], ids[3]], ids[2]),
+      ("library-grid-edges-bottom", ids[ids.count - 1], Array(ids.suffix(3)), ids[ids.count - 3]),
+    ] {
+      panel.library.letterJump.top = top
+      select(selected.map(\.rawValue), in: panel)
+      panel.library.hovered = hovered
+      await write(window, "\(name).png", to: folder)
+    }
+    await panel.library.setLayout(.shelf)
+    await panel.library.setSort(.recent)
+    await panel.library.setSort(.title)
+    if let first = panel.library.recentItems.first?.id {
+      select([first.rawValue], in: panel)
+      panel.library.hovered = first
+      await write(window, "library-shelf-edges.png", to: folder)
+    }
+    await panel.library.setLayout(.grid)
+    panel.library.hovered = nil
+    _ = panel.library.clearSelection()
   }
 
   private static func select(_ ids: [String], in panel: PanelModel) {

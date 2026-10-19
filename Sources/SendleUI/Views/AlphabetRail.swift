@@ -121,6 +121,7 @@ struct BooksScroll<ID: Hashable & Sendable, Content: View>: View {
             .padding(.trailing, fullRail ? AlphabetRail<ID>.reservedWidth : 0)
             .padding(.bottom, 6 + bottomRoom)
         }
+        .scrollOverflow()
         .scrollIndicators(.never)
         .scrollPosition(id: Bindable(jump).top, anchor: .top)
         .onChange(of: scrollToTopRequests) { proxy.scrollTo(Self.top, anchor: .top) }
@@ -135,5 +136,14 @@ struct BooksScroll<ID: Hashable & Sendable, Content: View>: View {
         jump.isHovered = point.x > geometry.size.width - 36
       }
     }
+  }
+}
+
+extension View {
+  /// Reaches a scroll view `amount` past its frame at `edges` and insets its content by as much,
+  /// so a selected cover's frame, a lifted cover and their shadows are never cut there while the
+  /// books rest where they would without it.
+  func scrollOverflow(_ edges: Edge.Set = .all, _ amount: CGFloat = 10) -> some View {
+    contentMargins(edges, amount, for: .scrollContent).padding(edges, -amount)
   }
 }
