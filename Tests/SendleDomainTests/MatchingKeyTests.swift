@@ -5,6 +5,10 @@ struct MatchingKeyTests {
   @Test(arguments: [
     ("978-0-306-40615-7", "9780306406157"), ("urn:isbn:0306406152", "9780306406157"),
     ("ISBN 0-8044-2957-X", "9780804429573"), ("0141439513", "9780141439518"),
+    ("\n 978-0-306-40615-7\t", "9780306406157"), ("ISBN-10: 0-306-40615-2", "9780306406157"),
+    ("ISBN-13: 978-0-306-40615-7", "9780306406157"), ("ISBN: 0306406152", "9780306406157"),
+    ("978\u{2010}0\u{2011}306\u{2010}40615\u{2011}7", "9780306406157"),
+    ("ISBN\u{A0}0306406152", "9780306406157"),
   ])
   func normalisesISBNsToThirteenDigits(text: String, isbn: String) {
     #expect(ISBN.normalised(text) == isbn)
@@ -22,6 +26,8 @@ struct MatchingKeyTests {
     #expect(NameKey.title("Ñandú y otros cuentos") == NameKey.title("Nandu y otros cuentos"))
     #expect(NameKey.title("El Quijote") == NameKey.title("Quijote"))
     #expect(NameKey.title("Moby-Dick") == NameKey.title("Moby Dick"))
+    #expect(NameKey.title("L'Amour") == NameKey.title("Amour"))
+    #expect(NameKey.title("L\u{2019}Étranger") == NameKey.title("Etranger"))
     #expect(NameKey.title("The") == "the")
     #expect(NameKey.title("Moby-Dick; or, The Whale") != NameKey.title("Moby-Dick"))
   }

@@ -78,4 +78,57 @@ struct MatchKindleBooksTests {
     let confirmed = await match([bleak], against: [download], on: .fixture())
     #expect(confirmed.byBook[bleak.id]?.confidence == .sure)
   }
+
+  @Test func aBlankEditionKeyIsNoKey() async {
+    let blank = FakeEditionReader([BookID(rawValue: "moby"): Edition(key: "  ")])
+    let match = MatchKindleBooks(
+      editions: blank, digests: digests, asins: FakeASINScheme(), history: history)
+    let kindle = KindleBook.fixture(source: .sendle, asin: "SN:Moby-Dick - Herman Melville")
+    let found = await match([.fixture(id: "moby")], against: [kindle], on: .fixture())
+    #expect(found.byBook[BookID(rawValue: "moby")]?.confidence == .maybe)
+  }
+
+  @Test func aSendOtherThanAConfirmedEmailIsNotEmailed() async throws {
+    let bleak = Book.fixture(id: "bleak", title: "Bleak House", author: "Charles Dickens")
+    let download = KindleBook.fixture(
+      path: "Downloads/Items01/Bleak House_0123456789ABCDEF0123456789ABCDEF.kfx",
+      title: "Bleak House", authors: [], source: .email)
+    try await history.append(
+      SendRecord(bookID: bleak.id, destination: .usb, date: .now, outcome: .sent))
+    let found = await match([bleak], against: [download], on: .fixture())
+    #expect(found.byBook[bleak.id]?.confidence == .maybe)
+  }
+
+  @Test func hashesAKindleFileThatCantBeReadOnce() async {
+    let first = Book.fixture(
+      id: "a", format: .pdf, fileURL: URL(filePath: "/Books/a.pdf"), sizeBytes: 1_000)
+    let second = Book.fixture(
+      id: "b", format: .pdf, fileURL: URL(filePath: "/Books/b.pdf"), sizeBytes: 1_000)
+    let kindleBook = KindleBook.fixture(path: "x.pdf", title: "x", byteCount: 1_000)
+    let kindle = KindleVolume.fixture()
+    let digests = FakeFileDigester([first.fileURL: "d1", second.fileURL: "d2"])
+    let found = await MatchKindleBooks(
+      editions: editions, digests: digests, asins: FakeASINScheme(), history: history)(
+        [first, second], against: [kindleBook], on: kindle)
+    #expect(digests.requests.filter { $0 == kindleBook.url(on: kindle) }.count == 1)
+    #expect(found.byBook.isEmpty)
+  }
+
+  @Test func stopsHashingOnceCancelled() async {
+    let pdf = Book.fixture(
+      id: "orwell", format: .pdf, fileURL: URL(filePath: "/Books/1984.pdf"), sizeBytes: 1_000)
+    let copy = KindleBook.fixture(path: "a.pdf", title: "a", byteCount: 1_000)
+    let digests = FakeFileDigester()
+    let matcher = MatchKindleBooks(
+      editions: editions, digests: digests, asins: FakeASINScheme(), history: history)
+    let gate = Signal()
+    let task = Task {
+      await gate.wait()
+      return await matcher([pdf], against: [copy], on: .fixture())
+    }
+    task.cancel()
+    await gate.fire()
+    _ = await task.value
+    #expect(digests.requests.isEmpty)
+  }
 }

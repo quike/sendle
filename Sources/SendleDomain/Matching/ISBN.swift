@@ -1,12 +1,16 @@
+import Foundation
+
 public enum ISBN {
   /// The ISBN-13 digits for a valid ISBN-10 or ISBN-13 in any common spelling, or nil.
   public static func normalised(_ text: String) -> String? {
-    var rest = text.lowercased()
-    for prefix in ["urn:isbn:", "isbn:", "isbn"] where rest.hasPrefix(prefix) {
+    var rest = text.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+    for prefix in ["urn:isbn:", "isbn-13:", "isbn-10:", "isbn:", "isbn"]
+    where rest.hasPrefix(prefix) {
       rest.removeFirst(prefix.count)
       break
     }
-    let characters = rest.filter { $0 != " " && $0 != "-" }
+    let hyphens: Set<Character> = ["-", "\u{2010}", "\u{2011}"]
+    let characters = rest.filter { !$0.isWhitespace && !hyphens.contains($0) }
     switch characters.count {
     case 10: return thirteen(fromTen: characters)
     case 13: return isValidThirteen(characters) ? characters : nil

@@ -4,7 +4,7 @@ public enum FileNaming {
   public static let maxLength = 120
   /// Leaves room for the extension within a 255-byte file name.
   public static let maxEmailNameBytes = 240
-  /// How many Keep both copies of an edition are recognised by their ASIN.
+  /// How many copies of an edition are recognised by ASIN: the original and its Keep both copies.
   public static let editionCopyLimit = 9
 
   /// Send to Kindle lists an emailed document under its attachment name, so email gets the
@@ -19,7 +19,7 @@ public enum FileNaming {
   /// The text a delivered AZW3's ASIN derives from. An edition key makes the ASIN follow the
   /// edition, whatever the file is named; copy n of a book is numbered from 2.
   public static func asinSeed(for book: Book, edition: Edition?, copy: Int) -> String {
-    if let key = edition?.key?.trimmingCharacters(in: .whitespacesAndNewlines), !key.isEmpty {
+    if let key = edition?.trimmedKey {
       return copy < 2 ? "edition:" + key : "edition:" + key + "#\(copy)"
     }
     let name = baseName(for: book)

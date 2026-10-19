@@ -1,7 +1,7 @@
 import Foundation
 
 public struct MatchKindleBooks: Sendable {
-  private let editions: any EditionReader
+  private let editionReader: any EditionReader
   private let digests: any FileDigester
   private let asins: any ASINScheme
   private let history: any SendHistoryStore
@@ -12,14 +12,14 @@ public struct MatchKindleBooks: Sendable {
     asins: any ASINScheme,
     history: any SendHistoryStore
   ) {
-    self.editions = editions
+    self.editionReader = editions
     self.digests = digests
     self.asins = asins
     self.history = history
   }
 
   public func editions(of books: [Book]) async -> [BookID: Edition] {
-    await editions.editions(of: books)
+    await editionReader.editions(of: books)
   }
 
   public func callAsFunction(
@@ -47,7 +47,7 @@ public struct MatchKindleBooks: Sendable {
       $0.format == .epub && ($0.availability == .ready || $0.availability == .protected)
     }
     guard !readable.isEmpty else { return [:] }
-    return await editions.editions(of: readable)
+    return await editionReader.editions(of: readable)
   }
 
   private func editionASINs(
@@ -55,7 +55,7 @@ public struct MatchKindleBooks: Sendable {
   ) -> [BookID: Set<String>] {
     var result: [BookID: Set<String>] = [:]
     for book in books {
-      guard let edition = editions[book.id], edition.key != nil else { continue }
+      guard let edition = editions[book.id], edition.trimmedKey != nil else { continue }
       result[book.id] = Set(
         (1...FileNaming.editionCopyLimit).map {
           asins.asin(forSeed: FileNaming.asinSeed(for: book, edition: edition, copy: $0))
@@ -80,11 +80,13 @@ public struct MatchKindleBooks: Sendable {
     var kindleDigests: [KindleBookID: String] = [:]
     var unreadable: Set<KindleBookID> = []
     for book in books where book.format == .pdf && book.availability == .ready {
+      if Task.isCancelled { return pairs }
       let sameSize = kindlePDFs.filter { $0.byteCount == book.sizeBytes }
       guard !sameSize.isEmpty, let digest = await digests.sha256(of: book.fileURL) else {
         continue
       }
       for kindleBook in sameSize where !unreadable.contains(kindleBook.id) {
+        if Task.isCancelled { return pairs }
         if kindleDigests[kindleBook.id] == nil {
           kindleDigests[kindleBook.id] = await digests.sha256(of: kindleBook.url(on: volume))
           if kindleDigests[kindleBook.id] == nil { unreadable.insert(kindleBook.id) }
