@@ -1,6 +1,29 @@
 import Foundation
 import SendleDomain
 
+/// Whether the plugged-in Kindle was read, and what it holds of a book.
+package enum KindlePresence: Hashable, Sendable {
+  /// No Kindle has been read.
+  case none
+  case notOnKindle
+  case on(MatchConfidence)
+}
+
+/// A small symbol on a book: where it was sent, or that it is on the Kindle.
+package enum BookMark: Hashable, Sendable {
+  case route(DestinationKind, dimmed: Bool)
+  case onKindle
+  case maybeOnKindle
+
+  package var symbol: String {
+    switch self {
+    case .route(let kind, _): kind.symbol
+    case .onKindle: "book.closed.fill"
+    case .maybeOnKindle: "questionmark"
+    }
+  }
+}
+
 /// One book as every layout shows it.
 package struct BookItemViewModel: Identifiable, Hashable, Sendable {
   package enum Tone: Sendable {
@@ -19,6 +42,10 @@ package struct BookItemViewModel: Identifiable, Hashable, Sendable {
   package let tone: Tone
   /// Where the book was sent for sure.
   package let routes: [DestinationKind]
+  /// The marks to draw: the email route, then whichever of the Kindle or the USB route is known.
+  package let marks: [BookMark]
+  /// What the plugged-in Kindle says about the book, in words; nil when it has nothing to add.
+  package let kindleText: String?
   /// The earlier sends VoiceOver can't see as marks, when the detail doesn't already name them.
   package let spokenRoutes: String?
   package let canSend: Bool
@@ -30,6 +57,7 @@ package struct BookItemViewModel: Identifiable, Hashable, Sendable {
     sends: BookSends?,
     destination: DestinationKind,
     converterAvailable: Bool,
+    kindle: KindlePresence,
     now: Date
   ) {
     self.book = book
@@ -37,6 +65,8 @@ package struct BookItemViewModel: Identifiable, Hashable, Sendable {
     byline = book.author ?? "Unknown author"
     badge = book.isStorePurchase ? "STORE" : book.format.rawValue.uppercased()
     routes = sends?.routes ?? []
+    marks = Self.marks(routes: routes, kindle: kindle)
+    kindleText = Self.kindleText(routes: routes, kindle: kindle)
     let sentWording = Self.sentWording(of: routes)
     switch FormatPolicy.plan(for: book, to: destination, converterAvailable: converterAvailable) {
     case .blocked(let reason, _):
@@ -57,6 +87,26 @@ package struct BookItemViewModel: Identifiable, Hashable, Sendable {
       canSend = true
     }
     spokenRoutes = routes.isEmpty || tone == .sent ? nil : "\(sentWording) before"
+  }
+
+  private static func marks(routes: [DestinationKind], kindle: KindlePresence) -> [BookMark] {
+    var marks: [BookMark] = routes.contains(.email) ? [.route(.email, dimmed: false)] : []
+    switch kindle {
+    case .on(.sure): marks.append(.onKindle)
+    case .on(.maybe): marks.append(.maybeOnKindle)
+    case .none, .notOnKindle:
+      if routes.contains(.usb) { marks.append(.route(.usb, dimmed: kindle == .notOnKindle)) }
+    }
+    return marks
+  }
+
+  private static func kindleText(routes: [DestinationKind], kindle: KindlePresence) -> String? {
+    switch kindle {
+    case .on(.sure): "On this Kindle"
+    case .on(.maybe): "Maybe on this Kindle · another edition?"
+    case .notOnKindle where routes.contains(.usb): "Sent over USB · not on this Kindle"
+    case .none, .notOnKindle: nil
+    }
   }
 
   private static func sentWording(of routes: [DestinationKind]) -> String {

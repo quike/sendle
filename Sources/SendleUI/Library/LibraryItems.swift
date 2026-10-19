@@ -30,11 +30,17 @@ package enum LibraryItems {
             book, wasSent: sends[book.id] != nil, onKindle: kindle?.byBook[book.id]?.confidence)
           && matches(book, words)
       }
-      .map {
+      .map { book in
         BookItemViewModel(
-          book: $0, sends: sends[$0.id], destination: destination,
-          converterAvailable: converterAvailable, now: now)
+          book: book, sends: sends[book.id], destination: destination,
+          converterAvailable: converterAvailable,
+          kindle: presence(of: book, on: kindle), now: now)
       }
+  }
+
+  private static func presence(of book: Book, on kindle: KindleMatches?) -> KindlePresence {
+    guard let kindle else { return .none }
+    return kindle.byBook[book.id].map { .on($0.confidence) } ?? .notOnKindle
   }
 
   /// What each book's sent and unconfirmed records add up to; books only ever failed have none.

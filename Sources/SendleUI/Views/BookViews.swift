@@ -119,10 +119,11 @@ struct BookRow: View {
         Text(item.byline).font(.system(size: 10.5)).foregroundStyle(Theme.muted).lineLimit(1)
         HStack(spacing: 5) {
           FormatBadge(text: item.badge)
-          ForEach(item.routes, id: \.self) { kind in
-            Image(systemName: kind.symbol)
+          ForEach(item.marks, id: \.self) { mark in
+            Image(systemName: mark.symbol)
               .font(.system(size: 8.5))
-              .foregroundStyle(Theme.tint(for: kind))
+              .foregroundStyle(mark.color)
+              .opacity(mark.opacity)
           }
           Text(item.detail).foregroundStyle(item.tone.color).lineLimit(1)
         }
@@ -241,7 +242,7 @@ struct BookCover: View {
     let slot = panel.covers.slot(for: book, size: size)
     let isSelected = item.map { panel.library.selection.contains($0.id) } ?? false
     let isHovered = item.map { panel.library.hovered == $0.id } ?? false
-    let isUnavailable = book.availability != .ready
+    let look = CoverLook.of(book.availability)
     let shape = UnevenRoundedRectangle(
       topLeadingRadius: 5, bottomLeadingRadius: 5, bottomTrailingRadius: 7, topTrailingRadius: 7,
       style: .continuous)
@@ -260,19 +261,17 @@ struct BookCover: View {
       .overlay(alignment: .leading) {
         Rectangle().fill(Color.black.opacity(0.18)).frame(width: 3)
       }
-      .saturation(isUnavailable ? 0.2 : 1)
-      .brightness(isUnavailable ? -0.3 : 0)
+      .saturation(look.saturation)
+      .brightness(look.brightness)
       .overlay {
         if book.availability == .protected {
           Image(systemName: "lock.fill").font(.system(size: 14)).foregroundStyle(.white)
         }
       }
       .overlay(alignment: .topTrailing) {
-        if let routes = item?.routes, !routes.isEmpty {
+        if let marks = item?.marks, !marks.isEmpty {
           HStack(spacing: 2) {
-            ForEach(routes, id: \.self) { kind in
-              CoverMark(symbol: kind.symbol, color: Theme.tint(for: kind))
-            }
+            ForEach(marks, id: \.self) { BookMarkView(mark: $0) }
           }
           .padding(5)
         }
@@ -292,6 +291,11 @@ struct BookCover: View {
       }
       .overlay(alignment: .bottomLeading) {
         if showsFormat, let item { FormatBadge(text: item.badge, onCover: true).padding(6) }
+      }
+      .overlay(alignment: .bottomTrailing) {
+        if look.showsCloud, size == .large {
+          CoverMark(symbol: "icloud.fill", color: Theme.muted).padding(5)
+        }
       }
       .overlay(alignment: .bottomTrailing) {
         if isHovered, let item, item.canSend, size == .large {
@@ -318,6 +322,41 @@ private struct CoverMark: View {
       .frame(width: 16, height: 16)
       .background(color, in: Circle())
       .overlay(Circle().strokeBorder(Theme.background, lineWidth: 2))
+  }
+}
+
+/// A mark on a cover: the route a book went by, or that the Kindle holds it, surely or maybe.
+private struct BookMarkView: View {
+  let mark: BookMark
+
+  var body: some View {
+    Group {
+      if mark == .maybeOnKindle {
+        Image(systemName: mark.symbol)
+          .font(.system(size: 8, weight: .heavy))
+          .foregroundStyle(mark.color)
+          .frame(width: 16, height: 16)
+          .background(Theme.background, in: Circle())
+          .overlay(Circle().strokeBorder(mark.color, lineWidth: 1.5))
+      } else {
+        CoverMark(symbol: mark.symbol, color: mark.color)
+      }
+    }
+    .opacity(mark.opacity)
+  }
+}
+
+extension BookMark {
+  var color: Color {
+    switch self {
+    case .route(let kind, _): Theme.tint(for: kind)
+    case .onKindle, .maybeOnKindle: Theme.live
+    }
+  }
+
+  /// A USB send the Kindle no longer shows.
+  var opacity: Double {
+    if case .route(_, dimmed: true) = self { 0.45 } else { 1 }
   }
 }
 
@@ -374,7 +413,8 @@ extension View {
   /// per book, whose actions select it or send it.
   func bookInteractions(_ panel: PanelModel, _ item: BookItemViewModel) -> some View {
     let library = panel.library
-    let details = [item.badge, item.detail, item.spokenRoutes ?? ""].filter { !$0.isEmpty }
+    let details = [item.badge, item.detail, item.spokenRoutes ?? "", item.kindleText ?? ""]
+      .filter { !$0.isEmpty }
     return contentShape(Rectangle())
       .onTapGesture { panel.click(item.id, .current) }
       .onHover { inside in
@@ -384,7 +424,7 @@ extension View {
           library.hovered = nil
         }
       }
-      .help(item.detail)
+      .help([item.detail, item.kindleText ?? ""].filter { !$0.isEmpty }.joined(separator: "\n"))
       .accessibilityElement(children: .ignore)
       .accessibilityLabel("\(item.title), \(item.byline)")
       .accessibilityValue(details.joined(separator: ", "))

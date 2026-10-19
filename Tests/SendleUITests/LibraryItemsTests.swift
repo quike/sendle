@@ -24,6 +24,22 @@ struct LibraryItemsTests {
       query: query, destination: destination, converterAvailable: false, kindle: kindle, now: now)
   }
 
+  func item(_ book: Book, _ sends: [SendRecord], kindle: KindlePresence) -> BookItemViewModel {
+    let matches: KindleMatches? =
+      switch kindle {
+      case .none: nil
+      case .notOnKindle: .empty
+      case .on(let confidence):
+        KindleMatches(
+          byBook: [
+            book.id: KindleMatch(
+              book: .fixture(), confidence: confidence,
+              reason: confidence == .sure ? .sendleName : .titleAndAuthor)
+          ], onKindle: [:])
+      }
+    return items([book], sends: sends, kindle: matches)[0]
+  }
+
   func sent(
     _ book: Book, daysAgo: Double, _ outcome: SendOutcome = .sent, by kind: DestinationKind = .email
   ) -> SendRecord {
@@ -236,5 +252,52 @@ struct LibraryItemsTests {
     let used = Set(
       (0..<60).map { TitleCard.paletteIndex(for: BookID(rawValue: "id-\($0)"), count: 6) })
     #expect(used == Set(0..<6))
+  }
+
+  @Test func whatIsOnTheKindleOutranksTheHistory() {
+    let sends = [sent(moby, daysAgo: 2, by: .email), sent(moby, daysAgo: 1, by: .usb)]
+
+    #expect(
+      item(moby, sends, kindle: .on(.sure)).marks == [.route(.email, dimmed: false), .onKindle])
+    #expect(
+      item(moby, sends, kindle: .on(.maybe)).marks == [
+        .route(.email, dimmed: false), .maybeOnKindle,
+      ])
+    #expect(
+      item(moby, sends, kindle: .notOnKindle).marks == [
+        .route(.email, dimmed: false), .route(.usb, dimmed: true),
+      ])
+    #expect(
+      item(moby, sends, kindle: .none).marks == [
+        .route(.email, dimmed: false), .route(.usb, dimmed: false),
+      ])
+    #expect(item(moby, [], kindle: .on(.sure)).marks == [.onKindle])
+  }
+
+  @Test func theKindleStateIsSaidInWords() {
+    #expect(item(moby, [], kindle: .on(.sure)).kindleText == "On this Kindle")
+    #expect(
+      item(moby, [], kindle: .on(.maybe)).kindleText == "Maybe on this Kindle · another edition?")
+    #expect(
+      item(moby, [sent(moby, daysAgo: 1, by: .usb)], kindle: .notOnKindle).kindleText
+        == "Sent over USB · not on this Kindle")
+    #expect(item(moby, [], kindle: .notOnKindle).kindleText == nil)
+    #expect(item(moby, [], kindle: .none).kindleText == nil)
+  }
+
+  @Test func marksHaveTheirSymbols() {
+    #expect(BookMark.onKindle.symbol == "book.closed.fill")
+    #expect(BookMark.maybeOnKindle.symbol == "questionmark")
+    #expect(BookMark.route(.usb, dimmed: true).symbol == DestinationKind.usb.symbol)
+  }
+
+  @Test func iCloudCoversAreDimmedLessAndMarked() {
+    #expect(CoverLook.of(.ready) == CoverLook(saturation: 1, brightness: 0, showsCloud: false))
+    #expect(
+      CoverLook.of(.inCloudOnly) == CoverLook(saturation: 0.6, brightness: -0.1, showsCloud: true))
+    #expect(
+      CoverLook.of(.protected) == CoverLook(saturation: 0.2, brightness: -0.3, showsCloud: false))
+    #expect(
+      CoverLook.of(.missing) == CoverLook(saturation: 0.2, brightness: -0.3, showsCloud: false))
   }
 }
