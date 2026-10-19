@@ -145,6 +145,28 @@ struct PanelKindleTests {
     #expect(kindle.listings == 3)
   }
 
+  @Test func aBookJustCopiedNeverShowsAsMissingFromTheKindle() async {
+    let (panel, kindle, _) = await harness.pluggedInPanel(listing: [])
+    await panel.quickSend(BookID(rawValue: "b"))
+    let gate = Signal()
+    kindle.gate = gate
+    kindle.result = .success(
+      .fixture([
+        .fixture(
+          path: "Dracula - Bram Stoker.pdf", title: "Dracula", authors: ["Bram Stoker"],
+          source: .sendle, asin: "SNDRACULA1", asinFollowsFileName: true)
+      ]))
+    func marks() -> [BookMark]? {
+      panel.library.items.first { $0.id == BookID(rawValue: "b") }?.marks
+    }
+
+    #expect(await eventually { kindle.listings == 3 })
+    #expect(marks()?.contains(.route(.usb, dimmed: true)) == false)
+    await gate.fire()
+    await panel.queue.waitUntilFinished()
+    #expect(await eventually { marks() == [.onKindle] })
+  }
+
   @Test func anEmailSendOnlyMatchesAgain() async {
     let kindle = FakeKindleLibrary(.success(.fixture([emailedCopy])))
     let (panel, _) = harness.makePanel(kindle: kindle)

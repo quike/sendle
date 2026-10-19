@@ -212,13 +212,15 @@ public final class PanelModel {
     Task { await kindle.follow(volume, books: books) }
   }
 
-  /// A USB send changed the Kindle, so it is read again; an email send only changed what the
-  /// history says about the library.
+  /// A USB send changed the Kindle, so it is read again before the history shows the send, or a
+  /// book just copied would show as missing from it; an email send only changed what the history
+  /// says about the library.
   private func refreshAfterSend() async {
-    await library.refreshHistory()
     if queue.destination?.kind == .usb {
       await kindle.refresh()
+      await library.refreshHistory()
     } else {
+      await library.refreshHistory()
       await kindle.rematch()
     }
   }
