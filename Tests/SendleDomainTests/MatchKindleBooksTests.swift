@@ -10,7 +10,8 @@ struct MatchKindleBooksTests {
   let history = InMemorySendHistoryStore()
   var match: MatchKindleBooks {
     MatchKindleBooks(
-      editions: editions, digests: digests, asins: FakeASINScheme(), history: history)
+      editions: editions, digests: digests, kindleDigests: digests, asins: FakeASINScheme(),
+      history: history)
   }
 
   @Test func readsNoEditionsWhenNoKindleBookCouldCarryAKey() async {
@@ -27,7 +28,8 @@ struct MatchKindleBooksTests {
   @Test func copiesOfAnEditionAreSureUpToTheNinth() async {
     let keyed = FakeEditionReader([BookID(rawValue: "moby"): Edition(key: "urn:uuid:moby-dick")])
     let match = MatchKindleBooks(
-      editions: keyed, digests: digests, asins: FakeASINScheme(), history: history)
+      editions: keyed, digests: digests, kindleDigests: digests, asins: FakeASINScheme(),
+      history: history)
     let third = KindleBook.fixture(
       path: "x.azw3", title: "X", source: .sendle, asin: "SN:edition:urn:uuid:moby-dick#3")
     let thirdMatch = await match([.fixture(id: "moby")], against: [third], on: .fixture())
@@ -58,9 +60,26 @@ struct MatchKindleBooksTests {
     let kindle = KindleVolume.fixture()
     let digests = FakeFileDigester([pdf.fileURL: "d1", same.url(on: kindle): "d1"])
     let found = await MatchKindleBooks(
-      editions: editions, digests: digests, asins: FakeASINScheme(), history: history)(
+      editions: editions, digests: digests, kindleDigests: digests, asins: FakeASINScheme(),
+      history: history)(
         [pdf], against: [same, other], on: kindle)
     #expect(Set(digests.requests) == [pdf.fileURL, same.url(on: kindle)])
+    #expect(found.byBook[pdf.id]?.reason == .sameContent)
+  }
+
+  @Test func hashesKindleBooksThroughTheKindleDigester() async {
+    let pdf = Book.fixture(
+      id: "orwell", title: "1984", format: .pdf, fileURL: URL(filePath: "/Books/1984.pdf"),
+      sizeBytes: 1_000)
+    let same = KindleBook.fixture(path: "a.pdf", title: "a", byteCount: 1_000)
+    let kindle = KindleVolume.fixture()
+    let onMac = FakeFileDigester([pdf.fileURL: "d1"])
+    let onKindle = FakeFileDigester([same.url(on: kindle): "d1"])
+    let found = await MatchKindleBooks(
+      editions: editions, digests: onMac, kindleDigests: onKindle, asins: FakeASINScheme(),
+      history: history)([pdf], against: [same], on: kindle)
+    #expect(onMac.requests == [pdf.fileURL])
+    #expect(onKindle.requests == [same.url(on: kindle)])
     #expect(found.byBook[pdf.id]?.reason == .sameContent)
   }
 
@@ -82,7 +101,8 @@ struct MatchKindleBooksTests {
   @Test func aBlankEditionKeyIsNoKey() async {
     let blank = FakeEditionReader([BookID(rawValue: "moby"): Edition(key: "  ")])
     let match = MatchKindleBooks(
-      editions: blank, digests: digests, asins: FakeASINScheme(), history: history)
+      editions: blank, digests: digests, kindleDigests: digests, asins: FakeASINScheme(),
+      history: history)
     let kindle = KindleBook.fixture(source: .sendle, asin: "SN:Moby-Dick - Herman Melville")
     let found = await match([.fixture(id: "moby")], against: [kindle], on: .fixture())
     #expect(found.byBook[BookID(rawValue: "moby")]?.confidence == .maybe)
@@ -108,7 +128,8 @@ struct MatchKindleBooksTests {
     let kindle = KindleVolume.fixture()
     let digests = FakeFileDigester([first.fileURL: "d1", second.fileURL: "d2"])
     let found = await MatchKindleBooks(
-      editions: editions, digests: digests, asins: FakeASINScheme(), history: history)(
+      editions: editions, digests: digests, kindleDigests: digests, asins: FakeASINScheme(),
+      history: history)(
         [first, second], against: [kindleBook], on: kindle)
     #expect(digests.requests.filter { $0 == kindleBook.url(on: kindle) }.count == 1)
     #expect(found.byBook.isEmpty)
@@ -120,7 +141,8 @@ struct MatchKindleBooksTests {
     let copy = KindleBook.fixture(path: "a.pdf", title: "a", byteCount: 1_000)
     let digests = FakeFileDigester()
     let matcher = MatchKindleBooks(
-      editions: editions, digests: digests, asins: FakeASINScheme(), history: history)
+      editions: editions, digests: digests, kindleDigests: digests, asins: FakeASINScheme(),
+      history: history)
     let gate = Signal()
     let task = Task {
       await gate.wait()

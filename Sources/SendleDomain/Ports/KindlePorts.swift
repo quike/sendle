@@ -19,6 +19,11 @@ public protocol FileDigester: Sendable {
   func sha256(of file: URL) async -> String?
 }
 
+public protocol KindleDigester: Sendable {
+  /// The SHA-256 of a book on the Kindle in lowercase hex, or nil when it can't be read.
+  func sha256(of book: KindleBook, on volume: KindleVolume) async -> String?
+}
+
 /// The 10-character ASIN Sendle gives a book it writes, derived from a seed.
 public protocol ASINScheme: Sendable {
   func asin(forSeed seed: String) -> String

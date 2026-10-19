@@ -100,7 +100,8 @@ public final class FakeEditionReader: EditionReader {
   }
 }
 
-public final class FakeFileDigester: FileDigester {
+/// Answers for files on the Mac and, through their place on the volume, for books on a Kindle.
+public final class FakeFileDigester: FileDigester, KindleDigester {
   private let digests: [URL: String]
   private let log = OSAllocatedUnfairLock<[URL]>(initialState: [])
 
@@ -113,6 +114,10 @@ public final class FakeFileDigester: FileDigester {
   public func sha256(of file: URL) async -> String? {
     log.withLock { $0.append(file) }
     return digests[file]
+  }
+
+  public func sha256(of book: KindleBook, on volume: KindleVolume) async -> String? {
+    await sha256(of: book.url(on: volume))
   }
 }
 

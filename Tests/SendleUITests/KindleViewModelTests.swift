@@ -262,7 +262,8 @@ struct KindleViewModelTests {
     let model = KindleViewModel(
       library: kindle,
       match: MatchKindleBooks(
-        editions: reader, digests: FakeFileDigester(), asins: FakeASINScheme(),
+        editions: reader, digests: FakeFileDigester(), kindleDigests: FakeFileDigester(),
+        asins: FakeASINScheme(),
         history: InMemorySendHistoryStore()))
     kindle.result = .success(.fixture([.fixture(isbn: "9780141439518")]))
     let epub = Book.fixture(id: "epub")
@@ -281,7 +282,8 @@ struct KindleViewModelTests {
     let model = KindleViewModel(
       library: kindle,
       match: MatchKindleBooks(
-        editions: reader, digests: FakeFileDigester(), asins: FakeASINScheme(),
+        editions: reader, digests: FakeFileDigester(), kindleDigests: FakeFileDigester(),
+        asins: FakeASINScheme(),
         history: InMemorySendHistoryStore()))
     var told: [KindleMatches?] = []
     model.onMatchesChange = { told.append($0) }

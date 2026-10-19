@@ -13,11 +13,7 @@ public struct USBKindleLibrary: KindleLibrary {
 
   public init(cacheDirectory: URL, log: any ActivityLog = NoActivityLog()) {
     self.init(
-      cacheDirectory: cacheDirectory,
-      deviceKey: {
-        let uuid = try? $0.mountURL.resourceValues(forKeys: [.volumeUUIDStringKey])
-        return Self.deviceKey(uuid: uuid?.volumeUUIDString, name: $0.name)
-      },
+      cacheDirectory: cacheDirectory, deviceKey: Self.deviceKey(of:),
       freeSpace: Self.availableCapacity, log: log)
   }
 
@@ -36,6 +32,11 @@ public struct USBKindleLibrary: KindleLibrary {
   /// A Kindle is its volume's UUID, or its name when the volume has none.
   package static func deviceKey(uuid: String?, name: String) -> String {
     uuid ?? name
+  }
+
+  package static func deviceKey(of volume: KindleVolume) -> String {
+    let uuid = try? volume.mountURL.resourceValues(forKeys: [.volumeUUIDStringKey])
+    return deviceKey(uuid: uuid?.volumeUUIDString, name: volume.name)
   }
 
   public func listing(

@@ -3,17 +3,20 @@ import Foundation
 public struct MatchKindleBooks: Sendable {
   private let editionReader: any EditionReader
   private let digests: any FileDigester
+  private let kindleDigests: any KindleDigester
   private let asins: any ASINScheme
   private let history: any SendHistoryStore
 
   public init(
     editions: any EditionReader,
     digests: any FileDigester,
+    kindleDigests: any KindleDigester,
     asins: any ASINScheme,
     history: any SendHistoryStore
   ) {
     self.editionReader = editions
     self.digests = digests
+    self.kindleDigests = kindleDigests
     self.asins = asins
     self.history = history
   }
@@ -77,7 +80,7 @@ public struct MatchKindleBooks: Sendable {
     let kindlePDFs = listing.filter { $0.format == "pdf" }
     guard !kindlePDFs.isEmpty else { return [] }
     var pairs: Set<ContentPair> = []
-    var kindleDigests: [KindleBookID: String] = [:]
+    var onKindle: [KindleBookID: String] = [:]
     var unreadable: Set<KindleBookID> = []
     for book in books where book.format == .pdf && book.availability == .ready {
       if Task.isCancelled { return pairs }
@@ -87,11 +90,11 @@ public struct MatchKindleBooks: Sendable {
       }
       for kindleBook in sameSize where !unreadable.contains(kindleBook.id) {
         if Task.isCancelled { return pairs }
-        if kindleDigests[kindleBook.id] == nil {
-          kindleDigests[kindleBook.id] = await digests.sha256(of: kindleBook.url(on: volume))
-          if kindleDigests[kindleBook.id] == nil { unreadable.insert(kindleBook.id) }
+        if onKindle[kindleBook.id] == nil {
+          onKindle[kindleBook.id] = await kindleDigests.sha256(of: kindleBook, on: volume)
+          if onKindle[kindleBook.id] == nil { unreadable.insert(kindleBook.id) }
         }
-        if kindleDigests[kindleBook.id] == digest {
+        if onKindle[kindleBook.id] == digest {
           pairs.insert(ContentPair(book: book.id, kindleBook: kindleBook.id))
         }
       }

@@ -11,6 +11,7 @@ func makeKindleModel(
   KindleViewModel(
     library: library,
     match: MatchKindleBooks(
-      editions: FakeEditionReader(), digests: FakeFileDigester(), asins: FakeASINScheme(),
+      editions: FakeEditionReader(), digests: FakeFileDigester(), kindleDigests: FakeFileDigester(),
+      asins: FakeASINScheme(),
       history: history))
 }

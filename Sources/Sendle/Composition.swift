@@ -51,7 +51,8 @@ struct Composition {
       library: kindleLibrary ?? USBKindleLibrary(cacheDirectory: data, log: log),
       match: MatchKindleBooks(
         editions: OPFEditionReader(cacheFile: data.appending(path: "editions.json")),
-        digests: SHA256FileDigester(), asins: SendleASINScheme(), history: history))
+        digests: CachedFileDigester(), kindleDigests: CachedKindleDigester(cacheDirectory: data),
+        asins: SendleASINScheme(), history: history))
     let setup = SetupViewModel(
       configure: configure, sendTest: sendTest,
       checkAccess: {
