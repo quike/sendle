@@ -98,11 +98,14 @@ struct FloatingControlsTests {
 
   /// The status item near the screen's right edge, as it usually is.
   let anchor = CGRect(x: 1_300, y: 875, width: 24, height: 25)
+  /// The card's top edge under that status item: 3 pt into it, less the arrow's room.
+  let cardTop: CGFloat = 875 + 3 - 12
+  let height = Theme.cardSize.height
 
   @Test func theCardSitsUnderTheStatusItemAsItAlwaysHas() {
     let placement = PanelPlacement(below: anchor, in: screen)
 
-    #expect(placement.card == CGRect(x: 1_036, y: 246, width: 400, height: 620))
+    #expect(placement.card == CGRect(x: 1_036, y: cardTop - height, width: 400, height: height))
     #expect(placement.arrowX == 276)
   }
 
@@ -115,17 +118,55 @@ struct FloatingControlsTests {
     #expect(
       placement.window
         == CGRect(
-          x: 1_036 - margins.leading, y: 246 - margins.bottom,
+          x: 1_036 - margins.leading, y: cardTop - height - margins.bottom,
           width: 400 + margins.leading + margins.trailing,
-          height: 620 + margins.top + margins.bottom))
+          height: height + margins.top + margins.bottom))
   }
 
   @Test func aStatusItemFarFromTheEdgeKeepsTheAZCardOnTheRight() {
     let middle = CGRect(x: 600, y: 875, width: 24, height: 25)
     let floating = PanelPlacement(below: middle, in: screen)
 
-    #expect(floating.card == CGRect(x: 412, y: 246, width: 400, height: 620))
+    #expect(floating.card == CGRect(x: 412, y: cardTop - height, width: 400, height: height))
     #expect(floating.side == .trailing)
     #expect(floating.window.minX == 412 - PanelView.margins.leading)
+  }
+
+  // MARK: Screen height
+
+  @Test func aScreenWithRoomKeepsTheWholeCardAboveItsBottom() {
+    let placement = PanelPlacement(below: anchor, in: screen)
+
+    #expect(placement.card.height == CardHeight.ideal)
+    #expect(placement.window.minY > screen.minY)
+  }
+
+  /// A short screen, its Dock taking the bottom 70 pt: the card keeps its top under the status
+  /// item and gives up height, so the window, the send card's room included, ends at the Dock.
+  @Test func aShortScreenShrinksTheCardSoTheWindowEndsAtItsBottom() {
+    let short = CGRect(x: 0, y: 70, width: 1_280, height: 600)
+    let statusItem = CGRect(x: 1_150, y: 670, width: 24, height: 25)
+    let placement = PanelPlacement(below: statusItem, in: short)
+
+    let margins = placement.margins
+    let top: CGFloat = 670 + 3 - 12
+    #expect(placement.card.maxY == top)
+    #expect(placement.window.minY == short.minY)
+    #expect(placement.card.height == top - margins.bottom - 70)
+    #expect(placement.card.height < CardHeight.ideal)
+    #expect(placement.card.width == Theme.cardSize.width)
+    #expect(
+      placement.window.size
+        == PanelView.windowSize(margins: margins, card: placement.card.size))
+  }
+
+  @Test func aShortScreenKeepsTheArrowAndTheSideItWouldHave() {
+    let short = CGRect(x: 0, y: 0, width: 1_440, height: 560)
+    let statusItem = CGRect(x: 1_300, y: 560, width: 24, height: 25)
+    let placement = PanelPlacement(below: statusItem, in: short)
+
+    #expect(placement.card.minX == 1_036)
+    #expect(placement.arrowX == 276)
+    #expect(placement.side == .leading)
   }
 }

@@ -7,9 +7,13 @@ public struct PanelView: View {
   nonisolated public static let windowSize = windowSize(margins: margins)
 
   nonisolated public static func windowSize(margins: EdgeInsets) -> CGSize {
+    windowSize(margins: margins, card: Theme.cardSize)
+  }
+
+  nonisolated package static func windowSize(margins: EdgeInsets, card: CGSize) -> CGSize {
     CGSize(
-      width: Theme.cardSize.width + margins.leading + margins.trailing,
-      height: Theme.cardSize.height + margins.top + margins.bottom)
+      width: card.width + margins.leading + margins.trailing,
+      height: card.height + margins.top + margins.bottom)
   }
 
   let panel: PanelModel
@@ -21,8 +25,8 @@ public struct PanelView: View {
 
   public var body: some View {
     let margins = panel.windowMargins
-    let card = CGRect(origin: CGPoint(x: margins.leading, y: margins.top), size: Theme.cardSize)
-    PanelChrome(arrowOffset: arrowOffset, margins: margins) {
+    let card = CGRect(origin: CGPoint(x: margins.leading, y: margins.top), size: panel.cardSize)
+    PanelChrome(arrowOffset: arrowOffset, margins: margins, size: panel.cardSize) {
       let isShowingLogs = panel.route == .logs
       let sheet = ScreenMotion.sheet(reduceMotion: reduceMotion).transition
       let motion = ScreenMotion.animation(reduceMotion: reduceMotion)
@@ -98,14 +102,16 @@ public struct PanelView: View {
 package struct PanelChrome<Content: View>: View {
   let arrowOffset: CGFloat
   let margins: EdgeInsets
+  let size: CGSize
   let content: Content
 
   package init(
-    arrowOffset: CGFloat, margins: EdgeInsets = PanelView.margins,
+    arrowOffset: CGFloat, margins: EdgeInsets = PanelView.margins, size: CGSize = Theme.cardSize,
     @ViewBuilder content: () -> Content
   ) {
     self.arrowOffset = arrowOffset
     self.margins = margins
+    self.size = size
     self.content = content()
   }
 
@@ -117,12 +123,12 @@ package struct PanelChrome<Content: View>: View {
         .frame(width: 20, height: 10)
         .offset(x: arrowOffset, y: -9)
       content
-        .frame(width: Theme.cardSize.width, height: Theme.cardSize.height)
+        .frame(width: size.width, height: size.height)
         .background(CardBackground())
         .clipShape(shape)
         .background(CardShadow(shape: shape))
     }
-    .frame(width: Theme.cardSize.width, height: Theme.cardSize.height, alignment: .top)
+    .frame(width: size.width, height: size.height, alignment: .top)
     .padding(margins)
     .foregroundStyle(Theme.text)
     .environment(\.colorScheme, .dark)

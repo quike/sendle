@@ -2,9 +2,48 @@ import AppKit
 import SendleDomain
 import SwiftUI
 
-/// The grid's three flexible columns, shared by the books and their skeleton.
+/// The grid's columns and rows, shared by the library's and the Kindle's books and their skeleton.
+package enum BookGridMetrics {
+  package static let columns = 3
+  package static let columnSpacing: CGFloat = 10
+  package static let rowSpacing: CGFloat = 12
+  /// Between a cover and its title.
+  package static let titleGap: CGFloat = 6
+  package static let titleHeight: CGFloat = 13
+  package static let bylineHeight: CGFloat = 12
+
+  /// A row in a grid `width` wide: a 2:3 cover as wide as a column, its title and its byline.
+  package static func rowHeight(width: CGFloat) -> CGFloat {
+    let gaps = columnSpacing * CGFloat(columns - 1)
+    let column = (width - gaps) / CGFloat(columns)
+    return column * 3 / 2 + titleGap + titleHeight + bylineHeight
+  }
+}
+
 let bookGridColumns = Array(
-  repeating: GridItem(.flexible(), spacing: 10, alignment: .top), count: 3)
+  repeating: GridItem(.flexible(), spacing: BookGridMetrics.columnSpacing, alignment: .top),
+  count: BookGridMetrics.columns)
+
+/// A grid book's title and byline under its cover, at the rows' heights.
+struct GridCaption: View {
+  let title: String
+  let byline: String
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 0) {
+      Text(title)
+        .font(.system(size: 10.5, weight: .semibold))
+        .lineLimit(1)
+        .frame(height: BookGridMetrics.titleHeight)
+      Text(byline)
+        .font(.system(size: 9.5))
+        .foregroundStyle(Theme.muted)
+        .lineLimit(1)
+        .frame(height: BookGridMetrics.bylineHeight)
+    }
+    .padding(.top, BookGridMetrics.titleGap)
+  }
+}
 
 struct BookGrid: View {
   let panel: PanelModel
@@ -12,7 +51,9 @@ struct BookGrid: View {
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
   var body: some View {
-    LazyVGrid(columns: bookGridColumns, alignment: .leading, spacing: 12) {
+    LazyVGrid(
+      columns: bookGridColumns, alignment: .leading, spacing: BookGridMetrics.rowSpacing
+    ) {
       ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
         VStack(alignment: .leading, spacing: 0) {
           BookCover(
@@ -20,14 +61,7 @@ struct BookGrid: View {
             showsFormat: panel.library.showsFormatOnCovers
           )
           .aspectRatio(2 / 3, contentMode: .fit)
-          Text(item.title)
-            .font(.system(size: 10.5, weight: .semibold))
-            .lineLimit(1)
-            .padding(.top, 6)
-          Text(item.byline)
-            .font(.system(size: 9.5))
-            .foregroundStyle(Theme.muted)
-            .lineLimit(1)
+          GridCaption(title: item.title, byline: item.byline)
         }
         .bookInteractions(panel, item)
         .transition(Theme.entrance(index: index, reduceMotion: reduceMotion))

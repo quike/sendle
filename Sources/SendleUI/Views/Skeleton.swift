@@ -114,7 +114,9 @@ struct SkeletonBooks: View {
   }
 
   private var grid: some View {
-    LazyVGrid(columns: bookGridColumns, alignment: .leading, spacing: 12) {
+    LazyVGrid(
+      columns: bookGridColumns, alignment: .leading, spacing: BookGridMetrics.rowSpacing
+    ) {
       ForEach(0..<9, id: \.self) { _ in
         VStack(alignment: .leading, spacing: 0) {
           SkeletonCover().aspectRatio(2 / 3, contentMode: .fit)

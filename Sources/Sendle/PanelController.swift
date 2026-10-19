@@ -68,6 +68,7 @@ final class PanelController: NSObject, NSWindowDelegate {
       ?? NSRect(x: 0, y: 0, width: 1_440, height: 900)
     let placement = PanelPlacement(below: anchor, in: visible)
     model.railSide = placement.side
+    model.cardSize = placement.card.size
     model.arrowX = placement.arrowX
     window.setFrame(placement.window, display: true)
 

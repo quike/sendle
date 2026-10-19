@@ -75,19 +75,14 @@ struct KindleGrid: View {
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
   var body: some View {
-    LazyVGrid(columns: bookGridColumns, alignment: .leading, spacing: 12) {
+    LazyVGrid(
+      columns: bookGridColumns, alignment: .leading, spacing: BookGridMetrics.rowSpacing
+    ) {
       ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
         VStack(alignment: .leading, spacing: 0) {
           KindleCover(kindle: kindle, item: item, size: .large, showsFormat: showsFormat)
             .aspectRatio(2 / 3, contentMode: .fit)
-          Text(item.title)
-            .font(.system(size: 10.5, weight: .semibold))
-            .lineLimit(1)
-            .padding(.top, 6)
-          Text(item.byline)
-            .font(.system(size: 9.5))
-            .foregroundStyle(Theme.muted)
-            .lineLimit(1)
+          GridCaption(title: item.title, byline: item.byline)
         }
         .kindleDescription(item)
         .transition(Theme.entrance(index: index, reduceMotion: reduceMotion))

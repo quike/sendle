@@ -53,6 +53,7 @@ enum Snapshot {
     await composition.launch()
     await panel.panelDidOpen()
     if panel.route == .library {
+      await renderHeight(panel, window: window, to: folder, sides: [.library], kindle: "no-kindle")
       for layout in LibraryLayout.allCases {
         await panel.library.setLayout(layout)
         await write(window, "library-\(layout.rawValue).png", to: folder)
@@ -205,6 +206,8 @@ enum Snapshot {
   /// The send bar and the A–Z bar on cards of their own: the send card, the A–Z card on the right
   /// and mirrored on the left, compact, on the Kindle side, and the setting that switches them.
   private static func renderFloating(_ panel: PanelModel, window: NSWindow, to folder: URL) async {
+    await renderHeight(
+      panel, window: window, to: folder, sides: [.library, .kindle], kindle: "kindle")
     let saved = panel.library.layout
     await renderMargins(panel, window: window, to: folder, prefix: "attached")
     await panel.settings.setControls(.floating)
@@ -256,6 +259,37 @@ enum Snapshot {
     await panel.library.setLayout(saved)
     await panel.settings.setControls(.attached)
     place(.trailing)
+  }
+
+  /// Each side and layout at rest, attached and floating, for the rows the card's height shows;
+  /// then the grid on a card shrunk for a short screen.
+  private static func renderHeight(
+    _ panel: PanelModel, window: NSWindow, to folder: URL, sides: [LibrarySide], kindle: String
+  ) async {
+    let saved = panel.library.layout
+    for controls in ControlsStyle.allCases {
+      await panel.settings.setControls(controls)
+      for side in sides {
+        panel.showSide(side)
+        for layout in LibraryLayout.allCases {
+          await panel.library.setLayout(layout)
+          // A new sort starts the books at the top.
+          await panel.library.setSort(.title)
+          await panel.library.setSort(.recent)
+          let name = "height-\(kindle)-\(controls.rawValue)-\(side)-\(layout.rawValue)"
+          await write(window, "\(name).png", to: folder)
+        }
+      }
+    }
+    panel.showSide(.library)
+    await panel.library.setLayout(.grid)
+    panel.cardSize.height = 520
+    window.setContentSize(PanelView.windowSize(margins: panel.windowMargins, card: panel.cardSize))
+    await write(window, "height-\(kindle)-floating-short.png", to: folder)
+    panel.cardSize = Theme.cardSize
+    window.setContentSize(PanelView.windowSize(margins: panel.windowMargins))
+    await panel.settings.setControls(.attached)
+    await panel.library.setLayout(saved)
   }
 
   /// Each side and layout scrolled to cut the books at the top and the bottom, and a lifted cover

@@ -42,7 +42,9 @@ package enum Theme {
     (Color(hex: 0x4b3a7a), Color(hex: 0x21183d)), (Color(hex: 0x5a5f66), Color(hex: 0x2a2d31)),
   ]
 
-  package static let cardSize = CGSize(width: 400, height: 620)
+  package static let cardWidth: CGFloat = 400
+  /// The whole card. A screen without room for it gets a shorter one (`PanelPlacement`).
+  package static let cardSize = CGSize(width: cardWidth, height: CardHeight.ideal)
   package static let cardRadius: CGFloat = 26
   package static let press = Animation.spring(response: 0.3, dampingFraction: 0.7)
   package static let stagger = 0.028

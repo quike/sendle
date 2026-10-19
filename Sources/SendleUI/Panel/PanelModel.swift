@@ -52,6 +52,8 @@ public final class PanelModel {
   public var arrowX: CGFloat = 200
   /// The side of the card with room on screen for the floating A–Z card.
   package var railSide = RailSide.trailing
+  /// The whole card, or a shorter one on a screen without room for it.
+  package var cardSize = Theme.cardSize
 
   @ObservationIgnored private weak var system: (any SystemActions)?
   @ObservationIgnored private let ejector: any KindleEjector

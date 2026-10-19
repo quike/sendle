@@ -1,6 +1,32 @@
 import SendleDomain
 import SwiftUI
 
+/// The rows the library screen stacks above the books, and the gaps above each.
+package enum LibraryControls {
+  package static let header: CGFloat = 34
+  /// Library | On Kindle, while a Kindle is plugged in.
+  package static let sideSwitch: CGFloat = 26
+  package static let sideSwitchGap: CGFloat = 12
+  package static let chips: CGFloat = 26
+  package static let search: CGFloat = 31
+  package static let searchGap: CGFloat = 10
+  package static let filterGap: CGFloat = 9
+  package static let scopes: CGFloat = 21
+  /// Between the scopes and the menus under them.
+  package static let filterSpacing: CGFloat = 8
+  package static let menus: CGFloat = 24
+
+  /// Closer under the side switch than under the header.
+  package static func chipsGap(withKindle: Bool) -> CGFloat { withKindle ? 8 : 12 }
+
+  /// From the header's top to the menus' bottom.
+  package static func height(withKindle: Bool) -> CGFloat {
+    let side = withKindle ? sideSwitchGap + sideSwitch : 0
+    let filter = filterGap + scopes + filterSpacing + menus
+    return header + side + chipsGap(withKindle: withKindle) + chips + searchGap + search + filter
+  }
+}
+
 struct LibraryScreen: View {
   let panel: PanelModel
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -39,24 +65,32 @@ struct LibraryScreen: View {
         .help("Settings (⌘,)")
         .accessibilityLabel("Settings")
       }
+      .frame(height: LibraryControls.header)
       if library.isKindlePluggedIn {
-        SideSwitch(panel: panel).padding(.top, 12)
+        SideSwitch(panel: panel)
+          .frame(height: LibraryControls.sideSwitch)
+          .padding(.top, LibraryControls.sideSwitchGap)
       }
-      DestinationChips(panel: panel).padding(.top, library.isKindlePluggedIn ? 8 : 12)
+      DestinationChips(panel: panel)
+        .frame(height: LibraryControls.chips)
+        .padding(.top, LibraryControls.chipsGap(withKindle: library.isKindlePluggedIn))
       if isKindleSide {
         SearchField(
           text: Bindable(panel.kindle).query, prompt: "Search this Kindle",
           focusRequests: panel.searchFocusRequests
         )
-        .padding(.top, 10)
-        KindleFilterBar(library: library, kindle: panel.kindle).padding(.top, 9)
+        .frame(height: LibraryControls.search)
+        .padding(.top, LibraryControls.searchGap)
+        KindleFilterBar(library: library, kindle: panel.kindle)
+          .padding(.top, LibraryControls.filterGap)
       } else {
         SearchField(
           text: Bindable(library).query, prompt: "Search title or author",
           focusRequests: panel.searchFocusRequests
         )
-        .padding(.top, 10)
-        FilterBar(library: library).padding(.top, 9)
+        .frame(height: LibraryControls.search)
+        .padding(.top, LibraryControls.searchGap)
+        FilterBar(library: library).padding(.top, LibraryControls.filterGap)
       }
       if let notice = panel.notice {
         NoticeView(
@@ -399,7 +433,7 @@ private struct FilterRow<Scopes: View, Format: View, Selection: Hashable>: View 
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
   var body: some View {
-    VStack(alignment: .leading, spacing: 8) {
+    VStack(alignment: .leading, spacing: LibraryControls.filterSpacing) {
       ScrollViewReader { proxy in
         ScrollView(.horizontal) {
           HStack(spacing: 5) { scopes }.padding(.trailing, Self.fadeWidth)
@@ -421,12 +455,14 @@ private struct FilterRow<Scopes: View, Format: View, Selection: Hashable>: View 
           }
         }
       }
+      .frame(height: LibraryControls.scopes)
       HStack(spacing: 5) {
         SectionLabel(title)
         format
         SortMenu(library: library, help: sortHelp)
         LayoutSwitcher(library: library)
       }
+      .frame(height: LibraryControls.menus)
     }
   }
 }
