@@ -5,91 +5,19 @@ import SendleUI
 import Testing
 
 @MainActor
-final class FakeSystemActions: SystemActions {
-  var opened: [URL] = []
-  var revealedApp = 0
-  var closedPanel = 0
-  var endedEditing = 0
-  var program: URL?
-  var copied: [String] = []
-
-  func open(_ url: URL) { opened.append(url) }
-  func revealApp() { revealedApp += 1 }
-  func closePanel() { closedPanel += 1 }
-  func endEditing() { endedEditing += 1 }
-  func chooseProgram() async -> URL? { program }
-  func copy(_ text: String) { copied.append(text) }
-}
-
-@MainActor
 @Suite(.timeLimit(.minutes(1)))
 struct PanelModelTests {
-  let library = FakeBooksLibrary(.success([.fixture(id: "a"), .fixture(id: "b")]))
-  let monitor = FakeDestinationMonitor()
-  let system = FakeSystemActions()
-  let history = InMemorySendHistoryStore()
-  let ejector = FakeKindleEjector()
-  let log = FakeActivityLog()
-
-  /// `onSleep` runs each time setup waits between access checks.
-  /// `channel` delivers every send and test email; `ejector` replaces the suite's.
-  func makePanel(
-    _ saved: AppSettings = AppSettings(email: .fixture),
-    channel: FakeDeliveryChannel = FakeDeliveryChannel(),
-    ejector: FakeKindleEjector? = nil,
-    onSleep: @escaping @Sendable () async -> Void = { try? await Task.sleep(for: .seconds(60)) }
-  ) -> (PanelModel, InMemorySettingsStore) {
-    let settings = InMemorySettingsStore(saved)
-    let converter = FakeFormatConverter(isAvailable: false)
-    let configure = ConfigureEmail(settings: settings, secrets: MemorySecretStore())
-    let channels = FakeDeliveryChannelFactory(channel: channel)
-    let staging = FakeStagingArea()
-    let sendTest = SendTestEmail(settings: settings, channels: channels, staging: staging)
-    let libraryModel = LibraryViewModel(
-      loadLibrary: LoadLibrary(library: library, inspector: StubProtectionInspector()),
-      observeDestinations: ObserveDestinations(monitor: monitor, settings: settings),
-      settings: settings, history: history, converter: converter)
-    let setup = SetupViewModel(
-      configure: configure, sendTest: sendTest,
-      checkAccess: {
-        await libraryModel.reload()
-        return !libraryModel.needsAccess
-      },
-      sleep: { _ in await onSleep() })
-    let panel = PanelModel(
-      library: libraryModel, setup: setup,
-      settings: SettingsViewModel(
-        configure: configure, sendTest: sendTest,
-        addresses: ManageKindleAddresses(settings: settings),
-        chooseTool: ChooseConverterTool(
-          settings: settings, choice: converter, isExecutable: { _ in true }),
-        settings: settings, loginItem: FakeLoginItem(), converter: converter),
-      covers: CoverStore(provider: FakeCoverProvider()),
-      queue: SendQueueViewModel(
-        sendBooks: SendBooks(
-          channels: channels, preparer: FakeEPUBPreparer(),
-          converter: FakeFormatConverter(isAvailable: false), staging: staging, history: history,
-          retryDelay: .zero, sleep: { _ in })),
-      logs: LogsViewModel(feed: log),
-      ejector: ejector ?? self.ejector)
-    panel.attach(system)
-    return (panel, settings)
-  }
-
-  func denyAccess() {
-    library.result = .failure(.accessDenied)
-    library.canWatch = false
-  }
-
-  func grantAccess() {
-    library.result = .success([.fixture(id: "a")])
-    library.canWatch = true
-  }
+  let harness = PanelHarness()
+  var library: FakeBooksLibrary { harness.library }
+  var monitor: FakeDestinationMonitor { harness.monitor }
+  var system: FakeSystemActions { harness.system }
+  var ejector: FakeKindleEjector { harness.ejector }
+  var log: FakeActivityLog { harness.log }
 
   // MARK: Routes
 
   @Test func reportsAFailedReloadAsANotice() async {
-    let (panel, _) = makePanel()
+    let (panel, _) = harness.makePanel()
     await panel.launch()
 
     library.result = .failure(.unreadable("disk I/O error"))
@@ -101,7 +29,7 @@ struct PanelModelTests {
   }
 
   @Test func opensOnTheLibraryWhenBooksCanBeRead() async {
-    let (panel, _) = makePanel()
+    let (panel, _) = harness.makePanel()
     await panel.launch()
 
     await panel.panelDidOpen()
@@ -112,8 +40,8 @@ struct PanelModelTests {
   }
 
   @Test func opensOnTheAccessStepWhileBooksIsOffLimits() async {
-    denyAccess()
-    let (panel, _) = makePanel()
+    harness.denyAccess()
+    let (panel, _) = harness.makePanel()
     await panel.launch()
 
     await panel.panelDidOpen()
@@ -124,8 +52,8 @@ struct PanelModelTests {
   }
 
   @Test func asksForAccessFromTheMenuBarBeforeThePanelOpens() async {
-    denyAccess()
-    let (panel, _) = makePanel()
+    harness.denyAccess()
+    let (panel, _) = harness.makePanel()
 
     await panel.launch()
 
@@ -134,8 +62,8 @@ struct PanelModelTests {
   }
 
   @Test func goesToTheLibraryByItselfOnceAccessIsGranted() async {
-    denyAccess()
-    let (panel, _) = makePanel(onSleep: { await MainActor.run { grantAccess() } })
+    harness.denyAccess()
+    let (panel, _) = harness.makePanel(onSleep: { await MainActor.run { harness.grantAccess() } })
     await panel.launch()
 
     await panel.panelDidOpen()
@@ -145,8 +73,9 @@ struct PanelModelTests {
   }
 
   @Test func asksForTheKindleEmailAfterAccessWhenNoneIsSetUp() async {
-    denyAccess()
-    let (panel, _) = makePanel(AppSettings(), onSleep: { await MainActor.run { grantAccess() } })
+    harness.denyAccess()
+    let (panel, _) = harness.makePanel(
+      AppSettings(), onSleep: { await MainActor.run { harness.grantAccess() } })
     await panel.launch()
 
     await panel.panelDidOpen()
@@ -156,21 +85,21 @@ struct PanelModelTests {
   }
 
   @Test func movesOnWhenAccessWasGrantedWhileThePanelWasClosed() async {
-    denyAccess()
-    let (panel, _) = makePanel()
+    harness.denyAccess()
+    let (panel, _) = harness.makePanel()
     await panel.launch()
     await panel.panelDidOpen()
     panel.panelDidClose()
 
-    grantAccess()
+    harness.grantAccess()
     await panel.panelDidOpen()
 
     #expect(panel.route == .library)
   }
 
   @Test func stopsCheckingAccessWhenThePanelCloses() async {
-    denyAccess()
-    let (panel, _) = makePanel()
+    harness.denyAccess()
+    let (panel, _) = harness.makePanel()
     await panel.launch()
     await panel.panelDidOpen()
     #expect(panel.isWaitingForAccess)
@@ -181,8 +110,8 @@ struct PanelModelTests {
   }
 
   @Test func aPanelClosedWhileOpeningWatchesNothing() async {
-    denyAccess()
-    let (panel, _) = makePanel()
+    harness.denyAccess()
+    let (panel, _) = harness.makePanel()
     await panel.launch()
 
     let opening = Task { await panel.panelDidOpen() }
@@ -191,13 +120,13 @@ struct PanelModelTests {
     await opening.value
 
     #expect(!panel.isWaitingForAccess)
-    grantAccess()
+    harness.grantAccess()
     await panel.library.reload()
     #expect(library.changeSubscribers == 0)
   }
 
   @Test func aLateOpeningLeavesTheReopenedPanelWatching() async {
-    let (panel, _) = makePanel()
+    let (panel, _) = harness.makePanel()
     await panel.launch()
     let gate = Signal()
     library.gate = gate
@@ -217,7 +146,7 @@ struct PanelModelTests {
   }
 
   @Test func finishingSetupShowsTheLibraryWithTheNewEmail() async {
-    let (panel, settings) = makePanel(AppSettings())
+    let (panel, settings) = harness.makePanel(AppSettings())
     await panel.launch()
     panel.showSetup(at: .kindleEmail)
     panel.setup.form.kindleAddress = "reader@kindle.com"
@@ -232,7 +161,7 @@ struct PanelModelTests {
   }
 
   @Test func aSetupThatCannotBeSavedStaysOpen() async {
-    let (panel, _) = makePanel(AppSettings())
+    let (panel, _) = harness.makePanel(AppSettings())
     await panel.launch()
     panel.showSetup(at: .sender)
 
@@ -243,7 +172,7 @@ struct PanelModelTests {
   }
 
   @Test func theEmailStepsCanWait() async {
-    let (panel, _) = makePanel(AppSettings())
+    let (panel, _) = harness.makePanel(AppSettings())
     panel.showSetup(at: .kindleEmail)
 
     panel.skipSetup()
@@ -254,7 +183,7 @@ struct PanelModelTests {
   // MARK: Escape and keys
 
   @Test func escapeClosesTheSheetThenClearsTheSelectionThenThePanel() async {
-    let (panel, _) = makePanel()
+    let (panel, _) = harness.makePanel()
     await panel.launch()
     await panel.panelDidOpen()
     panel.library.selectAll()
@@ -273,7 +202,7 @@ struct PanelModelTests {
   }
 
   @Test func keysDriveTheLibrary() async {
-    let (panel, _) = makePanel()
+    let (panel, _) = harness.makePanel()
     await panel.launch()
     await panel.panelDidOpen()
 
@@ -291,7 +220,7 @@ struct PanelModelTests {
   }
 
   @Test func libraryKeysWaitWhileSomethingCoversTheLibrary() async {
-    let (panel, _) = makePanel()
+    let (panel, _) = harness.makePanel()
     await panel.launch()
     await panel.panelDidOpen()
 
@@ -305,7 +234,7 @@ struct PanelModelTests {
   }
 
   @Test func upAndDownLeaveTheSearchFieldForTheLibrary() async {
-    let (panel, _) = makePanel()
+    let (panel, _) = harness.makePanel()
     await panel.launch()
     await panel.panelDidOpen()
 
@@ -320,7 +249,7 @@ struct PanelModelTests {
   }
 
   @Test func clickingABookTakesTheKeyboardBackFromSearch() async {
-    let (panel, _) = makePanel()
+    let (panel, _) = harness.makePanel()
     await panel.launch()
     await panel.panelDidOpen()
 
@@ -331,7 +260,7 @@ struct PanelModelTests {
   }
 
   @Test func commandCommaLeavesAnOpenSheetAsItIs() async {
-    let (panel, _) = makePanel()
+    let (panel, _) = harness.makePanel()
     await panel.launch()
     await panel.openSettings(.sender)
     panel.settings.form.password = "typed"
@@ -344,7 +273,7 @@ struct PanelModelTests {
   }
 
   @Test func escapeClearsTheSearchBeforeTheSelection() async {
-    let (panel, _) = makePanel()
+    let (panel, _) = harness.makePanel()
     await panel.launch()
     await panel.panelDidOpen()
     panel.library.selectAll()
@@ -357,7 +286,7 @@ struct PanelModelTests {
   }
 
   @Test func escapeLeavesASetupThatCanWait() async {
-    let (panel, _) = makePanel(AppSettings())
+    let (panel, _) = harness.makePanel(AppSettings())
     await panel.launch()
     await panel.panelDidOpen()
     panel.showSetup(at: .kindleEmail)
@@ -369,8 +298,8 @@ struct PanelModelTests {
   }
 
   @Test func escapeOnTheAccessStepClosesThePanel() async {
-    denyAccess()
-    let (panel, _) = makePanel()
+    harness.denyAccess()
+    let (panel, _) = harness.makePanel()
     await panel.launch()
     await panel.panelDidOpen()
 
@@ -381,7 +310,7 @@ struct PanelModelTests {
   }
 
   @Test func returnDoesWhatTheScreenIsFor() async {
-    let (panel, settings) = makePanel(AppSettings())
+    let (panel, settings) = harness.makePanel(AppSettings())
     await panel.launch()
     await panel.panelDidOpen()
     panel.showSetup(at: .kindleEmail)
@@ -405,7 +334,7 @@ struct PanelModelTests {
   }
 
   @Test func returnInSettingsDoesWhatThePageIsFor() async {
-    let (panel, settings) = makePanel()
+    let (panel, settings) = harness.makePanel()
     await panel.launch()
 
     await panel.openSettings()
@@ -429,7 +358,7 @@ struct PanelModelTests {
   }
 
   @Test func returnLeavesTheKeyAloneWithNothingToSend() async {
-    let (panel, _) = makePanel()
+    let (panel, _) = harness.makePanel()
     await panel.launch()
     await panel.panelDidOpen()
 
@@ -441,7 +370,7 @@ struct PanelModelTests {
 
   @Test func sendsTheSelectionToTheActiveDestination() async {
     let channel = FakeDeliveryChannel()
-    let (panel, _) = makePanel(channel: channel)
+    let (panel, _) = harness.makePanel(channel: channel)
     await panel.launch()
     await panel.panelDidOpen()
     panel.library.selectAll()
@@ -458,7 +387,7 @@ struct PanelModelTests {
   }
 
   @Test func quickSendSendsOneBook() async {
-    let (panel, _) = makePanel()
+    let (panel, _) = harness.makePanel()
     await panel.launch()
     await panel.panelDidOpen()
 
@@ -469,7 +398,7 @@ struct PanelModelTests {
   }
 
   @Test func sendsNothingUntilThereIsADestination() async {
-    let (panel, _) = makePanel(AppSettings())
+    let (panel, _) = harness.makePanel(AppSettings())
     await panel.launch()
     await panel.panelDidOpen()
     panel.library.selectAll()
@@ -485,7 +414,7 @@ struct PanelModelTests {
 
   @Test func theMenuBarShowsTheBookBeingSent() async {
     let channel = FakeDeliveryChannel(.hangUntilCancelled)
-    let (panel, _) = makePanel(channel: channel)
+    let (panel, _) = harness.makePanel(channel: channel)
     await panel.launch()
     await panel.panelDidOpen()
     panel.library.selectAll()
@@ -501,7 +430,7 @@ struct PanelModelTests {
 
   @Test func aRunningQueueStaysWhenEscapeClosesThePanel() async {
     let channel = FakeDeliveryChannel(.hangUntilCancelled)
-    let (panel, _) = makePanel(channel: channel)
+    let (panel, _) = harness.makePanel(channel: channel)
     await panel.launch()
     await panel.panelDidOpen()
     panel.quickSend(BookID(rawValue: "a"))
@@ -519,7 +448,7 @@ struct PanelModelTests {
   }
 
   @Test func aFinishedQueueGoesBackToTheLibrary() async {
-    let (panel, _) = makePanel()
+    let (panel, _) = harness.makePanel()
     await panel.launch()
     await panel.panelDidOpen()
     panel.quickSend(BookID(rawValue: "a"))
@@ -532,7 +461,8 @@ struct PanelModelTests {
   }
 
   @Test func aFailedSendNeedsAttentionUntilTheQueueIsCleared() async {
-    let (panel, _) = makePanel(channel: FakeDeliveryChannel(.fail(.authenticationFailed(.gmail))))
+    let (panel, _) = harness.makePanel(
+      channel: FakeDeliveryChannel(.fail(.authenticationFailed(.gmail))))
     await panel.launch()
     await panel.panelDidOpen()
     panel.quickSend(BookID(rawValue: "a"))
@@ -547,7 +477,7 @@ struct PanelModelTests {
 
   @Test func theToastsRetrySendsTheFailedBooksAgain() async {
     let unreachable = SendFailure.connectionFailed(host: "smtp.gmail.com")
-    let (panel, _) = makePanel(
+    let (panel, _) = harness.makePanel(
       channel: FakeDeliveryChannel(.fail(unreachable), .fail(unreachable), .succeed))
     await panel.launch()
     await panel.panelDidOpen()
@@ -563,7 +493,8 @@ struct PanelModelTests {
   }
 
   @Test func theToastsSettingsFixOpensOverTheQueue() async {
-    let (panel, _) = makePanel(channel: FakeDeliveryChannel(.fail(.authenticationFailed(.gmail))))
+    let (panel, _) = harness.makePanel(
+      channel: FakeDeliveryChannel(.fail(.authenticationFailed(.gmail))))
     await panel.launch()
     await panel.panelDidOpen()
     panel.quickSend(BookID(rawValue: "a"))
@@ -580,7 +511,7 @@ struct PanelModelTests {
     let kindle = KindleVolume.fixture()
     library.result = .success([.fixture(id: "a", format: .pdf)])
     monitor.update([kindle])
-    let (panel, _) = makePanel(AppSettings(email: .fixture, activeDestination: .usb))
+    let (panel, _) = harness.makePanel(AppSettings(email: .fixture, activeDestination: .usb))
     await panel.launch()
     await panel.panelDidOpen()
     #expect(await eventually { panel.library.activeDestination == .usb(kindle) })
@@ -596,7 +527,7 @@ struct PanelModelTests {
   @Test func aBookTooLargeToEmailCanGoOverUSBInstead() async {
     let tooLarge = SendFailure.tooLarge(bytes: 62_000_000, limit: FormatPolicy.emailSizeLimit)
     monitor.update([.fixture()])
-    let (panel, _) = makePanel(channel: FakeDeliveryChannel(.fail(tooLarge)))
+    let (panel, _) = harness.makePanel(channel: FakeDeliveryChannel(.fail(tooLarge)))
     await panel.launch()
     await panel.panelDidOpen()
     #expect(await eventually { panel.library.isKindlePluggedIn })
@@ -612,7 +543,7 @@ struct PanelModelTests {
   // MARK: Logs
 
   @Test func theLogsButtonFollowsTheSetting() async {
-    let (panel, _) = makePanel()
+    let (panel, _) = harness.makePanel()
     await panel.launch()
     #expect(!panel.showsLogs)
 
@@ -622,7 +553,7 @@ struct PanelModelTests {
   }
 
   @Test func opensTheLogsAndGoesBackWhereItWas() async {
-    let (panel, _) = makePanel()
+    let (panel, _) = harness.makePanel()
     log.info(.library, "Read 2 books")
 
     panel.openLogs()
@@ -634,7 +565,7 @@ struct PanelModelTests {
   }
 
   @Test func aFailedBookOpensItsStory() async {
-    let (panel, _) = makePanel()
+    let (panel, _) = harness.makePanel()
     log.heading(.book(BookID(rawValue: "a")), .mail, "Moby-Dick · reader@kindle.com")
     log.error(.mail, "S: 553 Sender address rejected")
 
@@ -645,7 +576,7 @@ struct PanelModelTests {
   }
 
   @Test func theLogsButtonOpensAtTheNewestLines() async {
-    let (panel, _) = makePanel()
+    let (panel, _) = harness.makePanel()
     log.heading(.book(BookID(rawValue: "a")), .mail, "Moby-Dick · reader@kindle.com")
     panel.openLogs(revealing: .book(BookID(rawValue: "a")))
     panel.escape()
@@ -657,7 +588,7 @@ struct PanelModelTests {
   }
 
   @Test func aTestThatFailedInSettingsOpensItsLogsOverTheSheet() async {
-    let (panel, _) = makePanel()
+    let (panel, _) = harness.makePanel()
     await panel.openSettings(.sender)
     log.heading(.sendTest, .mail, "Send test · reader@kindle.com")
 
@@ -669,7 +600,8 @@ struct PanelModelTests {
   }
 
   @Test func backFromTheLogsReturnsToTheSettingsTheyWereOpenedFrom() async {
-    let (panel, _) = makePanel(channel: FakeDeliveryChannel(.fail(.authenticationFailed(.gmail))))
+    let (panel, _) = harness.makePanel(
+      channel: FakeDeliveryChannel(.fail(.authenticationFailed(.gmail))))
     await panel.openSettings(.sender)
     panel.settings.form.password = "abcdefghijklmnop"
     await panel.sendTest(from: panel.settings.form)
@@ -686,7 +618,7 @@ struct PanelModelTests {
   }
 
   @Test func copiesWhatTheLogsShow() async {
-    let (panel, _) = makePanel()
+    let (panel, _) = harness.makePanel()
     log.info(.library, "Read 2 books")
     panel.openLogs()
 
@@ -698,7 +630,7 @@ struct PanelModelTests {
   // MARK: Settings sheet
 
   @Test func choosesBokoThroughTheSystemsFilePicker() async {
-    let (panel, settings) = makePanel()
+    let (panel, settings) = harness.makePanel()
     await panel.openSettings(.usb)
 
     await panel.chooseBoko()
@@ -711,7 +643,7 @@ struct PanelModelTests {
 
   @Test func aBokoChosenInSettingsLetsEPUBsGoOverUSBAtOnce() async {
     monitor.update([.fixture()])
-    let (panel, _) = makePanel()
+    let (panel, _) = harness.makePanel()
     await panel.launch()
     #expect(await eventually { panel.library.isKindlePluggedIn })
     await panel.library.activate(.usb)
@@ -727,7 +659,7 @@ struct PanelModelTests {
   }
 
   @Test func aJumpBarChosenInSettingsReachesTheLibrary() async {
-    let (panel, _) = makePanel()
+    let (panel, _) = harness.makePanel()
     await panel.launch()
     await panel.openSettings(.general)
 
@@ -737,7 +669,7 @@ struct PanelModelTests {
   }
 
   @Test func aTestEmailThatSavedANewSetupShowsItsChip() async {
-    let (panel, _) = makePanel(AppSettings())
+    let (panel, _) = harness.makePanel(AppSettings())
     await panel.launch()
     await panel.openSettings(.sender)
     let form = panel.settings.form
@@ -752,7 +684,7 @@ struct PanelModelTests {
   }
 
   @Test func aTestEmailUpdatesTheSenderSummary() async {
-    let (panel, _) = makePanel()
+    let (panel, _) = harness.makePanel()
     await panel.launch()
     await panel.openSettings(.sender)
     let form = panel.settings.form
@@ -767,7 +699,7 @@ struct PanelModelTests {
   }
 
   @Test func savingSettingsUpdatesTheDestinations() async {
-    let (panel, _) = makePanel(AppSettings())
+    let (panel, _) = harness.makePanel(AppSettings())
     await panel.launch()
     await panel.openSettings(.kindle)
     panel.settings.form.kindleAddress = "reader@kindle.com"
@@ -784,7 +716,7 @@ struct PanelModelTests {
 
   @Test func runsEachFixWhereItBelongs() async throws {
     monitor.update([.fixture()])
-    let (panel, _) = makePanel()
+    let (panel, _) = harness.makePanel()
     await panel.launch()
     await panel.panelDidOpen()
     #expect(await eventually { panel.library.isKindlePluggedIn })
@@ -811,7 +743,7 @@ struct PanelModelTests {
   }
 
   @Test func aNoticeNeedsAttentionUntilItsFixRuns() async {
-    let (panel, _) = makePanel()
+    let (panel, _) = harness.makePanel()
     await panel.launch()
     let notice = ProblemPresenter.settingsSetAside(URL(filePath: "/tmp/settings.corrupt-1.json"))
 
@@ -827,7 +759,7 @@ struct PanelModelTests {
   }
 
   @Test func theMenuBarIconFillsWhileAKindleIsPluggedIn() async {
-    let (panel, _) = makePanel()
+    let (panel, _) = harness.makePanel()
     await panel.launch()
     #expect(panel.statusItem.symbolName == "book.closed")
 
@@ -840,7 +772,7 @@ struct PanelModelTests {
 
   @Test func ejectsAPluggedInKindle() async {
     monitor.update([.fixture()])
-    let (panel, _) = makePanel()
+    let (panel, _) = harness.makePanel()
     await panel.launch()
     #expect(await eventually { panel.library.isKindlePluggedIn })
 
@@ -852,7 +784,7 @@ struct PanelModelTests {
   }
 
   @Test func ejectingAKindleThatIsGoneDoesNothing() async {
-    let (panel, _) = makePanel()
+    let (panel, _) = harness.makePanel()
     await panel.launch()
 
     await panel.eject(.fixture())
@@ -864,7 +796,7 @@ struct PanelModelTests {
   @Test func explainsAKindleThatWontEject() async {
     ejector.fail(with: .inUse)
     monitor.update([.fixture()])
-    let (panel, _) = makePanel()
+    let (panel, _) = harness.makePanel()
     await panel.launch()
     #expect(await eventually { panel.library.isKindlePluggedIn })
 
@@ -879,7 +811,7 @@ struct PanelModelTests {
     library.result = .success([.fixture(id: "a", format: .pdf)])
     monitor.update([kindle])
     let channel = FakeDeliveryChannel(.hangUntilCancelled)
-    let (panel, _) = makePanel(
+    let (panel, _) = harness.makePanel(
       AppSettings(email: .fixture, activeDestination: .usb), channel: channel)
     await panel.launch()
     await panel.panelDidOpen()
@@ -901,7 +833,7 @@ struct PanelModelTests {
     library.result = .success([.fixture(id: "a", format: .pdf)])
     monitor.update([kindle])
     let channel = FakeDeliveryChannel(.hangUntilCancelled)
-    let (panel, _) = makePanel(
+    let (panel, _) = harness.makePanel(
       AppSettings(email: .fixture, activeDestination: .usb), channel: channel)
     await panel.launch()
     await panel.panelDidOpen()
@@ -924,7 +856,7 @@ struct PanelModelTests {
     library.result = .success([.fixture(id: "a", format: .pdf)])
     monitor.update([kindle])
     let gate = Signal()
-    let (panel, _) = makePanel(
+    let (panel, _) = harness.makePanel(
       AppSettings(email: .fixture, activeDestination: .usb),
       ejector: FakeKindleEjector(gate: gate))
     await panel.launch()
@@ -942,7 +874,7 @@ struct PanelModelTests {
   }
 
   @Test func showsSendleInFinderForTheFullDiskAccessList() {
-    let (panel, _) = makePanel()
+    let (panel, _) = harness.makePanel()
 
     panel.revealApp()
 

@@ -7,8 +7,19 @@ struct LibraryScreen: View {
 
   var body: some View {
     let library = panel.library
+    let isKindleSide = panel.side == .kindle
     VStack(alignment: .leading, spacing: 0) {
       PanelHeader(title: "Sendle", subtitle: subtitle) {
+        if isKindleSide {
+          Button {
+            Task { await panel.kindle.refresh() }
+          } label: {
+            Image(systemName: "arrow.clockwise")
+          }
+          .buttonStyle(CircleButtonStyle())
+          .help("Refresh (⌘R)")
+          .accessibilityLabel("Refresh")
+        }
         if panel.showsLogs {
           Button {
             panel.openLogs()
@@ -28,9 +39,25 @@ struct LibraryScreen: View {
         .help("Settings (⌘,)")
         .accessibilityLabel("Settings")
       }
-      DestinationChips(panel: panel).padding(.top, 12)
-      SearchField(library: library, focusRequests: panel.searchFocusRequests).padding(.top, 10)
-      FilterBar(library: library).padding(.top, 9)
+      if library.isKindlePluggedIn {
+        SideSwitch(panel: panel).padding(.top, 12)
+      }
+      DestinationChips(panel: panel).padding(.top, library.isKindlePluggedIn ? 8 : 12)
+      if isKindleSide {
+        SearchField(
+          text: Bindable(panel.kindle).query, prompt: "Search this Kindle",
+          focusRequests: panel.searchFocusRequests
+        )
+        .padding(.top, 10)
+        KindleFilterBar(library: library, kindle: panel.kindle).padding(.top, 9)
+      } else {
+        SearchField(
+          text: Bindable(library).query, prompt: "Search title or author",
+          focusRequests: panel.searchFocusRequests
+        )
+        .padding(.top, 10)
+        FilterBar(library: library).padding(.top, 9)
+      }
       if let notice = panel.notice {
         NoticeView(
           toast: Toast(tone: .failure, notice), onFix: { Task { await panel.performNoticeFix() } },
@@ -38,11 +65,15 @@ struct LibraryScreen: View {
         )
         .padding(.top, 10)
       }
-      LibraryContent(panel: panel).padding(.top, 10)
+      if isKindleSide {
+        Color.clear.frame(maxHeight: .infinity)
+      } else {
+        LibraryContent(panel: panel).padding(.top, 10)
+      }
     }
     .padding(14)
     .overlay(alignment: .bottom) {
-      if !library.selection.isEmpty {
+      if !isKindleSide, !library.selection.isEmpty {
         SendBar(panel: panel)
           .padding(14)
           .transition(.move(edge: .bottom).combined(with: .opacity))
@@ -52,7 +83,8 @@ struct LibraryScreen: View {
   }
 
   private var subtitle: String {
-    switch panel.library.state {
+    if panel.side == .kindle { return panel.kindle.subtitle }
+    return switch panel.library.state {
     case .loading: "Reading your Books library…"
     case .loaded: panel.library.summary
     case .failed: "Library unavailable"
@@ -72,15 +104,20 @@ struct DestinationChips: View {
     .scrollIndicators(.never)
   }
 
+  /// The Kindle side shows only the Kindle it reads: Kindle email doesn't apply there.
   private func chips(_ library: LibraryViewModel) -> some View {
-    HStack(spacing: 6) {
+    let isKindleSide = panel.side == .kindle
+    let destinations =
+      isKindleSide
+      ? library.destinations.filter { $0.volume == library.kindleVolume } : library.destinations
+    return HStack(spacing: 6) {
       if !library.isKindlePluggedIn {
         Chip(
           title: "No Kindle plugged in", symbol: DestinationKind.usb.symbol, isActive: false
         )
         .help("Plug in a Kindle with its USB cable to copy books to it")
       }
-      ForEach(library.destinations, id: \.self) { destination in
+      ForEach(destinations, id: \.self) { destination in
         Button {
           Task { await library.activate(destination) }
         } label: {
@@ -96,7 +133,7 @@ struct DestinationChips: View {
           EjectButton(panel: panel, volume: volume)
         }
       }
-      if !library.hasKindleEmail {
+      if !library.hasKindleEmail, !isKindleSide {
         Button {
           panel.showSetup(at: .kindleEmail)
         } label: {
@@ -174,7 +211,8 @@ struct Chip: View {
 }
 
 struct SearchField: View {
-  @Bindable var library: LibraryViewModel
+  @Binding var text: String
+  let prompt: String
   let focusRequests: Int
   @FocusState private var isFocused: Bool
 
@@ -184,16 +222,13 @@ struct SearchField: View {
         .font(.system(size: 11, weight: .semibold))
         .foregroundStyle(Theme.faint)
         .accessibilityHidden(true)
-      TextField(
-        "Search", text: $library.query,
-        prompt: Text("Search title or author").foregroundStyle(Theme.faint)
-      )
-      .textFieldStyle(.plain)
-      .font(.system(size: 12))
-      .focused($isFocused)
-      if !library.query.isEmpty {
+      TextField("Search", text: $text, prompt: Text(prompt).foregroundStyle(Theme.faint))
+        .textFieldStyle(.plain)
+        .font(.system(size: 12))
+        .focused($isFocused)
+      if !text.isEmpty {
         Button {
-          library.query = ""
+          text = ""
         } label: {
           Image(systemName: "xmark.circle.fill")
         }
@@ -217,20 +252,51 @@ package struct FilterBar: View {
   }
 
   package var body: some View {
+    FilterRow(library: library) {
+      ForEach(library.filters, id: \.self) { filter in
+        Button(filter.title) { library.filter = filter }
+          .buttonStyle(FilterPillStyle(isOn: library.filter == filter))
+          .accessibilityAddTraits(library.filter == filter ? .isSelected : [])
+      }
+    } format: {
+      FormatMenu(library: library)
+    }
+  }
+}
+
+/// The Kindle side's scopes and formats, with the library's sort and layout.
+struct KindleFilterBar: View {
+  let library: LibraryViewModel
+  @Bindable var kindle: KindleViewModel
+
+  var body: some View {
+    FilterRow(library: library, sortHelp: "Sort this Kindle") {
+      ForEach(KindleScope.allCases, id: \.self) { scope in
+        Button(scope.title) { kindle.scope = scope }
+          .buttonStyle(FilterPillStyle(isOn: kindle.scope == scope))
+          .accessibilityAddTraits(kindle.scope == scope ? .isSelected : [])
+      }
+    } format: {
+      KindleFormatMenu(kindle: kindle)
+    }
+  }
+}
+
+/// Scope pills that scroll when they don't fit, beside the menus and layouts that stay put.
+private struct FilterRow<Scopes: View, Format: View>: View {
+  let library: LibraryViewModel
+  var sortHelp = "Sort the library"
+  @ViewBuilder let scopes: Scopes
+  @ViewBuilder let format: Format
+
+  var body: some View {
     HStack(spacing: 5) {
-      // The pills scroll when the Kindle scopes don't fit beside the menus.
       ScrollView(.horizontal) {
-        HStack(spacing: 5) {
-          ForEach(library.filters, id: \.self) { filter in
-            Button(filter.title) { library.filter = filter }
-              .buttonStyle(FilterPillStyle(isOn: library.filter == filter))
-              .accessibilityAddTraits(library.filter == filter ? .isSelected : [])
-          }
-        }
+        HStack(spacing: 5) { scopes }
       }
       .scrollIndicators(.never)
-      FormatMenu(library: library)
-      SortMenu(library: library)
+      format
+      SortMenu(library: library, help: sortHelp)
       LayoutSwitcher(library: library)
     }
   }
@@ -269,9 +335,43 @@ struct FormatMenu: View {
   }
 }
 
+/// All the formats on the Kindle.
+struct KindleFormatMenu: View {
+  @Bindable var kindle: KindleViewModel
+
+  var body: some View {
+    Menu {
+      choice(nil, "All formats")
+      ForEach(kindle.formats, id: \.self) { choice($0, $0.uppercased()) }
+    } label: {
+      Text(label).toolbarPill()
+    }
+    .pillMenu()
+    .help("Show one format")
+    .accessibilityLabel("Format")
+    .accessibilityValue(label)
+  }
+
+  private var label: String { kindle.format?.uppercased() ?? "All formats" }
+
+  @ViewBuilder
+  private func choice(_ format: String?, _ title: String) -> some View {
+    Button {
+      kindle.format = format
+    } label: {
+      if format == kindle.format {
+        Label(title, systemImage: "checkmark")
+      } else {
+        Text(title)
+      }
+    }
+  }
+}
+
 /// Recently added, Title or Author; the A–Z bar shows for the last two.
 struct SortMenu: View {
   let library: LibraryViewModel
+  var help = "Sort the library"
 
   var body: some View {
     Menu {
@@ -294,7 +394,7 @@ struct SortMenu: View {
       .toolbarPill()
     }
     .pillMenu()
-    .help("Sort the library")
+    .help(help)
     .accessibilityLabel("Sort")
     .accessibilityValue(library.sort.title)
   }
@@ -359,6 +459,39 @@ struct LayoutSwitcher: View {
         .buttonStyle(.plain)
         .help(help)
         .accessibilityLabel(help)
+        .accessibilityAddTraits(isOn ? .isSelected : [])
+      }
+    }
+    .padding(2)
+    .glass(cornerRadius: 9)
+  }
+}
+
+/// Library | On Kindle, while a Kindle is plugged in.
+struct SideSwitch: View {
+  let panel: PanelModel
+
+  private let sides: [LibrarySide] = [.library, .kindle]
+
+  var body: some View {
+    HStack(spacing: 0) {
+      ForEach(sides, id: \.self) { side in
+        let isOn = panel.side == side
+        Button {
+          panel.showSide(side)
+        } label: {
+          Text(panel.switchTitle(side))
+            .font(.system(size: 11, weight: .semibold))
+            .foregroundStyle(isOn ? Theme.text : Theme.muted)
+            .frame(maxWidth: .infinity, minHeight: 22)
+            .background(
+              isOn ? Color.white.opacity(0.14) : .clear,
+              in: RoundedRectangle(cornerRadius: 7, style: .continuous)
+            )
+            .contentShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
+            .shadow(color: .black.opacity(isOn ? 0.4 : 0), radius: 1.5, y: 1)
+        }
+        .buttonStyle(.plain)
         .accessibilityAddTraits(isOn ? .isSelected : [])
       }
     }

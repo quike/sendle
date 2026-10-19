@@ -45,6 +45,11 @@ struct Composition {
       settings: settings,
       history: history,
       converter: converter)
+    let kindle = KindleViewModel(
+      library: USBKindleLibrary(cacheDirectory: data, log: log),
+      match: MatchKindleBooks(
+        editions: OPFEditionReader(cacheFile: data.appending(path: "editions.json")),
+        digests: SHA256FileDigester(), asins: SendleASINScheme(), history: history))
     let setup = SetupViewModel(
       configure: configure, sendTest: sendTest,
       checkAccess: {
@@ -62,7 +67,7 @@ struct Composition {
         sendBooks: SendBooks(
           channels: channels, preparer: KindleEPUBPreparer(), converter: converter,
           staging: staging, history: history, log: log)),
-      logs: LogsViewModel(feed: log),
+      logs: LogsViewModel(feed: log), kindle: kindle,
       ejector: VolumeEjector(log: log))
     self.settings = settings
     self.chooseTool = chooseTool

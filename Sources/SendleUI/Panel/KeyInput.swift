@@ -85,6 +85,7 @@ package enum PanelCommand: Equatable, Sendable {
   case selectAll
   case layout(LibraryLayout)
   case focusSearch
+  case refresh
   case openSettings
 }
 
@@ -109,6 +110,7 @@ extension KeyInput {
       case "2": return .layout(.list)
       case "3": return .layout(.shelf)
       case "f": return .focusSearch
+      case "r": return .refresh
       case ",": return .openSettings
       default: return nil
       }

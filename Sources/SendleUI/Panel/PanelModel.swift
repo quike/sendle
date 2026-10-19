@@ -10,6 +10,12 @@ package enum PanelRoute: Equatable, Sendable {
   case logs
 }
 
+/// Which of the library's two sides shows while a Kindle is plugged in.
+package enum LibrarySide: Hashable, Sendable {
+  case library
+  case kindle
+}
+
 /// The panel's state above its screens: which one shows, the settings sheet, keys, fixes and the
 /// menu bar icon.
 @Observable @MainActor
@@ -23,7 +29,9 @@ public final class PanelModel {
   package let covers: CoverStore
   package let queue: SendQueueViewModel
   package let logs: LogsViewModel
+  package let kindle: KindleViewModel
   package private(set) var route = PanelRoute.library
+  package private(set) var side = LibrarySide.library
   package private(set) var isShowingSettings = false
   package private(set) var notice: Problem?
   /// The Kindle being ejected, while it is.
@@ -48,6 +56,7 @@ public final class PanelModel {
     covers: CoverStore,
     queue: SendQueueViewModel,
     logs: LogsViewModel,
+    kindle: KindleViewModel,
     ejector: any KindleEjector
   ) {
     self.library = library
@@ -56,10 +65,14 @@ public final class PanelModel {
     self.covers = covers
     self.queue = queue
     self.logs = logs
+    self.kindle = kindle
     self.ejector = ejector
     library.reportProblem = { [weak self] problem in self?.show(notice: problem) }
+    library.onKindleInputsChange = { [weak self] in self?.followKindle() }
+    library.onSortChange = { [weak kindle] in kindle?.sort = $0 }
+    kindle.onMatchesChange = { [weak library] in library?.showKindleMatches($0) }
     settings.onChange = { [weak library] in await library?.refreshSettings() }
-    queue.onFinish = { [weak library] in await library?.refreshHistory() }
+    queue.onFinish = { [weak self] in await self?.refreshAfterSend() }
     queue.isKindleConnected = { [weak library] in library?.isKindlePluggedIn ?? false }
   }
 
@@ -80,6 +93,22 @@ public final class PanelModel {
 
   /// The logs button shows while Settings › General › Show logs is on.
   package var showsLogs: Bool { settings.showsLogs }
+
+  /// The side switch's labels, each with how many books it holds.
+  package func switchTitle(_ side: LibrarySide) -> String {
+    switch side {
+    case .library:
+      "Library · \(library.books.count)"
+    case .kindle:
+      kindle.listing.map { "On Kindle · \($0.books.count)" } ?? "On Kindle"
+    }
+  }
+
+  /// The Kindle side only exists while a Kindle is plugged in.
+  package func showSide(_ side: LibrarySide) {
+    guard side == .library || library.isKindlePluggedIn else { return }
+    self.side = side
+  }
 
   // MARK: Lifecycle
 
@@ -145,6 +174,25 @@ public final class PanelModel {
   package func click(_ id: BookID, _ kind: ClickKind) {
     system?.endEditing()
     library.click(id, kind)
+  }
+
+  /// A Kindle that goes takes its side with it.
+  private func followKindle() {
+    let volume = library.kindleVolume
+    let books = library.books
+    if volume == nil { side = .library }
+    Task { await kindle.follow(volume, books: books) }
+  }
+
+  /// A USB send changed the Kindle, so it is read again; an email send only changed what the
+  /// history says about the library.
+  private func refreshAfterSend() async {
+    await library.refreshHistory()
+    if queue.destination?.kind == .usb {
+      await kindle.refresh()
+    } else {
+      await kindle.rematch()
+    }
   }
 
   private func watchForAccess() {
@@ -297,6 +345,8 @@ public final class PanelModel {
       finishQueue()
     } else if route == .setup, !library.needsAccess {
       skipSetup()
+    } else if route == .library, side == .kindle {
+      if kindle.query.isEmpty { system?.closePanel() } else { kindle.query = "" }
     } else if route == .library, !library.query.isEmpty {
       library.query = ""
     } else if route == .library, library.clearSelection() {
@@ -317,11 +367,11 @@ public final class PanelModel {
     case .openSettings:
       if !isShowingSettings { Task { await openSettings() } }
     case .move(let direction):
-      guard isOnLibrary else { return false }
+      guard isOnLibraryBooks else { return false }
       system?.endEditing()
       library.move(direction)
     case .selectAll:
-      guard isOnLibrary else { return false }
+      guard isOnLibraryBooks else { return false }
       library.selectAll()
     case .layout(let layout):
       guard isOnLibrary else { return false }
@@ -329,11 +379,17 @@ public final class PanelModel {
     case .focusSearch:
       guard isOnLibrary else { return false }
       searchFocusRequests += 1
+    case .refresh:
+      guard isOnLibrary, side == .kindle else { return false }
+      Task { await kindle.refresh() }
     }
     return true
   }
 
   private var isOnLibrary: Bool { route == .library && !isShowingSettings }
+
+  /// The library's books, which the Kindle side leaves unselectable.
+  private var isOnLibraryBooks: Bool { isOnLibrary && side == .library }
 
   /// Return acts on the settings page, moves the setup on, sends the selection or leaves a finished
   /// queue.
@@ -347,7 +403,7 @@ public final class PanelModel {
       case .sender: Task { await finishSetup() }
       }
     case .library:
-      guard !library.selection.isEmpty, library.canSend else { return false }
+      guard side == .library, !library.selection.isEmpty, library.canSend else { return false }
       sendSelection()
     case .queue:
       guard !queue.isRunning else { return false }

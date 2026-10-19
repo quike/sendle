@@ -1,0 +1,88 @@
+import Foundation
+import SendleDomain
+import SendleTestSupport
+import SendleUI
+
+@MainActor
+final class FakeSystemActions: SystemActions {
+  var opened: [URL] = []
+  var revealedApp = 0
+  var closedPanel = 0
+  var endedEditing = 0
+  var program: URL?
+  var copied: [String] = []
+
+  func open(_ url: URL) { opened.append(url) }
+  func revealApp() { revealedApp += 1 }
+  func closePanel() { closedPanel += 1 }
+  func endEditing() { endedEditing += 1 }
+  func chooseProgram() async -> URL? { program }
+  func copy(_ text: String) { copied.append(text) }
+}
+
+/// The panel with fakes behind it, for the suites that drive it.
+@MainActor
+struct PanelHarness {
+  let library = FakeBooksLibrary(.success([.fixture(id: "a"), .fixture(id: "b")]))
+  let monitor = FakeDestinationMonitor()
+  let system = FakeSystemActions()
+  let history = InMemorySendHistoryStore()
+  let ejector = FakeKindleEjector()
+  let log = FakeActivityLog()
+
+  /// `onSleep` runs each time setup waits between access checks.
+  /// `channel` delivers every send and test email; `ejector` replaces the harness's.
+  func makePanel(
+    _ saved: AppSettings = AppSettings(email: .fixture),
+    channel: FakeDeliveryChannel = FakeDeliveryChannel(),
+    ejector: FakeKindleEjector? = nil,
+    kindle: FakeKindleLibrary = FakeKindleLibrary(),
+    onSleep: @escaping @Sendable () async -> Void = { try? await Task.sleep(for: .seconds(60)) }
+  ) -> (PanelModel, InMemorySettingsStore) {
+    let settings = InMemorySettingsStore(saved)
+    let converter = FakeFormatConverter(isAvailable: false)
+    let configure = ConfigureEmail(settings: settings, secrets: MemorySecretStore())
+    let channels = FakeDeliveryChannelFactory(channel: channel)
+    let staging = FakeStagingArea()
+    let sendTest = SendTestEmail(settings: settings, channels: channels, staging: staging)
+    let libraryModel = LibraryViewModel(
+      loadLibrary: LoadLibrary(library: library, inspector: StubProtectionInspector()),
+      observeDestinations: ObserveDestinations(monitor: monitor, settings: settings),
+      settings: settings, history: history, converter: converter)
+    let setup = SetupViewModel(
+      configure: configure, sendTest: sendTest,
+      checkAccess: {
+        await libraryModel.reload()
+        return !libraryModel.needsAccess
+      },
+      sleep: { _ in await onSleep() })
+    let panel = PanelModel(
+      library: libraryModel, setup: setup,
+      settings: SettingsViewModel(
+        configure: configure, sendTest: sendTest,
+        addresses: ManageKindleAddresses(settings: settings),
+        chooseTool: ChooseConverterTool(
+          settings: settings, choice: converter, isExecutable: { _ in true }),
+        settings: settings, loginItem: FakeLoginItem(), converter: converter),
+      covers: CoverStore(provider: FakeCoverProvider()),
+      queue: SendQueueViewModel(
+        sendBooks: SendBooks(
+          channels: channels, preparer: FakeEPUBPreparer(),
+          converter: FakeFormatConverter(isAvailable: false), staging: staging, history: history,
+          retryDelay: .zero, sleep: { _ in })),
+      logs: LogsViewModel(feed: log), kindle: makeKindleModel(reading: kindle, history: history),
+      ejector: ejector ?? self.ejector)
+    panel.attach(system)
+    return (panel, settings)
+  }
+
+  func denyAccess() {
+    library.result = .failure(.accessDenied)
+    library.canWatch = false
+  }
+
+  func grantAccess() {
+    library.result = .success([.fixture(id: "a")])
+    library.canWatch = true
+  }
+}

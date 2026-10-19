@@ -65,6 +65,10 @@ public final class LibraryViewModel {
   package var hovered: BookID?
   /// Told when a reload fails but the books from the last good one stay on screen.
   @ObservationIgnored package var reportProblem: (@MainActor (Problem) -> Void)?
+  /// Told when the books or the Kindle to read change.
+  @ObservationIgnored package var onKindleInputsChange: (@MainActor () -> Void)?
+  /// Told of the sort in force, once it is read and each time it changes.
+  @ObservationIgnored package var onSortChange: (@MainActor (LibrarySort) -> Void)?
 
   private var sends: [BookID: BookSends] = [:]
   private var volumes: [KindleVolume] = []
@@ -123,6 +127,9 @@ public final class LibraryViewModel {
 
   package var isKindlePluggedIn: Bool { !volumes.isEmpty }
 
+  /// The Kindle to read: the active destination's when it is USB, otherwise the first plugged in.
+  package var kindleVolume: KindleVolume? { activeDestination?.volume ?? volumes.first }
+
   /// Something to send to; the selection itself only ever holds books that can go there.
   package var canSend: Bool { activeDestination != nil }
 
@@ -151,6 +158,7 @@ public final class LibraryViewModel {
     hasKindleEmail = saved.email != nil
     converterAvailable = converter.isAvailable
     refreshItems()
+    onSortChange?(sort)
     let updates = observeDestinations()
     destinationUpdates = Task { [weak self] in
       for await destinations in updates {
@@ -254,12 +262,14 @@ public final class LibraryViewModel {
     self.sort = sort
     refreshItems()
     scrollToTop()
+    onSortChange?(sort)
     await save { $0.sort = sort }
   }
 
   package func activate(_ kind: DestinationKind) async {
     preferredDestination = kind
     refreshItems()
+    onKindleInputsChange?()
     await save { $0.activeDestination = kind }
   }
 
@@ -309,6 +319,7 @@ public final class LibraryViewModel {
       }
     }
     refreshItems()
+    onKindleInputsChange?()
   }
 
   private func readHistory() async {
@@ -321,6 +332,7 @@ public final class LibraryViewModel {
       if case .usb(let volume) = $0 { volume } else { nil }
     }
     refreshItems()
+    onKindleInputsChange?()
   }
 
   /// Rebuilds what the layouts show, and drops selected books that are no longer among it.

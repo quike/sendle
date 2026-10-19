@@ -15,6 +15,8 @@ struct KeyInputTests {
       (KeyInput(.character("2"), command: true), .layout(.list)),
       (KeyInput(.character("3"), command: true, isEditingText: true), .layout(.shelf)),
       (KeyInput(.character("f"), command: true), .focusSearch),
+      (KeyInput(.character("r"), command: true), .refresh),
+      (KeyInput(.character("R"), command: true, isEditingText: true), .refresh),
       (KeyInput(.character(","), command: true, isEditingText: true), .openSettings),
       (KeyInput(.returnKey), .confirm),
       (KeyInput(.returnKey, isEditingText: true), .confirm),
