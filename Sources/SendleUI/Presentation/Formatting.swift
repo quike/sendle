@@ -20,4 +20,13 @@ package enum Formatting {
     default: return "\(seconds / (365 * day))y ago"
     }
   }
+
+  /// "12 Oct 2025", in English whatever the Mac's locale.
+  package static func day(_ date: Date, in zone: TimeZone = .current) -> String {
+    let formatter = DateFormatter()
+    formatter.locale = Locale(identifier: "en_US_POSIX")
+    formatter.timeZone = zone
+    formatter.dateFormat = "d MMM yyyy"
+    return formatter.string(from: date)
+  }
 }

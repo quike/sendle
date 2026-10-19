@@ -14,8 +14,32 @@ package enum KindleState: Equatable, Sendable {
 public final class KindleViewModel {
   package private(set) var volume: KindleVolume?
   package private(set) var state = KindleState.idle
-  package private(set) var listing: KindleListing?
-  package private(set) var matches: KindleMatches?
+  package private(set) var listing: KindleListing? {
+    didSet { refreshItems() }
+  }
+  package private(set) var matches: KindleMatches? {
+    didSet { refreshItems() }
+  }
+  package var query = "" {
+    didSet { refreshItems() }
+  }
+  package var scope = KindleScope.all {
+    didSet { refreshItems() }
+  }
+  /// A lowercased extension; nil shows every format.
+  package var format: String? {
+    didSet { refreshItems() }
+  }
+  /// Shared with the library's sort, which saves it.
+  package var sort = LibrarySort.recent {
+    didSet { refreshItems() }
+  }
+  /// The books the scope, format and search show, in the sort's order.
+  package private(set) var items: [KindleItemViewModel] = []
+  /// The newest books on screen, whatever the sort, for the shelf.
+  package private(set) var recentItems: [KindleItemViewModel] = []
+  /// The formats on the Kindle, as lowercased extensions.
+  package private(set) var formats: [String] = []
   /// Told whenever the library's matches against the Kindle change, nil once there is no Kindle.
   @ObservationIgnored package var onMatchesChange: (@MainActor (KindleMatches?) -> Void)?
 
@@ -78,6 +102,23 @@ public final class KindleViewModel {
   }
 
   // MARK: Private
+
+  /// Rebuilds what the layouts show; a format that left with its books is dropped.
+  private func refreshItems() {
+    formats = Set((listing?.books ?? []).map(\.format).filter { !$0.isEmpty }).sorted()
+    if let format, !formats.contains(format) {
+      self.format = nil
+      return
+    }
+    let newestFirst = KindleItems.make(
+      books: listing?.books ?? [], matches: matches, scope: scope, format: format, query: query)
+    items = LibraryOrder.sorted(newestFirst, by: sort) {
+      SortFields(
+        title: $0.title, author: $0.book.authors.first, tiebreak: $0.title,
+        id: $0.id.relativePath)
+    }
+    recentItems = Array(newestFirst.prefix(8))
+  }
 
   private func forget() {
     epoch += 1

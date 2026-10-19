@@ -25,4 +25,8 @@ struct FormattingTests {
 
     #expect(Formatting.age(of: date, now: now) == expected)
   }
+
+  @Test func writesADayInEnglish() {
+    #expect(Formatting.day(Date(timeIntervalSince1970: 1_760_270_400), in: .gmt) == "12 Oct 2025")
+  }
 }

@@ -15,11 +15,7 @@ struct KindleViewModelTests {
   let moby = Book.fixture(id: "moby")
 
   func makeModel() -> KindleViewModel {
-    KindleViewModel(
-      library: kindle,
-      match: MatchKindleBooks(
-        editions: FakeEditionReader(), digests: FakeFileDigester(), asins: FakeASINScheme(),
-        history: InMemorySendHistoryStore()))
+    makeKindleModel(reading: kindle)
   }
 
   @Test func readsTheKindleAndMatchesTheLibrary() async {

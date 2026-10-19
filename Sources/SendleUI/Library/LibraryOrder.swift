@@ -1,6 +1,29 @@
 import Foundation
 import SendleDomain
 
+/// What sorting reads from a book, whether it is in the library or on a Kindle.
+package struct SortFields {
+  /// What a title sort files by: a book's sort title when it has one.
+  package let title: String
+  package let author: String?
+  /// Settles books filed under the same key.
+  package let tiebreak: String
+  package let id: String
+
+  package init(title: String, author: String?, tiebreak: String, id: String) {
+    self.title = title
+    self.author = author
+    self.tiebreak = tiebreak
+    self.id = id
+  }
+
+  fileprivate init(_ book: Book) {
+    self.init(
+      title: book.sortTitle ?? book.title, author: book.sortAuthor ?? book.author,
+      tiebreak: book.title, id: book.id.rawValue)
+  }
+}
+
 /// The library's order under each sort, and the A–Z bar's letter for each book.
 package enum LibraryOrder {
   /// Title and author run A to Z, then `#` (digits, other scripts), then books with no author.
@@ -12,22 +35,31 @@ package enum LibraryOrder {
   package static func sorted<Element>(
     _ elements: [Element], by sort: LibrarySort, book: (Element) -> Book
   ) -> [Element] {
+    sorted(elements, by: sort) { SortFields(book($0)) }
+  }
+
+  package static func sorted<Element>(
+    _ elements: [Element], by sort: LibrarySort, fields: (Element) -> SortFields
+  ) -> [Element] {
     guard sort != .recent else { return elements }
-    return elements.map { Keyed(element: $0, book: book($0), key: SortKey(book($0), sort)) }
-      .sorted(by: Keyed.precedes)
-      .map(\.element)
+    return elements.map { element in
+      let fields = fields(element)
+      return Keyed(element: element, fields: fields, key: SortKey(fields, sort))
+    }
+    .sorted(by: Keyed.precedes)
+    .map(\.element)
   }
 
   /// "A" to "Z" or "#"; nil while sorted by when the books were added.
   package static func letter(for book: Book, by sort: LibrarySort) -> String? {
     guard sort != .recent else { return nil }
-    return SortKey(book, sort).letter
+    return SortKey(SortFields(book), sort).letter
   }
 }
 
 private struct Keyed<Element> {
   let element: Element
-  let book: Book
+  let fields: SortFields
   let key: SortKey
 
   /// By letter, then key, then title; the book's id settles the rest, so the order never jumps.
@@ -35,9 +67,9 @@ private struct Keyed<Element> {
     if lhs.key.rank != rhs.key.rank { return lhs.key.rank < rhs.key.rank }
     let byKey = lhs.key.text.localizedStandardCompare(rhs.key.text)
     if byKey != .orderedSame { return byKey == .orderedAscending }
-    let byTitle = lhs.book.title.localizedStandardCompare(rhs.book.title)
+    let byTitle = lhs.fields.tiebreak.localizedStandardCompare(rhs.fields.tiebreak)
     if byTitle != .orderedSame { return byTitle == .orderedAscending }
-    return lhs.book.id.rawValue < rhs.book.id.rawValue
+    return lhs.fields.id < rhs.fields.id
   }
 }
 
@@ -49,11 +81,11 @@ private struct SortKey {
   let letter: String
   let rank: Int
 
-  init(_ book: Book, _ sort: LibrarySort) {
+  init(_ fields: SortFields, _ sort: LibrarySort) {
     let source =
       switch sort {
-      case .recent, .title: book.sortTitle ?? book.title
-      case .author: book.sortAuthor ?? book.author
+      case .recent, .title: fields.title
+      case .author: fields.author
       }
     guard let source else {
       text = ""
