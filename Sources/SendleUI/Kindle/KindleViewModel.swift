@@ -40,6 +40,7 @@ public final class KindleViewModel {
   package private(set) var recentItems: [KindleItemViewModel] = []
   /// The formats on the Kindle, as lowercased extensions.
   package private(set) var formats: [String] = []
+  package let covers: KindleCoverStore
   /// Told whenever the library's matches against the Kindle change, nil once there is no Kindle.
   @ObservationIgnored package var onMatchesChange: (@MainActor (KindleMatches?) -> Void)?
 
@@ -56,6 +57,7 @@ public final class KindleViewModel {
   public init(library: any KindleLibrary, match: MatchKindleBooks) {
     self.library = library
     self.match = match
+    covers = KindleCoverStore(library: library)
   }
 
   package var subtitle: String {
@@ -123,6 +125,7 @@ public final class KindleViewModel {
   private func forget() {
     epoch += 1
     reading?.cancel()
+    covers.reset()
     volume = nil
     listing = nil
     state = .idle

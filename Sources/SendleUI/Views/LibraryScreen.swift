@@ -66,7 +66,7 @@ struct LibraryScreen: View {
         .padding(.top, 10)
       }
       if isKindleSide {
-        Color.clear.frame(maxHeight: .infinity)
+        KindleContent(panel: panel).padding(.top, 10)
       } else {
         LibraryContent(panel: panel).padding(.top, 10)
       }
@@ -684,21 +684,32 @@ struct EmptyLibraryView: View {
   let isFiltered: Bool
 
   var body: some View {
+    EmptyPlaceholder(
+      symbol: isFiltered ? "magnifyingglass" : "books.vertical",
+      title: isFiltered ? "No books match" : "Your Books library is empty",
+      message: isFiltered
+        ? "Try another search or filter."
+        : "Add EPUB or PDF files to Books, and they show up here.")
+  }
+}
+
+/// A centred icon, a title and a line of explanation, for a list with nothing to show.
+struct EmptyPlaceholder: View {
+  let symbol: String
+  let title: String
+  let message: String
+
+  var body: some View {
     VStack(spacing: 6) {
-      Image(systemName: isFiltered ? "magnifyingglass" : "books.vertical")
+      Image(systemName: symbol)
         .font(.system(size: 22))
         .foregroundStyle(Theme.faint)
         .accessibilityHidden(true)
-      Text(isFiltered ? "No books match" : "Your Books library is empty")
-        .font(.system(size: 13, weight: .semibold))
-      Text(
-        isFiltered
-          ? "Try another search or filter."
-          : "Add EPUB or PDF files to Books, and they show up here."
-      )
-      .font(.system(size: 11.5))
-      .foregroundStyle(Theme.muted)
-      .multilineTextAlignment(.center)
+      Text(title).font(.system(size: 13, weight: .semibold))
+      Text(message)
+        .font(.system(size: 11.5))
+        .foregroundStyle(Theme.muted)
+        .multilineTextAlignment(.center)
     }
     .frame(maxWidth: .infinity, maxHeight: .infinity)
   }

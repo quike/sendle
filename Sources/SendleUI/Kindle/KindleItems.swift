@@ -39,6 +39,8 @@ package struct KindleItemViewModel: Identifiable, Hashable, Sendable {
   package let help: String
   /// Whether a library book matches it, and how surely.
   package let inLibrary: MatchConfidence?
+  /// What VoiceOver reads after the title and author.
+  package let spoken: String
 
   package var id: KindleBookID { book.id }
 
@@ -49,10 +51,19 @@ package struct KindleItemViewModel: Identifiable, Hashable, Sendable {
     byline = book.authors.isEmpty ? "Unknown author" : book.authors.joined(separator: ", ")
     badge = book.format.uppercased()
     detail = "\(Formatting.size(book.byteCount)) · \(book.source.label)"
+    spoken = [badge, detail, Self.libraryText(inLibrary)].joined(separator: ", ")
     help = [
       "\(title) · \(byline)", "\(badge) · \(detail)", "documents/\(book.id.relativePath)",
       "Copied \(Formatting.day(book.modified))",
     ].joined(separator: "\n")
+  }
+
+  private static func libraryText(_ confidence: MatchConfidence?) -> String {
+    switch confidence {
+    case .sure?: "in your library"
+    case .maybe?: "maybe in your library"
+    case nil: "not in your library"
+    }
   }
 }
 

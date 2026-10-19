@@ -16,27 +16,16 @@ package final class CoverSlot {
   package fileprivate(set) var isLoaded = false
 }
 
-/// Covers kept in memory for the app's lifetime, "no cover" included, so each is read only once. A
-/// cover that couldn't be read is asked for again the next time a view shows it.
+/// Covers kept in memory, "no cover" included, so each is read only once. A cover that couldn't
+/// be read is asked for again the next time a view shows it.
 @MainActor
-public final class CoverStore {
-  private struct Key: Hashable {
-    let id: BookID
-    let size: CoverSize
-    /// A book that comes down from iCloud gets a fresh look.
-    let availability: Availability
-  }
-
-  private let provider: any CoverProvider
+package final class CoverCache<Key: Hashable> {
   private var slots: [Key: CoverSlot] = [:]
   private var loads: [Key: Task<Void, Never>] = [:]
 
-  public init(provider: any CoverProvider) {
-    self.provider = provider
-  }
+  package init() {}
 
-  package func slot(for book: Book, size: CoverSize) -> CoverSlot {
-    let key = Key(id: book.id, size: size, availability: book.availability)
+  package func slot(for key: Key) -> CoverSlot {
     if let slot = slots[key] { return slot }
     let slot = CoverSlot()
     slots[key] = slot
@@ -44,14 +33,12 @@ public final class CoverStore {
   }
 
   /// Views asking at the same time share one read.
-  package func load(_ book: Book, size: CoverSize) async {
-    let key = Key(id: book.id, size: size, availability: book.availability)
-    let slot = slot(for: book, size: size)
+  package func load(_ key: Key, read: @escaping @Sendable () async -> Cover) async {
+    let slot = slot(for: key)
     guard !slot.isLoaded else { return }
     if let running = loads[key] { return await running.value }
-    let provider = provider
     let task = Task {
-      switch await provider.cover(for: book, maxPixel: size.rawValue) {
+      switch await read() {
       case .image(let png):
         slot.data = png
         slot.isLoaded = true
@@ -64,5 +51,38 @@ public final class CoverStore {
     loads[key] = task
     await task.value
     loads[key] = nil
+  }
+
+  package func removeAll() {
+    slots = [:]
+  }
+}
+
+/// The library's covers, read from the books' files for the app's lifetime.
+@MainActor
+public final class CoverStore {
+  private struct Key: Hashable {
+    let id: BookID
+    let size: CoverSize
+    /// A book that comes down from iCloud gets a fresh look.
+    let availability: Availability
+  }
+
+  private let provider: any CoverProvider
+  private let cache = CoverCache<Key>()
+
+  public init(provider: any CoverProvider) {
+    self.provider = provider
+  }
+
+  package func slot(for book: Book, size: CoverSize) -> CoverSlot {
+    cache.slot(for: Key(id: book.id, size: size, availability: book.availability))
+  }
+
+  package func load(_ book: Book, size: CoverSize) async {
+    let provider = provider
+    await cache.load(Key(id: book.id, size: size, availability: book.availability)) {
+      await provider.cover(for: book, maxPixel: size.rawValue)
+    }
   }
 }

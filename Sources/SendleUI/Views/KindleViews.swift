@@ -1,0 +1,206 @@
+import SendleDomain
+import SwiftUI
+
+/// What the Kindle side shows under its search: the books in the layout the library uses, with
+/// nothing to select or send.
+struct KindleContent: View {
+  let panel: PanelModel
+
+  var body: some View {
+    let kindle = panel.kindle
+    switch kindle.state {
+    case .failed(let problem):
+      ProblemCard(problem: problem) { action in
+        if action == .retry {
+          Task { await kindle.refresh() }
+        } else {
+          Task { await panel.perform(action) }
+        }
+      }
+      .frame(maxHeight: .infinity, alignment: .top)
+    case .idle:
+      ProgressView().controlSize(.small).frame(maxWidth: .infinity, maxHeight: .infinity)
+    case .reading, .loaded:
+      if let listing = kindle.listing {
+        KindleBooks(panel: panel, isEmpty: listing.books.isEmpty)
+      } else {
+        ProgressView().controlSize(.small).frame(maxWidth: .infinity, maxHeight: .infinity)
+      }
+    }
+  }
+}
+
+private struct KindleBooks: View {
+  let panel: PanelModel
+  let isEmpty: Bool
+
+  var body: some View {
+    let kindle = panel.kindle
+    let items = kindle.items
+    if isEmpty {
+      EmptyPlaceholder(
+        symbol: "books.vertical", title: "This Kindle has no books",
+        message: "Books you copy to it show up here.")
+    } else if items.isEmpty {
+      EmptyPlaceholder(
+        symbol: "magnifyingglass", title: "No books match",
+        message: "Try another search or filter.")
+    } else {
+      ScrollView {
+        VStack(alignment: .leading, spacing: 0) {
+          switch panel.library.layout {
+          case .grid:
+            SectionLabel("On this Kindle").padding(.bottom, 7)
+            KindleGrid(kindle: kindle, items: items)
+          case .list:
+            SectionLabel("On this Kindle").padding(.bottom, 4)
+            KindleList(kindle: kindle, items: items)
+          case .shelf:
+            KindleShelf(kindle: kindle, items: items, recent: kindle.recentItems)
+          }
+        }
+        .padding(.bottom, 6)
+      }
+      .scrollIndicators(.never)
+    }
+  }
+}
+
+struct KindleGrid: View {
+  let kindle: KindleViewModel
+  let items: [KindleItemViewModel]
+  @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+  private let columns = Array(
+    repeating: GridItem(.flexible(), spacing: 10, alignment: .top), count: 3)
+
+  var body: some View {
+    LazyVGrid(columns: columns, alignment: .leading, spacing: 12) {
+      ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
+        VStack(alignment: .leading, spacing: 0) {
+          KindleCover(kindle: kindle, item: item, size: .large)
+            .aspectRatio(2 / 3, contentMode: .fit)
+          Text(item.title)
+            .font(.system(size: 10.5, weight: .semibold))
+            .lineLimit(1)
+            .padding(.top, 6)
+          Text(item.byline)
+            .font(.system(size: 9.5))
+            .foregroundStyle(Theme.muted)
+            .lineLimit(1)
+        }
+        .kindleDescription(item)
+        .transition(Theme.entrance(index: index, reduceMotion: reduceMotion))
+      }
+    }
+    .padding(.horizontal, 4)
+  }
+}
+
+struct KindleList: View {
+  let kindle: KindleViewModel
+  let items: [KindleItemViewModel]
+  @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+  var body: some View {
+    LazyVStack(spacing: 2) {
+      ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
+        KindleRow(kindle: kindle, item: item)
+          .transition(Theme.entrance(index: index, reduceMotion: reduceMotion))
+      }
+    }
+  }
+}
+
+/// "Recently added" covers above the full list.
+struct KindleShelf: View {
+  let kindle: KindleViewModel
+  let items: [KindleItemViewModel]
+  let recent: [KindleItemViewModel]
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 0) {
+      SectionLabel("Recently added")
+      ScrollView(.horizontal) {
+        LazyHStack(spacing: 10) {
+          ForEach(recent) { item in
+            KindleCover(kindle: kindle, item: item, size: .large, titleSize: 8)
+              .frame(width: 62, height: 93)
+              .kindleDescription(item)
+          }
+        }
+        .padding(.horizontal, 6)
+        .padding(.vertical, 8)
+      }
+      .scrollIndicators(.never)
+      SectionLabel("All books").padding(.top, 6).padding(.bottom, 4)
+      KindleList(kindle: kindle, items: items)
+    }
+  }
+}
+
+struct KindleRow: View {
+  let kindle: KindleViewModel
+  let item: KindleItemViewModel
+
+  var body: some View {
+    HStack(spacing: 10) {
+      KindleCover(kindle: kindle, item: item, size: .small)
+        .frame(width: 34, height: 50)
+      VStack(alignment: .leading, spacing: 1) {
+        Text(item.title).font(.system(size: 12.5, weight: .semibold)).lineLimit(1)
+        Text(item.byline).font(.system(size: 10.5)).foregroundStyle(Theme.muted).lineLimit(1)
+        HStack(spacing: 5) {
+          FormatBadge(text: item.badge)
+          Text(item.detail).foregroundStyle(Theme.faint).lineLimit(1)
+        }
+        .font(.system(size: 9.5))
+        .padding(.top, 2)
+      }
+      Spacer(minLength: 6)
+    }
+    .padding(7)
+    .kindleDescription(item)
+  }
+}
+
+/// A Kindle book's cover from the device, or a title card where it has none.
+struct KindleCover: View {
+  let kindle: KindleViewModel
+  let item: KindleItemViewModel
+  let size: CoverSize
+  var titleSize: CGFloat = 10
+
+  var body: some View {
+    let book = item.book
+    let look = CoverLook.of(book.isProtected ? .protected : .ready)
+    CoverFace(
+      data: kindle.covers.slot(for: book, size: size).data, title: item.title,
+      seed: BookID(rawValue: book.id.relativePath), titleSize: size == .large ? titleSize : nil
+    )
+    .saturation(look.saturation)
+    .brightness(look.brightness)
+    .overlay {
+      if book.isProtected {
+        Image(systemName: "lock.fill").font(.system(size: 14)).foregroundStyle(.white)
+      }
+    }
+    .shadow(color: .black.opacity(0.45), radius: 8, y: 6)
+    .task(id: book) {
+      guard let volume = kindle.volume else { return }
+      await kindle.covers.load(book, on: volume, size: size)
+    }
+    .accessibilityHidden(true)
+  }
+}
+
+extension View {
+  /// Hover shows the details; VoiceOver reads one element per book.
+  func kindleDescription(_ item: KindleItemViewModel) -> some View {
+    contentShape(Rectangle())
+      .help(item.help)
+      .accessibilityElement(children: .ignore)
+      .accessibilityLabel("\(item.title), \(item.byline)")
+      .accessibilityValue(item.spoken)
+  }
+}

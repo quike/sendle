@@ -243,71 +243,87 @@ struct BookCover: View {
     let isSelected = item.map { panel.library.selection.contains($0.id) } ?? false
     let isHovered = item.map { panel.library.hovered == $0.id } ?? false
     let look = CoverLook.of(book.availability)
+    CoverFace(
+      data: slot.data, title: book.title, seed: book.id,
+      titleSize: size == .large ? titleSize : nil,
+      bottomInset: showsFormat && item != nil ? 16 : 0
+    )
+    .saturation(look.saturation)
+    .brightness(look.brightness)
+    .overlay {
+      if book.availability == .protected {
+        Image(systemName: "lock.fill").font(.system(size: 14)).foregroundStyle(.white)
+      }
+    }
+    .overlay(alignment: .topTrailing) {
+      if let marks = item?.marks, !marks.isEmpty {
+        HStack(spacing: 2) {
+          ForEach(marks, id: \.self) { BookMarkView(mark: $0) }
+        }
+        .padding(5)
+      }
+    }
+    .overlay(alignment: .topLeading) {
+      if isSelected {
+        CoverMark(symbol: "checkmark", color: Theme.tint(for: panel.library.activeKind))
+          .padding(5)
+      }
+    }
+    .overlay {
+      if isSelected {
+        RoundedRectangle(cornerRadius: 9, style: .continuous)
+          .strokeBorder(Theme.tint(for: panel.library.activeKind), lineWidth: 2)
+          .padding(-4)
+      }
+    }
+    .overlay(alignment: .bottomLeading) {
+      if showsFormat, let item { FormatBadge(text: item.badge, onCover: true).padding(6) }
+    }
+    .overlay(alignment: .bottomTrailing) {
+      if look.showsCloud, size == .large {
+        CoverMark(symbol: "icloud.fill", color: Theme.muted).padding(5)
+      }
+    }
+    .overlay(alignment: .bottomTrailing) {
+      if isHovered, let item, item.canSend, size == .large {
+        QuickSendButton(panel: panel, item: item, isProminent: true).padding(6)
+      }
+    }
+    .shadow(color: .black.opacity(isHovered ? 0.6 : 0.45), radius: isHovered ? 12 : 8, y: 6)
+    .scaleEffect(isHovered ? 1.03 : 1)
+    .offset(y: isHovered ? -3 : 0)
+    .animation(reduceMotion ? nil : Theme.press, value: isHovered)
+    .task(id: book) { await panel.covers.load(book, size: size) }
+    .accessibilityHidden(true)
+  }
+}
+
+/// A cover's picture, or a title card where there is none, with its rounded corners and spine.
+struct CoverFace: View {
+  let data: Data?
+  let title: String
+  let seed: BookID
+  let titleSize: CGFloat?
+  var bottomInset: CGFloat = 0
+
+  var body: some View {
     let shape = UnevenRoundedRectangle(
       topLeadingRadius: 5, bottomLeadingRadius: 5, bottomTrailingRadius: 7, topTrailingRadius: 7,
       style: .continuous)
     // The clear base takes the proposed size, so a cover of another shape can't widen the cell.
     Color.clear
       .overlay {
-        if let data = slot.data, let image = NSImage(data: data) {
+        if let data, let image = NSImage(data: data) {
           Image(nsImage: image).resizable().scaledToFill()
         } else {
           TitleCardView(
-            book: book, titleSize: size == .large ? titleSize : nil,
-            bottomInset: showsFormat && item != nil ? 16 : 0)
+            title: title, seed: seed, titleSize: titleSize, bottomInset: bottomInset)
         }
       }
       .clipShape(shape)
       .overlay(alignment: .leading) {
         Rectangle().fill(Color.black.opacity(0.18)).frame(width: 3)
       }
-      .saturation(look.saturation)
-      .brightness(look.brightness)
-      .overlay {
-        if book.availability == .protected {
-          Image(systemName: "lock.fill").font(.system(size: 14)).foregroundStyle(.white)
-        }
-      }
-      .overlay(alignment: .topTrailing) {
-        if let marks = item?.marks, !marks.isEmpty {
-          HStack(spacing: 2) {
-            ForEach(marks, id: \.self) { BookMarkView(mark: $0) }
-          }
-          .padding(5)
-        }
-      }
-      .overlay(alignment: .topLeading) {
-        if isSelected {
-          CoverMark(symbol: "checkmark", color: Theme.tint(for: panel.library.activeKind))
-            .padding(5)
-        }
-      }
-      .overlay {
-        if isSelected {
-          RoundedRectangle(cornerRadius: 9, style: .continuous)
-            .strokeBorder(Theme.tint(for: panel.library.activeKind), lineWidth: 2)
-            .padding(-4)
-        }
-      }
-      .overlay(alignment: .bottomLeading) {
-        if showsFormat, let item { FormatBadge(text: item.badge, onCover: true).padding(6) }
-      }
-      .overlay(alignment: .bottomTrailing) {
-        if look.showsCloud, size == .large {
-          CoverMark(symbol: "icloud.fill", color: Theme.muted).padding(5)
-        }
-      }
-      .overlay(alignment: .bottomTrailing) {
-        if isHovered, let item, item.canSend, size == .large {
-          QuickSendButton(panel: panel, item: item, isProminent: true).padding(6)
-        }
-      }
-      .shadow(color: .black.opacity(isHovered ? 0.6 : 0.45), radius: isHovered ? 12 : 8, y: 6)
-      .scaleEffect(isHovered ? 1.03 : 1)
-      .offset(y: isHovered ? -3 : 0)
-      .animation(reduceMotion ? nil : Theme.press, value: isHovered)
-      .task(id: book) { await panel.covers.load(book, size: size) }
-      .accessibilityHidden(true)
   }
 }
 
@@ -365,21 +381,35 @@ extension BookMark {
 
 /// A generated cover for books without one, in colours that stay put across launches.
 struct TitleCardView: View {
-  let book: Book
+  let title: String
+  /// Picks the colours.
+  let seed: BookID
   /// Nil leaves the title off, for covers too small to read it.
   let titleSize: CGFloat?
   /// Room kept clear at the bottom, for what sits over the card.
   var bottomInset: CGFloat = 0
 
+  init(title: String, seed: BookID, titleSize: CGFloat?, bottomInset: CGFloat = 0) {
+    self.title = title
+    self.seed = seed
+    self.titleSize = titleSize
+    self.bottomInset = bottomInset
+  }
+
+  init(book: Book, titleSize: CGFloat?, bottomInset: CGFloat = 0) {
+    self.init(
+      title: book.title, seed: book.id, titleSize: titleSize, bottomInset: bottomInset)
+  }
+
   var body: some View {
     let colors = Theme.coverGradients[
-      TitleCard.paletteIndex(for: book.id, count: Theme.coverGradients.count)]
+      TitleCard.paletteIndex(for: seed, count: Theme.coverGradients.count)]
     LinearGradient(
       colors: [colors.0, colors.1], startPoint: .topLeading, endPoint: .bottomTrailing
     )
     .overlay(alignment: .bottomLeading) {
       if let titleSize {
-        Text(book.title)
+        Text(title)
           .font(.custom("Georgia", size: titleSize))
           .foregroundStyle(Color.white.opacity(0.92))
           .lineLimit(4)

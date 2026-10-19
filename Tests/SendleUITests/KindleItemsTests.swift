@@ -103,6 +103,14 @@ struct KindleItemsTests {
     #expect(model.items[2].byline == "Unknown author")
   }
 
+  @Test func saysWhetherTheLibraryHasEachBook() async {
+    let model = await makeModel(matching: [
+      .fixture(id: "d", title: "Dracula", author: "Bram Stoker")
+    ])
+    #expect(model.items[0].spoken == "AZW3, 1 MB · From Sendle, maybe in your library")
+    #expect(model.items[1].spoken == "AZW3, 1.2 MB · From calibre, not in your library")
+  }
+
   @Test func eachSourceHasALabel() {
     #expect(
       KindleBookSource.allCases.map(\.label) == [
