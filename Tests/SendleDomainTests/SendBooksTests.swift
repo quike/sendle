@@ -176,6 +176,43 @@ struct SendBooksTests {
     #expect(harness.channel.deliveries.first?.file.asinSeed == "edition:urn:uuid:moby-dick")
   }
 
+  @Test func aKeepBothCopyGetsItsOwnNameAndASIN() async {
+    let harness = Harness(preparer: FakeEPUBPreparer(edition: Edition(key: "urn:uuid:moby-dick")))
+    let book = Book.fixture()
+    let events = Recorder<SendEvent>()
+
+    await harness.sendBooks([book], to: .usb(.fixture()), copies: [book.id: 2]) {
+      await events.record($0)
+    }
+
+    #expect(harness.channel.deliveries.map(\.name) == ["Moby-Dick - Herman Melville (2)"])
+    #expect(harness.channel.deliveries.first?.file.asinSeed == "edition:urn:uuid:moby-dick#2")
+  }
+
+  @Test func aBookOutsideTheCopiesKeepsItsName() async {
+    let harness = Harness()
+    let events = Recorder<SendEvent>()
+
+    await harness.sendBooks(
+      [.fixture(id: "a"), .fixture(id: "b", title: "Dracula", author: nil)], to: .usb(.fixture()),
+      copies: [BookID(rawValue: "b"): 3]
+    ) { await events.record($0) }
+
+    #expect(
+      harness.channel.deliveries.map(\.name) == ["Moby-Dick - Herman Melville", "Dracula (3)"])
+  }
+
+  @Test func anEmailIgnoresTheCopyNumbers() async {
+    let harness = Harness()
+    let events = Recorder<SendEvent>()
+
+    await harness.sendBooks([.fixture()], to: email, copies: [BookID(rawValue: "book-1"): 2]) {
+      await events.record($0)
+    }
+
+    #expect(harness.channel.deliveries.map(\.name) == ["Moby-Dick"])
+  }
+
   @Test func aPDFOrAnEmailGetsNoASINSeed() async {
     let harness = Harness(preparer: FakeEPUBPreparer(edition: Edition(key: "k")))
 

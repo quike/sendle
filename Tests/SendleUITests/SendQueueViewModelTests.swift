@@ -222,6 +222,20 @@ struct SendQueueViewModelTests {
     #expect(statuses(queue) == [.sent])
   }
 
+  @Test func aRetryKeepsTheCopyNumbers() async {
+    let channel = FakeDeliveryChannel(.fail(.rejected("550 No")), .succeed)
+    let queue = makeQueue(channel)
+    queue.send([meditations], to: kindle, copies: [meditations.id: 2])
+    await queue.waitUntilFinished()
+
+    queue.retryFailed()
+    await queue.waitUntilFinished()
+
+    #expect(
+      channel.deliveries.map(\.name)
+        == Array(repeating: "Meditations - Herman Melville (2)", count: 2))
+  }
+
   @Test func retryLeavesAnUnconfirmedBookAlone() async {
     let unreachable = SendFailure.connectionFailed(host: "smtp.gmail.com")
     let queue = makeQueue(

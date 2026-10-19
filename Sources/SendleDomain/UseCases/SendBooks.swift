@@ -44,10 +44,12 @@ public struct SendBooks: Sendable {
   }
 
   /// Reports every step through `onEvent`, in order. Cancel the calling task to stop;
-  /// books not yet sent are reported as `.cancelled`.
+  /// books not yet sent are reported as `.cancelled`. Over USB, a book in `copies` goes out as
+  /// that Keep both copy.
   public func callAsFunction(
     _ books: [Book],
     to destination: Destination,
+    copies: [BookID: Int] = [:],
     onEvent: @Sendable (SendEvent) async -> Void
   ) async {
     for book in books {
@@ -55,13 +57,15 @@ public struct SendBooks: Sendable {
         await onEvent(.failed(book.id, .cancelled))
         continue
       }
-      await onEvent(await send(book, to: destination, onEvent: onEvent))
+      await onEvent(
+        await send(book, to: destination, copy: copies[book.id] ?? 1, onEvent: onEvent))
     }
   }
 
   private func send(
     _ book: Book,
     to destination: Destination,
+    copy: Int,
     onEvent: @Sendable (SendEvent) async -> Void
   ) async -> SendEvent {
     let area = destination.logArea
@@ -80,7 +84,8 @@ public struct SendBooks: Sendable {
     do throws(SendFailure) {
       let directory = try staging.makeDirectory()
       defer { staging.remove(directory) }
-      let file = try await run(steps, for: book, to: destination, in: directory, onEvent: onEvent)
+      let file = try await run(
+        steps, for: book, to: destination, copy: copy, in: directory, onEvent: onEvent)
       await record(book, to: destination, .sent)
       log.info(area, destination.kind == .usb ? "On the Kindle" : "Sent")
       return .sent(book.id, fixes: file.fixes)
@@ -118,6 +123,7 @@ public struct SendBooks: Sendable {
     _ steps: [SendStep],
     for book: Book,
     to destination: Destination,
+    copy: Int,
     in directory: URL,
     onEvent: @Sendable (SendEvent) async -> Void
   ) async throws(SendFailure) -> PreparedFile {
@@ -135,8 +141,11 @@ public struct SendBooks: Sendable {
       case .deliver:
         let channel = try await channels.channel(for: destination)
         try await deliver(
-          Self.seeded(file, for: book, to: destination),
-          named: FileNaming.deliveryName(for: book, to: destination.kind), via: channel,
+          Self.seeded(file, for: book, to: destination, copy: copy),
+          named: destination.kind == .usb
+            ? FileNaming.copyName(for: book, copy: copy)
+            : FileNaming.deliveryName(for: book, to: destination.kind),
+          via: channel,
           to: destination
         ) { fraction in
           await onEvent(.uploading(book.id, fraction: fraction))
@@ -147,12 +156,12 @@ public struct SendBooks: Sendable {
   }
 
   private static func seeded(
-    _ file: PreparedFile, for book: Book, to destination: Destination
+    _ file: PreparedFile, for book: Book, to destination: Destination, copy: Int
   ) -> PreparedFile {
     guard destination.kind == .usb, file.format == .azw3 else { return file }
     return PreparedFile(
       url: file.url, format: file.format, fixes: file.fixes, edition: file.edition,
-      asinSeed: FileNaming.asinSeed(for: book, edition: file.edition, copy: 1))
+      asinSeed: FileNaming.asinSeed(for: book, edition: file.edition, copy: copy))
   }
 
   private func deliver(

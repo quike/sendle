@@ -22,8 +22,27 @@ public enum FileNaming {
     if let key = edition?.trimmedKey {
       return copy < 2 ? "edition:" + key : "edition:" + key + "#\(copy)"
     }
-    let name = baseName(for: book)
-    return copy < 2 ? name : name + " (\(copy))"
+    return copyName(for: book, copy: copy)
+  }
+
+  /// "Title - Author", or "Title - Author (n)" for Keep both copy n from 2.
+  public static func copyName(for book: Book, copy: Int) -> String {
+    copy < 2 ? baseName(for: book) : baseName(for: book) + " (\(copy))"
+  }
+
+  /// The smallest copy number from 2 whose name isn't in `taken`, a set of lowercased stems.
+  public static func nextFreeCopy(for book: Book, taken: Set<String>) -> Int {
+    var copy = 2
+    while taken.contains(copyName(for: book, copy: copy).lowercased()) { copy += 1 }
+    return copy
+  }
+
+  /// True when the Kindle book sits at the top of `documents/` under the name Sendle gives
+  /// this book.
+  public static func isSendlesCopy(_ kindleBook: KindleBook, of book: Book) -> Bool {
+    let format = book.format == .epub ? "azw3" : "pdf"
+    return kindleBook.id.relativePath.lowercased()
+      == "\(baseName(for: book)).\(format)".lowercased()
   }
 
   /// "Title - Author" as plain ASCII without path characters, so every file system accepts it.

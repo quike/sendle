@@ -21,6 +21,7 @@ public final class SendQueueViewModel {
   /// A book too large to email can go over USB while a Kindle is plugged in.
   @ObservationIgnored package var isKindleConnected: @MainActor () -> Bool = { false }
 
+  @ObservationIgnored private var copies: [BookID: Int] = [:]
   @ObservationIgnored private var run: Task<Void, Never>?
   @ObservationIgnored private var endActivity: (@MainActor () -> Void)?
   private let sendBooks: SendBooks
@@ -78,9 +79,11 @@ public final class SendQueueViewModel {
 
   // MARK: Actions
 
-  /// Starts a run and replaces the queue. Ignored while a run is in progress.
-  package func send(_ books: [Book], to destination: Destination) {
+  /// Starts a run and replaces the queue. Ignored while a run is in progress. A book in `copies`
+  /// goes over USB as that Keep both copy.
+  package func send(_ books: [Book], to destination: Destination, copies: [BookID: Int] = [:]) {
     guard !isRunning, !books.isEmpty else { return }
+    self.copies = copies
     rows = books.map { QueueRow(book: $0, destination: destination.kind) }
     self.destination = destination
     summary = nil
@@ -88,8 +91,9 @@ public final class SendQueueViewModel {
     // A run goes on behind a closed panel, where nothing else keeps an accessory app awake.
     endActivity = keepAwake()
     let sendBooks = sendBooks
+    let copies = copies
     run = Task { [weak self] in
-      await sendBooks(books, to: destination) { [weak self] event in
+      await sendBooks(books, to: destination, copies: copies) { [weak self] event in
         await self?.handle(event)
       }
       await self?.finish()
@@ -104,7 +108,7 @@ public final class SendQueueViewModel {
   /// An unconfirmed book may already be with Amazon, so a retry never resends it.
   package func retryFailed() {
     guard !isRunning, let destination else { return }
-    send(retryable.map(\.book), to: destination)
+    send(retryable.map(\.book), to: destination, copies: copies)
   }
 
   package func dismiss() {

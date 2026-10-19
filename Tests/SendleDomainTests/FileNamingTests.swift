@@ -80,4 +80,30 @@ struct FileNamingTests {
       FileNaming.asinSeed(for: moby, edition: Edition(key: ""), copy: 3)
         == "Moby-Dick - Herman Melville (3)")
   }
+
+  @Test func keepBothTakesTheNextFreeNumber() {
+    let moby = Book.fixture()
+    #expect(FileNaming.nextFreeCopy(for: moby, taken: ["moby-dick - herman melville"]) == 2)
+    #expect(
+      FileNaming.nextFreeCopy(
+        for: moby, taken: ["moby-dick - herman melville", "moby-dick - herman melville (2)"]) == 3)
+    #expect(FileNaming.copyName(for: moby, copy: 3) == "Moby-Dick - Herman Melville (3)")
+    #expect(FileNaming.copyName(for: moby, copy: 1) == "Moby-Dick - Herman Melville")
+  }
+
+  @Test func knowsSendlesOwnCopyOfABook() {
+    #expect(
+      FileNaming.isSendlesCopy(.fixture(path: "moby-dick - herman melville.AZW3"), of: .fixture()))
+    #expect(
+      FileNaming.isSendlesCopy(
+        .fixture(path: "Moby-Dick - Herman Melville.pdf"), of: .fixture(format: .pdf)))
+    #expect(
+      !FileNaming.isSendlesCopy(
+        .fixture(path: "Moby-Dick - Herman Melville (2).azw3"), of: .fixture()))
+    #expect(
+      !FileNaming.isSendlesCopy(
+        .fixture(path: "Melville, Herman/Moby-Dick - Herman Melville.azw3"), of: .fixture()))
+    #expect(
+      !FileNaming.isSendlesCopy(.fixture(path: "Moby-Dick - Herman Melville.pdf"), of: .fixture()))
+  }
 }
