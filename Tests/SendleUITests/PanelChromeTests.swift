@@ -7,7 +7,11 @@ import Testing
 struct PanelChromeTests {
   /// The alpha of every pixel on the outer edge of the rendered window.
   func edgeAlphas(scale: CGFloat) throws -> [UInt8] {
-    let renderer = ImageRenderer(content: PanelChrome(arrowOffset: 0) { Color.clear })
+    try edgeAlphas(of: PanelChrome(arrowOffset: 0) { Color.clear }, scale: scale)
+  }
+
+  func edgeAlphas(of view: some View, scale: CGFloat) throws -> [UInt8] {
+    let renderer = ImageRenderer(content: view)
     renderer.scale = scale
     let image = try #require(renderer.cgImage)
     let width = image.width
@@ -37,5 +41,42 @@ struct PanelChromeTests {
   @Test(arguments: [1, 2] as [CGFloat])
   func theShadowFadesOutInsideTheWindow(scale: CGFloat) throws {
     #expect(try edgeAlphas(scale: scale).max() == 0)
+  }
+
+  /// The panel with both floating cards, the A–Z card as tall as books that reach down to the
+  /// card's bottom padding.
+  func floatingWindow(side: RailSide) -> some View {
+    let margins = FloatingControls.margins(.floating, side: side)
+    let card = CGRect(origin: CGPoint(x: margins.leading, y: margins.top), size: Theme.cardSize)
+    let books = CGRect(
+      x: card.minX + 14, y: card.minY + 120, width: card.width - 28, height: card.height - 134)
+    let send = FloatingControls.sendFrame(card: card)
+    let rail = FloatingControls.railFrame(card: card, books: books, side: side, height: nil)
+    return PanelChrome(arrowOffset: 0, margins: margins) { Color.clear }
+      .overlay(alignment: .topLeading) {
+        FloatingCard(size: send.size, cornerRadius: FloatingControls.sendRadius) { Color.clear }
+          .offset(x: send.minX, y: send.minY)
+      }
+      .overlay(alignment: .topLeading) {
+        FloatingCard(size: rail.size, cornerRadius: FloatingControls.railWidth / 2) {
+          Color.clear
+        }
+        .offset(x: rail.minX, y: rail.minY)
+      }
+  }
+
+  @Test(arguments: [RailSide.leading, .trailing])
+  func theWindowGrowsByTheFloatingCardsAlone(side: RailSide) throws {
+    let renderer = ImageRenderer(content: floatingWindow(side: side))
+    let image = try #require(renderer.cgImage)
+    let size = PanelView.windowSize(margins: FloatingControls.margins(.floating, side: side))
+
+    #expect(CGFloat(image.width) == size.width)
+    #expect(CGFloat(image.height) == size.height)
+  }
+
+  @Test(arguments: [RailSide.leading, .trailing], [1, 2] as [CGFloat])
+  func theFloatingCardsShadowsFadeOutInsideTheWindow(side: RailSide, scale: CGFloat) throws {
+    #expect(try edgeAlphas(of: floatingWindow(side: side), scale: scale).max() == 0)
   }
 }

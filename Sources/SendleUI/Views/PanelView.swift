@@ -3,10 +3,10 @@ import SwiftUI
 /// The whole card under the menu bar icon: its arrow, the current screen and the settings sheet.
 public struct PanelView: View {
   /// Room around the card for its arrow and shadow; the window is this much larger than the card.
-  public static let margins = EdgeInsets(top: 12, leading: 24, bottom: 46, trailing: 24)
-  public static let windowSize = windowSize(margins: margins)
+  nonisolated public static let margins = EdgeInsets(top: 12, leading: 24, bottom: 46, trailing: 24)
+  nonisolated public static let windowSize = windowSize(margins: margins)
 
-  public static func windowSize(margins: EdgeInsets) -> CGSize {
+  nonisolated public static func windowSize(margins: EdgeInsets) -> CGSize {
     CGSize(
       width: Theme.cardSize.width + margins.leading + margins.trailing,
       height: Theme.cardSize.height + margins.top + margins.bottom)
@@ -20,7 +20,9 @@ public struct PanelView: View {
   }
 
   public var body: some View {
-    PanelChrome(arrowOffset: arrowOffset) {
+    let margins = panel.windowMargins
+    let card = CGRect(origin: CGPoint(x: margins.leading, y: margins.top), size: Theme.cardSize)
+    PanelChrome(arrowOffset: arrowOffset, margins: margins) {
       ZStack {
         Group {
           switch panel.route {
@@ -41,6 +43,38 @@ public struct PanelView: View {
       .animation(reduceMotion ? nil : Theme.press, value: panel.isShowingSettings)
       .animation(reduceMotion ? nil : Theme.press, value: panel.duplicateReview != nil)
     }
+    .overlayPreferenceValue(BooksAreaKey.self) { books in
+      GeometryReader { proxy in
+        if let books, panel.showsFloatingRail, let side = panel.floatingRailSide {
+          floatingRail(card: card, books: proxy[books], side: side)
+        }
+      }
+    }
+    .overlay(alignment: .topLeading) {
+      let frame = FloatingControls.sendFrame(card: card)
+      ZStack {
+        if panel.showsSendCard {
+          FloatingCard(size: frame.size, cornerRadius: FloatingControls.sendRadius) {
+            SendBarContent(panel: panel)
+          }
+          .transition(.offset(y: -14).combined(with: .opacity))
+        }
+      }
+      .offset(x: frame.minX, y: frame.minY)
+      .animation(reduceMotion ? nil : Theme.press, value: panel.showsSendCard)
+    }
+  }
+
+  @ViewBuilder
+  private func floatingRail(card: CGRect, books: CGRect, side: RailSide) -> some View {
+    let style = panel.library.jumpBar
+    if panel.side == .kindle {
+      FloatingRail(
+        jump: panel.kindle.letterJump, style: style, side: side, card: card, books: books)
+    } else {
+      FloatingRail(
+        jump: panel.library.letterJump, style: style, side: side, card: card, books: books)
+    }
   }
 
   /// The arrow follows the status item, but never past the card's rounded corners.
@@ -54,10 +88,15 @@ public struct PanelView: View {
 /// The card without what it shows: its arrow, background and shadow, in a window-sized frame.
 package struct PanelChrome<Content: View>: View {
   let arrowOffset: CGFloat
+  let margins: EdgeInsets
   let content: Content
 
-  package init(arrowOffset: CGFloat, @ViewBuilder content: () -> Content) {
+  package init(
+    arrowOffset: CGFloat, margins: EdgeInsets = PanelView.margins,
+    @ViewBuilder content: () -> Content
+  ) {
     self.arrowOffset = arrowOffset
+    self.margins = margins
     self.content = content()
   }
 
@@ -75,9 +114,34 @@ package struct PanelChrome<Content: View>: View {
         .background(CardShadow(shape: shape))
     }
     .frame(width: Theme.cardSize.width, height: Theme.cardSize.height, alignment: .top)
-    .padding(PanelView.margins)
+    .padding(margins)
     .foregroundStyle(Theme.text)
     .environment(\.colorScheme, .dark)
+  }
+}
+
+/// A card of the panel's kind, as big as `size`: its background and its two-layer shadow. The
+/// floating send card and A–Z card are drawn with it.
+package struct FloatingCard<Content: View>: View {
+  let size: CGSize
+  let cornerRadius: CGFloat
+  let content: Content
+
+  package init(size: CGSize, cornerRadius: CGFloat, @ViewBuilder content: () -> Content) {
+    self.size = size
+    self.cornerRadius = cornerRadius
+    self.content = content()
+  }
+
+  package var body: some View {
+    let shape = RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+    content
+      .frame(width: size.width, height: size.height)
+      .background(CardBackground(cornerRadius: cornerRadius))
+      .clipShape(shape)
+      .background(CardShadow(shape: shape))
+      .foregroundStyle(Theme.text)
+      .environment(\.colorScheme, .dark)
   }
 }
 
@@ -92,6 +156,15 @@ private struct CardShadow: View {
       shape.fill(.black.opacity(0.4)).padding(4).offset(y: 4).blur(radius: 6)
     }
     .allowsHitTesting(false)
+  }
+}
+
+/// Where the books are, so the floating A–Z card can stand level with them outside the card.
+struct BooksAreaKey: PreferenceKey {
+  static var defaultValue: Anchor<CGRect>? { nil }
+
+  static func reduce(value: inout Anchor<CGRect>?, nextValue: () -> Anchor<CGRect>?) {
+    value = value ?? nextValue()
   }
 }
 

@@ -52,7 +52,8 @@ private struct KindleBooks: View {
       // Letter headers come with the full A–Z bar, as in the library.
       let headers = style == .full ? kindle.letterJump.index : nil
       BooksScroll(
-        jump: kindle.letterJump, style: style, scrollToTopRequests: kindle.scrollToTopRequests
+        jump: kindle.letterJump, style: style, scrollToTopRequests: kindle.scrollToTopRequests,
+        floatingSide: panel.floatingRailSide
       ) {
         switch panel.library.layout {
         case .grid:

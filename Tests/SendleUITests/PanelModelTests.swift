@@ -668,6 +668,91 @@ struct PanelModelTests {
     #expect(panel.library.jumpBar == .compact)
   }
 
+  // MARK: Floating controls
+
+  @Test func attachedControlsKeepTheSendBarAndTheAZBarInTheCard() async {
+    let (panel, _) = harness.makePanel()
+    await panel.launch()
+    await panel.panelDidOpen()
+    #expect(!panel.showsSendBar)
+    #expect(panel.sendBarRoom == 0)
+
+    panel.library.selectAll()
+
+    #expect(panel.showsSendBar)
+    #expect(!panel.showsSendCard)
+    #expect(panel.sendBarRoom == 64)
+    #expect(panel.floatingRailSide == nil)
+    #expect(!panel.showsFloatingRail)
+    #expect(panel.windowMargins == PanelView.margins)
+  }
+
+  @Test func floatingControlsPutTheSendBarOnItsOwnCardWithTheSelection() async {
+    let (panel, _) = harness.makePanel(AppSettings(email: .fixture, controls: .floating))
+    await panel.launch()
+    await panel.panelDidOpen()
+    #expect(!panel.showsSendCard)
+
+    panel.library.selectAll()
+
+    #expect(panel.showsSendCard)
+    #expect(!panel.showsSendBar)
+    #expect(panel.sendBarRoom == 0)
+    _ = panel.library.clearSelection()
+    #expect(!panel.showsSendCard)
+  }
+
+  @Test func theFloatingAZCardTakesTheSideThePanelWasPlacedFor() async {
+    let (panel, _) = harness.makePanel(AppSettings(email: .fixture, controls: .floating))
+    await panel.launch()
+    await panel.panelDidOpen()
+    #expect(panel.floatingRailSide == .trailing)
+    #expect(panel.showsFloatingRail)
+    #expect(panel.windowMargins == FloatingControls.margins(.floating, side: .trailing))
+
+    panel.railSide = .leading
+
+    #expect(panel.floatingRailSide == .leading)
+    #expect(panel.windowMargins == FloatingControls.margins(.floating, side: .leading))
+  }
+
+  /// The floating cards belong to the books, so a sheet over them or another screen hides them.
+  @Test func theFloatingCardsHideBehindSettingsAndOtherScreens() async {
+    let (panel, _) = harness.makePanel(AppSettings(email: .fixture, controls: .floating))
+    await panel.launch()
+    await panel.panelDidOpen()
+    panel.library.selectAll()
+
+    await panel.openSettings()
+    #expect(!panel.showsSendCard)
+    #expect(!panel.showsFloatingRail)
+    #expect(panel.floatingRailSide == .trailing)
+
+    panel.closeSettings()
+    #expect(panel.showsSendCard)
+    #expect(panel.showsFloatingRail)
+
+    panel.openLogs()
+    #expect(!panel.showsSendCard)
+    #expect(!panel.showsFloatingRail)
+  }
+
+  @Test func returnSendsAndEscapeClearsWithFloatingControls() async {
+    let (panel, _) = harness.makePanel(AppSettings(email: .fixture, controls: .floating))
+    await panel.launch()
+    await panel.panelDidOpen()
+    panel.library.selectAll()
+
+    #expect(panel.handle(KeyInput(.escape)))
+    #expect(panel.library.selection.isEmpty)
+    #expect(!panel.showsSendCard)
+
+    panel.library.selectAll()
+    #expect(panel.handle(KeyInput(.returnKey)))
+    #expect(await eventually { panel.route == .queue })
+    #expect(!panel.showsSendCard)
+  }
+
   @Test func aControlsStyleChosenInSettingsReachesThePanel() async {
     let (panel, _) = harness.makePanel()
     await panel.launch()

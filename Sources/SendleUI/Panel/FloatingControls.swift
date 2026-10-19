@@ -15,6 +15,7 @@ package enum FloatingControls {
   package static let gap: CGFloat = 10
   package static let sendHeight: CGFloat = 50
   package static let railWidth: CGFloat = 24
+  package static let sendRadius: CGFloat = 20
 
   /// Right of the card while the screen has room for the A–Z card there, otherwise left.
   package static func side(

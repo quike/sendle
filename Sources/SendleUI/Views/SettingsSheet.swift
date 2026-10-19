@@ -257,7 +257,7 @@ private struct GeneralPage: View {
         HStack(spacing: 10) {
           RowText(
             title: "Controls",
-            detail: "The send bar and the A–Z bar, inside the panel or on cards of their own.")
+            detail: "The send and A–Z bars, in the panel or on cards beside it.")
           Spacer(minLength: 8)
           Picker(
             "Controls",

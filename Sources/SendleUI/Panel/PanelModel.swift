@@ -2,6 +2,7 @@ import CoreGraphics
 import Foundation
 import Observation
 import SendleDomain
+import SwiftUI
 
 package enum PanelRoute: Equatable, Sendable {
   case library
@@ -49,6 +50,8 @@ public final class PanelModel {
   package private(set) var searchFocusRequests = 0
   /// The status item's centre, measured from the card's left edge, where the arrow points.
   public var arrowX: CGFloat = 200
+  /// The side of the card with room on screen for the floating A–Z card.
+  package var railSide = RailSide.trailing
 
   @ObservationIgnored private weak var system: (any SystemActions)?
   @ObservationIgnored private let ejector: any KindleEjector
@@ -118,6 +121,34 @@ public final class PanelModel {
 
   /// Settings › General › Controls: the send bar and the A–Z bar inside the card, or floating.
   package var controls: ControlsStyle { library.controls }
+
+  /// The room the window keeps around the card.
+  package var windowMargins: EdgeInsets { FloatingControls.margins(controls, side: railSide) }
+
+  /// The send bar over the bottom of the library's books.
+  package var showsSendBar: Bool {
+    controls == .attached && side == .library && !library.selection.isEmpty
+  }
+
+  /// What the books keep clear at their bottom for the send bar.
+  package var sendBarRoom: CGFloat { showsSendBar ? 64 : 0 }
+
+  /// The send bar on its own card under the panel's.
+  package var showsSendCard: Bool {
+    controls == .floating && side == .library && !library.selection.isEmpty
+      && areFloatingCardsUncovered
+  }
+
+  /// Where the books' A–Z bar floats, or nil while it sits inside them.
+  package var floatingRailSide: RailSide? { controls == .floating ? railSide : nil }
+
+  /// The A–Z bar may show on its own card beside the panel's.
+  package var showsFloatingRail: Bool { controls == .floating && areFloatingCardsUncovered }
+
+  /// The floating cards go with the books, so a sheet over them or another screen hides them.
+  private var areFloatingCardsUncovered: Bool {
+    route == .library && !isShowingSettings && duplicateReview == nil
+  }
 
   /// Kindle covers carry their format, as the library's do, until the format menu picks one.
   package var showsFormatOnKindleCovers: Bool { library.showsFormat && kindle.format == nil }

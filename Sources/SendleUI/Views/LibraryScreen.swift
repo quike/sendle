@@ -73,13 +73,13 @@ struct LibraryScreen: View {
     }
     .padding(14)
     .overlay(alignment: .bottom) {
-      if !isKindleSide, !library.selection.isEmpty {
+      if panel.showsSendBar {
         SendBar(panel: panel)
           .padding(14)
           .transition(.move(edge: .bottom).combined(with: .opacity))
       }
     }
-    .animation(reduceMotion ? nil : Theme.press, value: library.selection.isEmpty)
+    .animation(reduceMotion ? nil : Theme.press, value: panel.showsSendBar)
   }
 
   private var subtitle: String {
@@ -649,8 +649,8 @@ struct LibraryContent: View {
     } else {
       BooksScroll(
         jump: library.letterJump, style: library.jumpBar,
-        scrollToTopRequests: library.scrollToTopRequests,
-        bottomRoom: library.selection.isEmpty ? 0 : 64
+        scrollToTopRequests: library.scrollToTopRequests, bottomRoom: panel.sendBarRoom,
+        floatingSide: panel.floatingRailSide
       ) {
         switch library.layout {
         case .grid:
@@ -665,13 +665,25 @@ struct LibraryContent: View {
   }
 }
 
-/// "Send" to the active destination, whose menu switches it.
+/// The send bar over the bottom of the books.
 struct SendBar: View {
   let panel: PanelModel
 
   var body: some View {
-    let library = panel.library
     let shape = RoundedRectangle(cornerRadius: 16, style: .continuous)
+    SendBarContent(panel: panel)
+      .background(Theme.floating, in: shape)
+      .overlay(shape.strokeBorder(Color.white.opacity(0.1)))
+      .shadow(color: .black.opacity(0.5), radius: 14, y: 8)
+  }
+}
+
+/// "Send" to the active destination, whose menu switches it, with how many books are selected.
+struct SendBarContent: View {
+  let panel: PanelModel
+
+  var body: some View {
+    let library = panel.library
     HStack(spacing: 8) {
       VStack(alignment: .leading, spacing: 1) {
         Text("\(library.selection.count) selected")
@@ -743,9 +755,6 @@ struct SendBar: View {
     }
     .padding(.leading, 12)
     .padding(8)
-    .background(Theme.floating, in: shape)
-    .overlay(shape.strokeBorder(Color.white.opacity(0.1)))
-    .shadow(color: .black.opacity(0.5), radius: 14, y: 8)
   }
 }
 

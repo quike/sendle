@@ -3,8 +3,10 @@ import SwiftUI
 
 /// The dark card: background, a soft glow at the top and a 1 px inner hairline.
 struct CardBackground: View {
+  var cornerRadius = Theme.cardRadius
+
   var body: some View {
-    let shape = RoundedRectangle(cornerRadius: Theme.cardRadius, style: .continuous)
+    let shape = RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
     ZStack(alignment: .top) {
       Theme.background
       RadialGradient(
