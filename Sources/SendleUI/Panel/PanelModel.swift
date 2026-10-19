@@ -116,6 +116,9 @@ public final class PanelModel {
   /// The logs button shows while Settings › General › Show logs is on.
   package var showsLogs: Bool { settings.showsLogs }
 
+  /// Kindle covers carry their format, as the library's do, until the format menu picks one.
+  package var showsFormatOnKindleCovers: Bool { library.showsFormat && kindle.format == nil }
+
   /// The side switch's labels, each with how many books it holds.
   package func switchTitle(_ side: LibrarySide) -> String {
     switch side {

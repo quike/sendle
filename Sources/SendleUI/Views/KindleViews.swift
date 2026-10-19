@@ -56,7 +56,7 @@ private struct KindleBooks: View {
       ) {
         switch panel.library.layout {
         case .grid:
-          KindleGrid(kindle: kindle, items: items)
+          KindleGrid(kindle: kindle, items: items, showsFormat: panel.showsFormatOnKindleCovers)
         case .list:
           KindleList(kindle: kindle, items: items, headers: headers)
         case .shelf:
@@ -70,13 +70,14 @@ private struct KindleBooks: View {
 struct KindleGrid: View {
   let kindle: KindleViewModel
   let items: [KindleItemViewModel]
+  let showsFormat: Bool
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
   var body: some View {
     LazyVGrid(columns: bookGridColumns, alignment: .leading, spacing: 12) {
       ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
         VStack(alignment: .leading, spacing: 0) {
-          KindleCover(kindle: kindle, item: item, size: .large)
+          KindleCover(kindle: kindle, item: item, size: .large, showsFormat: showsFormat)
             .aspectRatio(2 / 3, contentMode: .fit)
           Text(item.title)
             .font(.system(size: 10.5, weight: .semibold))
@@ -177,6 +178,7 @@ struct KindleCover: View {
   let item: KindleItemViewModel
   let size: CoverSize
   var titleSize: CGFloat = 10
+  var showsFormat = false
 
   var body: some View {
     let book = item.book
@@ -184,7 +186,8 @@ struct KindleCover: View {
     let slot = kindle.covers.slot(for: book, size: size)
     CoverFace(
       data: slot.data, isPending: slot.isPending, title: item.title,
-      seed: BookID(rawValue: book.id.relativePath), titleSize: size == .large ? titleSize : nil
+      seed: BookID(rawValue: book.id.relativePath), titleSize: size == .large ? titleSize : nil,
+      bottomInset: showsFormat ? 16 : 0
     )
     .saturation(look.saturation)
     .brightness(look.brightness)
@@ -192,6 +195,9 @@ struct KindleCover: View {
       if book.isProtected {
         Image(systemName: "lock.fill").font(.system(size: 14)).foregroundStyle(.white)
       }
+    }
+    .overlay(alignment: .bottomLeading) {
+      if showsFormat { FormatBadge(text: item.badge, onCover: true).padding(6) }
     }
     .shadow(color: .black.opacity(0.45), radius: 8, y: 6)
     .task(id: book) {

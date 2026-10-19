@@ -89,6 +89,32 @@ struct PanelKindleTests {
     #expect(panel.kindle.sort == .title)
   }
 
+  @Test func kindleCoversShowTheirFormatInEveryScopeUntilOneFormatIsChosen() async {
+    let mixed = FakeKindleLibrary(.success(.fixture([.fixture(), .fixture(path: "notes.txt")])))
+    let (panel, _) = harness.makePanel(kindle: mixed)
+    await panel.launch()
+    harness.monitor.update([.fixture()])
+    #expect(await eventually { panel.kindle.state == .loaded })
+
+    for scope in KindleScope.allCases {
+      panel.kindle.scope = scope
+      #expect(panel.showsFormatOnKindleCovers)
+    }
+    panel.kindle.format = "txt"
+    #expect(!panel.showsFormatOnKindleCovers)
+  }
+
+  @Test func theShowFormatSettingAppliesToKindleCovers() async {
+    let (panel, _) = harness.makePanel(AppSettings(email: .fixture, showsFormat: false))
+    await panel.launch()
+    harness.monitor.update([.fixture()])
+    #expect(await eventually { panel.kindle.state == .loaded })
+
+    #expect(!panel.showsFormatOnKindleCovers)
+    await panel.settings.setShowsFormat(true)
+    #expect(await eventually { panel.showsFormatOnKindleCovers })
+  }
+
   @Test func commandRRefreshesOnlyTheKindleSide() async {
     let kindle = FakeKindleLibrary()
     let (panel, _) = harness.makePanel(kindle: kindle)
