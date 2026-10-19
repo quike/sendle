@@ -53,6 +53,7 @@ struct KindleBookTests {
       ("Dune.azw3", "B088BBLMGS", false, .amazon),
       ("Downloads/Items01/The Hobbit_B007978NPG.kfx", nil, false, .amazon),
       ("Notes.txt", nil, true, .byHand),
+      ("Downloads/Items01/The Hobbit_B007978NPG.kfx", nil, true, .amazon),
     ] as [(String, String?, Bool, KindleBookSource)])
   func tellsWhereABookCameFrom(
     path: String, asin: String?, calibre: Bool, source: KindleBookSource

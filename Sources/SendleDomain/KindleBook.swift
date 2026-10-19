@@ -25,7 +25,7 @@ public enum KindleBookSource: String, Hashable, Sendable, Codable, CaseIterable 
     let inDownloads = relativePath.hasPrefix("Downloads/Items01/")
     if inDownloads, parsed.amazonID?.count == 32 { return .email }
     if let asin, asin.count == 36, UUID(uuidString: asin) != nil { return .calibre }
-    if calibreLibrary, relativePath.contains("/") { return .calibre }
+    if calibreLibrary, !inDownloads, relativePath.contains("/") { return .calibre }
     if let asin, isAmazonASIN(asin) { return .amazon }
     if inDownloads, parsed.amazonID?.count == 10 { return .amazon }
     return .byHand
