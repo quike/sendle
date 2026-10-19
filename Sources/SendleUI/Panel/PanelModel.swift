@@ -258,7 +258,9 @@ public final class PanelModel {
     start(books, to: destination)
   }
 
-  private func start(_ books: [Book], to destination: Destination, copies: [BookID: Int] = [:]) {
+  private func start(
+    _ books: [Book], to destination: Destination, copies: [BookID: KindleCopy] = [:]
+  ) {
     system?.endEditing()
     queue.send(books, to: destination, copies: copies)
     _ = library.clearSelection()
@@ -283,14 +285,15 @@ public final class PanelModel {
     pendingSend = nil
   }
 
-  /// Drops the skips, numbers each Keep both copy past the names the Kindle already uses, and sends.
+  /// Drops the skips, numbers each Keep both copy past the names the Kindle already uses, keeps the
+  /// ASIN of each copy replaced, and sends.
   private func finishReview(_ review: DuplicateReviewModel) {
     guard let pending = pendingSend else { return cancelReview() }
     cancelReview()
     var taken = Set(
       (kindle.listing?.books ?? []).filter { !$0.id.relativePath.contains("/") }
         .map { $0.stem.lowercased() })
-    var copies: [BookID: Int] = [:]
+    var copies: [BookID: KindleCopy] = [:]
     var books: [Book] = []
     for book in pending.books {
       switch review.decisions[book.id] {
@@ -299,8 +302,12 @@ public final class PanelModel {
       case .keepBoth?:
         let copy = FileNaming.nextFreeCopy(for: book, taken: taken)
         taken.insert(FileNaming.copyName(for: book, copy: copy).lowercased())
-        copies[book.id] = copy
-      case .replace?, nil:
+        copies[book.id] = .keepBoth(copy)
+      case .replace?:
+        if let asin = review.cases.first(where: { $0.id == book.id })?.match.book.asin {
+          copies[book.id] = .replacing(asin: asin)
+        }
+      case nil:
         break
       }
       books.append(book)

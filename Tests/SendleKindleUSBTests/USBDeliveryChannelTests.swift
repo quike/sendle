@@ -221,6 +221,20 @@ struct USBDeliveryChannelTests {
     #expect(log.summary.contains("info USB Set the book's ASIN to \(asin)"))
   }
 
+  @Test func aKeptASINIsStampedAsItIsWithItsCover() async throws {
+    let url = try makeTemporaryDirectory().appending(path: "book.azw3")
+    try makeAZW3(asin: "EBOK000000", cover: makeJPEG(width: 80, height: 110)).write(to: url)
+    try await channel().deliver(
+      PreparedFile(url: url, format: .azw3, asinSeed: "edition:k", asin: "SNOLDCOPY1"),
+      named: "Moby-Dick - Herman Melville", progress: { _ in })
+
+    let copy = try Data(contentsOf: documents.appending(path: "Moby-Dick - Herman Melville.azw3"))
+    #expect(AZW3Metadata(copy)?.asin == "SNOLDCOPY1")
+    #expect(
+      FileManager.default.fileExists(
+        atPath: thumbnails.appending(path: "thumbnail_SNOLDCOPY1_EBOK_portrait.jpg").path))
+  }
+
   @Test func withoutASeedTheASINFollowsTheDeliveredName() async throws {
     let copy = try await deliverAZW3(
       makeAZW3(asin: "EBOK000000"), seed: nil, named: "Moby-Dick - Herman Melville")

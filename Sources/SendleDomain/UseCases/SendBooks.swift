@@ -45,11 +45,11 @@ public struct SendBooks: Sendable {
 
   /// Reports every step through `onEvent`, in order. Cancel the calling task to stop;
   /// books not yet sent are reported as `.cancelled`. Over USB, a book in `copies` goes out as
-  /// that Keep both copy.
+  /// that copy.
   public func callAsFunction(
     _ books: [Book],
     to destination: Destination,
-    copies: [BookID: Int] = [:],
+    copies: [BookID: KindleCopy] = [:],
     onEvent: @Sendable (SendEvent) async -> Void
   ) async {
     for book in books {
@@ -58,14 +58,14 @@ public struct SendBooks: Sendable {
         continue
       }
       await onEvent(
-        await send(book, to: destination, copy: copies[book.id] ?? 1, onEvent: onEvent))
+        await send(book, to: destination, copy: copies[book.id], onEvent: onEvent))
     }
   }
 
   private func send(
     _ book: Book,
     to destination: Destination,
-    copy: Int,
+    copy: KindleCopy?,
     onEvent: @Sendable (SendEvent) async -> Void
   ) async -> SendEvent {
     let area = destination.logArea
@@ -123,7 +123,7 @@ public struct SendBooks: Sendable {
     _ steps: [SendStep],
     for book: Book,
     to destination: Destination,
-    copy: Int,
+    copy: KindleCopy?,
     in directory: URL,
     onEvent: @Sendable (SendEvent) async -> Void
   ) async throws(SendFailure) -> PreparedFile {
@@ -143,7 +143,7 @@ public struct SendBooks: Sendable {
         try await deliver(
           Self.seeded(file, for: book, to: destination, copy: copy),
           named: destination.kind == .usb
-            ? FileNaming.copyName(for: book, copy: copy)
+            ? FileNaming.copyName(for: book, copy: copy?.number ?? 1)
             : FileNaming.deliveryName(for: book, to: destination.kind),
           via: channel,
           to: destination
@@ -156,12 +156,13 @@ public struct SendBooks: Sendable {
   }
 
   private static func seeded(
-    _ file: PreparedFile, for book: Book, to destination: Destination, copy: Int
+    _ file: PreparedFile, for book: Book, to destination: Destination, copy: KindleCopy?
   ) -> PreparedFile {
     guard destination.kind == .usb, file.format == .azw3 else { return file }
     return PreparedFile(
       url: file.url, format: file.format, fixes: file.fixes, edition: file.edition,
-      asinSeed: FileNaming.asinSeed(for: book, edition: file.edition, copy: copy))
+      asinSeed: FileNaming.asinSeed(for: book, edition: file.edition, copy: copy?.number ?? 1),
+      asin: copy?.keptASIN)
   }
 
   private func deliver(
@@ -206,6 +207,16 @@ public struct SendBooks: Sendable {
     } catch {
       log.warning(.app, "Couldn't add the send to the history: \(error.detail)")
     }
+  }
+}
+
+extension KindleCopy {
+  fileprivate var number: Int {
+    if case .keepBoth(let number) = self { number } else { 1 }
+  }
+
+  fileprivate var keptASIN: String? {
+    if case .replacing(let asin) = self { asin } else { nil }
   }
 }
 

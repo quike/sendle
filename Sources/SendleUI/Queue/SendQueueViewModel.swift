@@ -21,7 +21,7 @@ public final class SendQueueViewModel {
   /// A book too large to email can go over USB while a Kindle is plugged in.
   @ObservationIgnored package var isKindleConnected: @MainActor () -> Bool = { false }
 
-  @ObservationIgnored private var copies: [BookID: Int] = [:]
+  @ObservationIgnored private var copies: [BookID: KindleCopy] = [:]
   @ObservationIgnored private var run: Task<Void, Never>?
   @ObservationIgnored private var endActivity: (@MainActor () -> Void)?
   private let sendBooks: SendBooks
@@ -80,8 +80,10 @@ public final class SendQueueViewModel {
   // MARK: Actions
 
   /// Starts a run and replaces the queue. Ignored while a run is in progress. A book in `copies`
-  /// goes over USB as that Keep both copy.
-  package func send(_ books: [Book], to destination: Destination, copies: [BookID: Int] = [:]) {
+  /// goes over USB as that copy.
+  package func send(
+    _ books: [Book], to destination: Destination, copies: [BookID: KindleCopy] = [:]
+  ) {
     guard !isRunning, !books.isEmpty else { return }
     self.copies = copies
     rows = books.map { QueueRow(book: $0, destination: destination.kind) }

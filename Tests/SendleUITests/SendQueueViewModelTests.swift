@@ -225,7 +225,7 @@ struct SendQueueViewModelTests {
   @Test func aRetryKeepsTheCopyNumbers() async {
     let channel = FakeDeliveryChannel(.fail(.rejected("550 No")), .succeed)
     let queue = makeQueue(channel)
-    queue.send([meditations], to: kindle, copies: [meditations.id: 2])
+    queue.send([meditations], to: kindle, copies: [meditations.id: .keepBoth(2)])
     await queue.waitUntilFinished()
 
     queue.retryFailed()

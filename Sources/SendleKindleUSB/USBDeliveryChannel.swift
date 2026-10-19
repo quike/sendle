@@ -89,7 +89,7 @@ public struct USBDeliveryChannel: DeliveryChannel {
   /// copied as it is.
   private func stampASIN(of file: PreparedFile, named baseName: String) {
     guard let data = try? Data(contentsOf: file.url) else { return }
-    let asin = AZW3Metadata.asin(for: file.asinSeed ?? baseName)
+    let asin = file.asin ?? AZW3Metadata.asin(for: file.asinSeed ?? baseName)
     guard let stamped = AZW3Metadata.replacingASIN(in: data, with: asin),
       (try? stamped.write(to: file.url, options: .atomic)) != nil
     else {

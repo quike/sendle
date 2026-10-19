@@ -329,6 +329,21 @@ struct PanelKindleTests {
     #expect(channel.deliveries.map(\.name) == ["Moby-Dick - Herman Melville"])
   }
 
+  @Test func replaceKeepsTheASINOfTheKindlesCopy() async {
+    let older = KindleBook.fixture(
+      path: "Moby-Dick - Herman Melville.azw3", source: .sendle, asin: "SNMOBYDICK",
+      asinFollowsFileName: true)
+    let (panel, _, channel) = await harness.pluggedInPanel(
+      listing: [older], books: [.fixture(id: "a")], converts: true)
+    await panel.quickSend(BookID(rawValue: "a"))
+
+    panel.chooseDefault()
+    await panel.queue.waitUntilFinished()
+
+    #expect(channel.deliveries.map(\.name) == ["Moby-Dick - Herman Melville"])
+    #expect(channel.deliveries.map(\.file.asin) == ["SNMOBYDICK"])
+  }
+
   @Test func aCopySendleDidNotNameOffersOnlySkipAndKeepBoth() async {
     let byHand = KindleBook.fixture(path: "Moby Dick.pdf")
     let (panel, _, channel) = await harness.pluggedInPanel(listing: [byHand])

@@ -37,10 +37,10 @@ struct PanelHarness {
     channel: FakeDeliveryChannel = FakeDeliveryChannel(),
     ejector: FakeKindleEjector? = nil,
     kindle: FakeKindleLibrary = FakeKindleLibrary(),
+    converter: FakeFormatConverter = FakeFormatConverter(isAvailable: false),
     onSleep: @escaping @Sendable () async -> Void = { try? await Task.sleep(for: .seconds(60)) }
   ) -> (PanelModel, InMemorySettingsStore) {
     let settings = InMemorySettingsStore(saved)
-    let converter = FakeFormatConverter(isAvailable: false)
     let configure = ConfigureEmail(settings: settings, secrets: MemorySecretStore())
     let channels = FakeDeliveryChannelFactory(channel: channel)
     let staging = FakeStagingArea()
@@ -67,8 +67,8 @@ struct PanelHarness {
       covers: CoverStore(provider: FakeCoverProvider()),
       queue: SendQueueViewModel(
         sendBooks: SendBooks(
-          channels: channels, preparer: FakeEPUBPreparer(),
-          converter: FakeFormatConverter(isAvailable: false), staging: staging, history: history,
+          channels: channels, preparer: FakeEPUBPreparer(), converter: converter, staging: staging,
+          history: history,
           retryDelay: .zero, sleep: { _ in })),
       logs: LogsViewModel(feed: log), kindle: makeKindleModel(reading: kindle, history: history),
       ejector: ejector ?? self.ejector)
@@ -76,18 +76,21 @@ struct PanelHarness {
     return (panel, settings)
   }
 
-  /// A library of two PDFs, a Kindle holding `listing`, USB as the destination, and the Kindle read.
+  /// A library of two PDFs unless `books` says otherwise, a Kindle holding `listing`, USB as the
+  /// destination, and the Kindle read. `converts` lets EPUBs go over USB.
   func pluggedInPanel(
-    listing: [KindleBook]
+    listing: [KindleBook], books: [Book]? = nil, converts: Bool = false
   ) async -> (panel: PanelModel, kindle: FakeKindleLibrary, channel: FakeDeliveryChannel) {
-    library.result = .success([
-      .fixture(id: "a", format: .pdf),
-      .fixture(id: "b", title: "Dracula", author: "Bram Stoker", format: .pdf),
-    ])
+    library.result = .success(
+      books ?? [
+        .fixture(id: "a", format: .pdf),
+        .fixture(id: "b", title: "Dracula", author: "Bram Stoker", format: .pdf),
+      ])
     let kindle = FakeKindleLibrary(.success(.fixture(listing)))
     let channel = FakeDeliveryChannel()
     let (panel, _) = makePanel(
-      AppSettings(email: .fixture, activeDestination: .usb), channel: channel, kindle: kindle)
+      AppSettings(email: .fixture, activeDestination: .usb), channel: channel, kindle: kindle,
+      converter: FakeFormatConverter(isAvailable: converts))
     monitor.update([.fixture()])
     await panel.launch()
     await panel.panelDidOpen()
