@@ -86,15 +86,21 @@ public enum KindleMatcher {
         guard let reason = subject.reason(matching: candidate) else { continue }
         let match = KindleMatch(book: candidate.book, confidence: reason.confidence, reason: reason)
         onKindle[candidate.book.id] = max(onKindle[candidate.book.id] ?? .maybe, match.confidence)
-        if best.map({ isStronger(match, than: $0) }) ?? true { best = match }
+        if best.map({ isStronger(match, than: $0, for: book) }) ?? true { best = match }
       }
       byBook[book.id] = best
     }
     return KindleMatches(byBook: byBook, onKindle: onKindle)
   }
 
-  private static func isStronger(_ match: KindleMatch, than other: KindleMatch) -> Bool {
+  /// Within one confidence, the copy under the book's own Sendle name wins, so the duplicate
+  /// review can offer to replace it.
+  private static func isStronger(
+    _ match: KindleMatch, than other: KindleMatch, for book: Book
+  ) -> Bool {
     if match.confidence != other.confidence { return match.confidence > other.confidence }
+    let isOwn = FileNaming.isSendlesCopy(match.book, of: book)
+    if isOwn != FileNaming.isSendlesCopy(other.book, of: book) { return isOwn }
     if match.reason != other.reason { return match.reason > other.reason }
     return match.book.id.relativePath < other.book.id.relativePath
   }

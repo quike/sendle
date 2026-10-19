@@ -105,6 +105,17 @@ struct KindleMatcherTests {
     #expect(all.onKindle == [calibre.id: .maybe, sendle.id: .sure])
   }
 
+  @Test func amongEqualMatchesSendlesOwnNameWinsOverAKeepBothCopy() {
+    let own = KindleBook.fixture(source: .sendle, asin: "SNEDITION1")
+    let copy = KindleBook.fixture(
+      path: "Moby-Dick - Herman Melville (2).azw3", source: .sendle, asin: "SNEDITION2")
+    #expect(
+      match(moby, [copy, own], editionASINs: [moby.id: ["SNEDITION1", "SNEDITION2"]])?.book == own)
+    let older = KindleBook.fixture(
+      source: .sendle, asin: "SNFNYTPPHY", asinFollowsFileName: true)
+    #expect(match(moby, [copy, older], editionASINs: [moby.id: ["SNEDITION2"]])?.book == older)
+  }
+
   @Test func differentTitlesNeverMatch() {
     #expect(match(moby, [.fixture(title: "Dracula", authors: ["Herman Melville"])]) == nil)
   }
