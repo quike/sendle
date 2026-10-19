@@ -494,6 +494,42 @@ struct LibraryViewModelTests {
     #expect(model.filters == [.all, .notSent, .onKindle, .notOnKindle])
   }
 
+  @Test func theKindleMatchesReachTheItemsAndTheirScopes() async {
+    let (model, _) = makeModel()
+    await model.start()
+    await model.appear()
+    let onKindle = KindleMatches(
+      byBook: [
+        BookID(rawValue: "a"): KindleMatch(
+          book: .fixture(), confidence: .sure, reason: .sendleName)
+      ], onKindle: [:])
+
+    model.showKindleMatches(onKindle)
+    #expect(model.items.map(\.marks) == [[.onKindle], []])
+
+    model.filter = .onKindle
+    #expect(model.items.map(\.id.rawValue) == ["a"])
+    model.filter = .notOnKindle
+    #expect(model.items.map(\.id.rawValue) == ["b"])
+
+    model.showKindleMatches(nil)
+    #expect(model.filter == .all)
+    #expect(model.items.map(\.id.rawValue) == ["a", "b"])
+    #expect(model.items.allSatisfy { $0.marks.isEmpty })
+  }
+
+  @Test func aKindleThatGoesLeavesAnotherScopeAlone() async {
+    let (model, _) = makeModel()
+    await model.start()
+    await model.appear()
+    model.showKindleMatches(.empty)
+    model.filter = .notSent
+
+    model.showKindleMatches(nil)
+
+    #expect(model.filter == .notSent)
+  }
+
   @Test func aKindleThatGoesTakesItsScopeWithIt() async {
     let (model, _) = makeModel()
     await model.start()

@@ -120,7 +120,7 @@ struct BookRow: View {
         HStack(spacing: 5) {
           FormatBadge(text: item.badge)
           ForEach(item.marks, id: \.self) { mark in
-            Image(systemName: mark.symbol)
+            Image(systemName: mark.rowSymbol)
               .font(.system(size: 8.5))
               .foregroundStyle(mark.color)
               .opacity(mark.opacity)
@@ -353,6 +353,9 @@ extension BookMark {
     case .onKindle, .maybeOnKindle: Theme.live
     }
   }
+
+  /// The cover draws the maybe mark's circle itself; a row's icon needs it in the symbol.
+  var rowSymbol: String { self == .maybeOnKindle ? "questionmark.circle" : symbol }
 
   /// A USB send the Kindle no longer shows.
   var opacity: Double {

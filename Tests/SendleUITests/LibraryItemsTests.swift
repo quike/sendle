@@ -286,7 +286,7 @@ struct LibraryItemsTests {
   }
 
   @Test func marksHaveTheirSymbols() {
-    #expect(BookMark.onKindle.symbol == "book.closed.fill")
+    #expect(BookMark.onKindle.symbol == "ipad")
     #expect(BookMark.maybeOnKindle.symbol == "questionmark")
     #expect(BookMark.route(.usb, dimmed: true).symbol == DestinationKind.usb.symbol)
   }

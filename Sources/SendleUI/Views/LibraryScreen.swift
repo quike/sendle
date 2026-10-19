@@ -209,17 +209,26 @@ struct SearchField: View {
   }
 }
 
-struct FilterBar: View {
+package struct FilterBar: View {
   @Bindable var library: LibraryViewModel
 
-  var body: some View {
+  package init(library: LibraryViewModel) {
+    self.library = library
+  }
+
+  package var body: some View {
     HStack(spacing: 5) {
-      ForEach(library.filters, id: \.self) { filter in
-        Button(filter.title) { library.filter = filter }
-          .buttonStyle(FilterPillStyle(isOn: library.filter == filter))
-          .accessibilityAddTraits(library.filter == filter ? .isSelected : [])
+      // The pills scroll when the Kindle scopes don't fit beside the menus.
+      ScrollView(.horizontal) {
+        HStack(spacing: 5) {
+          ForEach(library.filters, id: \.self) { filter in
+            Button(filter.title) { library.filter = filter }
+              .buttonStyle(FilterPillStyle(isOn: library.filter == filter))
+              .accessibilityAddTraits(library.filter == filter ? .isSelected : [])
+          }
+        }
       }
-      Spacer(minLength: 0)
+      .scrollIndicators(.never)
       FormatMenu(library: library)
       SortMenu(library: library)
       LayoutSwitcher(library: library)
@@ -236,18 +245,9 @@ struct FormatMenu: View {
       choice(nil, "All formats")
       ForEach(BookFormat.allCases, id: \.self) { choice($0, $0.rawValue.uppercased()) }
     } label: {
-      Text(label)
-        .font(.system(size: 10.5, weight: .semibold))
-        .foregroundStyle(Theme.text)
-        .padding(.horizontal, 8)
-        .frame(height: 24)
-        .glass(cornerRadius: 9)
-        .contentShape(Rectangle())
+      Text(label).toolbarPill()
     }
-    .menuStyle(.button)
-    .buttonStyle(.plain)
-    .menuIndicator(.hidden)
-    .fixedSize()
+    .pillMenu()
     .help("Show one format")
     .accessibilityLabel("Format")
     .accessibilityValue(label)
@@ -291,20 +291,28 @@ struct SortMenu: View {
         Image(systemName: "arrow.up.arrow.down").font(.system(size: 8.5, weight: .bold))
         Text(library.sort == .recent ? "Recent" : library.sort.title)
       }
-      .font(.system(size: 10.5, weight: .semibold))
+      .toolbarPill()
+    }
+    .pillMenu()
+    .help("Sort the library")
+    .accessibilityLabel("Sort")
+    .accessibilityValue(library.sort.title)
+  }
+}
+
+extension View {
+  /// The glass pill a filter bar menu shows as its label.
+  fileprivate func toolbarPill() -> some View {
+    font(.system(size: 10.5, weight: .semibold))
       .foregroundStyle(Theme.text)
       .padding(.horizontal, 8)
       .frame(height: 24)
       .glass(cornerRadius: 9)
       .contentShape(Rectangle())
-    }
-    .menuStyle(.button)
-    .buttonStyle(.plain)
-    .menuIndicator(.hidden)
-    .fixedSize()
-    .help("Sort the library")
-    .accessibilityLabel("Sort")
-    .accessibilityValue(library.sort.title)
+  }
+
+  fileprivate func pillMenu() -> some View {
+    menuStyle(.button).buttonStyle(.plain).menuIndicator(.hidden).fixedSize()
   }
 }
 

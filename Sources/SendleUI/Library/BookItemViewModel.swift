@@ -18,7 +18,7 @@ package enum BookMark: Hashable, Sendable {
   package var symbol: String {
     switch self {
     case .route(let kind, _): kind.symbol
-    case .onKindle: "book.closed.fill"
+    case .onKindle: "ipad"
     case .maybeOnKindle: "questionmark"
     }
   }
