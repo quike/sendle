@@ -34,11 +34,7 @@ public actor OPFEditionReader: EditionReader {
         found[book.id] = entry.edition
         continue
       }
-      guard
-        let edition = withoutDownloads({
-          OPFReader.package(inEPUBAt: book.fileURL)?.edition ?? Edition()
-        })
-      else { continue }
+      guard let edition = Self.edition(of: book) else { continue }
       cache.entries[path] = Entry(modified: modified, edition: edition)
       found[book.id] = edition
       changed = true
@@ -46,6 +42,24 @@ public actor OPFEditionReader: EditionReader {
     self.cache = cache
     if changed { save(cache) }
     return found
+  }
+
+  /// Nil when the book's package can't be read, so that is never remembered as an edition
+  /// without a key.
+  private static func edition(of book: Book) -> Edition? {
+    var isDirectory: ObjCBool = false
+    guard
+      FileManager.default.fileExists(
+        atPath: book.fileURL.path(percentEncoded: false), isDirectory: &isDirectory)
+    else { return nil }
+    if isDirectory.boolValue {
+      return withoutDownloads { OPFReader.package(inEPUBAt: book.fileURL)?.edition }
+    }
+    let folder = FileManager.default.temporaryDirectory
+      .appending(path: "SendleEditions-\(UUID().uuidString)", directoryHint: .isDirectory)
+    defer { try? FileManager.default.removeItem(at: folder) }
+    guard (try? DittoExtractor().extract(book.fileURL, into: folder)) != nil else { return nil }
+    return OPFReader.package(inEPUBAt: folder)?.edition
   }
 
   private static func isOnThisMac(_ book: Book) -> Bool {

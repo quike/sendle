@@ -165,9 +165,7 @@ struct OPFReaderTests {
 
     #expect(OPFReader.package(inEPUBAt: root) == nil)
   }
-}
 
-extension OPFReaderTests {
   @Test func readsTheEditionFromThePackage() throws {
     try EPUBFixture.book(
       metadata: EPUBFixture.metadata
