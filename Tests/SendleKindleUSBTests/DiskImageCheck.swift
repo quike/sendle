@@ -54,7 +54,7 @@ struct DiskImageCheck {
     #expect(names(in: mountPoint.appending(path: "documents")) == ["Moby-Dick.azw3"])
     #expect(
       names(in: mountPoint.appending(path: "system/thumbnails"))
-        == ["thumbnail_SN2Q7KXA4B_EBOK_portrait.jpg"])
+        == ["thumbnail_\(AZW3Metadata.asin(for: "Moby-Dick"))_EBOK_portrait.jpg"])
   }
 
   /// What a Kindle unplugged without Eject keeps is what reached it. FAT keeps a file's size and

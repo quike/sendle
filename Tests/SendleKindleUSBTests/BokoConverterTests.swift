@@ -126,22 +126,6 @@ struct BokoConverterTests {
     #expect(arguments == "convert\n\(epub.url.path)\n\(output.path)\n")
   }
 
-  @Test func givesEachBookItsOwnASIN() async throws {
-    try makeAZW3(asin: "EBOK000000").write(to: bin.appending(path: "made.azw3"))
-    try installBoko(#"cp "$(dirname "$0")/made.azw3" "$3""#)
-
-    _ = await convert(converter())
-
-    let output = staging.appending(path: "Moby-Dick - Herman Melville.azw3")
-    #expect(
-      AZW3Metadata(try Data(contentsOf: output))?.asin
-        == AZW3Metadata.asin(for: "Moby-Dick - Herman Melville"))
-    #expect(
-      log.summary.last
-        == "info BOKO Set the book's ASIN to \(AZW3Metadata.asin(for: "Moby-Dick - Herman Melville"))"
-    )
-  }
-
   // MARK: Logs
 
   @Test func logsTheCommandAndWhatBokoPrinted() async throws {

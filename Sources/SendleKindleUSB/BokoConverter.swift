@@ -86,21 +86,8 @@ public final class BokoConverter: FormatConverter, ToolChoice {
         throw .conversionFailed("boko made no book.")
       }
       log.info(.boko, "boko finished in \(elapsed)")
-      giveOwnASIN(to: output, named: name)
       return PreparedFile(url: output, format: format)
     }
-  }
-
-  /// boko gives every book the ASIN "EBOK000000", so they would all share one cover on the Kindle.
-  private func giveOwnASIN(to book: URL, named name: String) {
-    let asin = AZW3Metadata.asin(for: name)
-    guard let data = try? Data(contentsOf: book),
-      let patched = AZW3Metadata.replacingASIN(in: data, with: asin),
-      (try? patched.write(to: book, options: .atomic)) != nil
-    else {
-      return log.warning(.boko, "Couldn't set the book's ASIN; the Kindle may mix up its cover")
-    }
-    log.info(.boko, "Set the book's ASIN to \(asin)")
   }
 
   private static func output(in file: URL) -> String? {

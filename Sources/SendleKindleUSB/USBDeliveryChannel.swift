@@ -45,6 +45,7 @@ public struct USBDeliveryChannel: DeliveryChannel {
         "Removed \(leftovers) unfinished \(leftovers == 1 ? "copy" : "copies") from an earlier send"
       )
     }
+    if file.format == .azw3 { stampASIN(of: file, named: baseName) }
     let size = try Self.size(of: file.url)
     let free = freeSpace(volume.mountURL)
     if let free, free < size {
@@ -82,6 +83,19 @@ public struct USBDeliveryChannel: DeliveryChannel {
     if file.format == .azw3 {
       logThumbnail(KindleThumbnail.write(for: file.url, onKindleAt: volume.mountURL))
     }
+  }
+
+  /// Sets the ASIN in place, so no other byte of the book moves. A book that can't take it is
+  /// copied as it is.
+  private func stampASIN(of file: PreparedFile, named baseName: String) {
+    guard let data = try? Data(contentsOf: file.url) else { return }
+    let asin = AZW3Metadata.asin(for: file.asinSeed ?? baseName)
+    guard let stamped = AZW3Metadata.replacingASIN(in: data, with: asin),
+      (try? stamped.write(to: file.url, options: .atomic)) != nil
+    else {
+      return log.warning(.usb, "Couldn't set the book's ASIN; the Kindle may mix up its cover")
+    }
+    log.info(.usb, "Set the book's ASIN to \(asin)")
   }
 
   private func logThumbnail(_ outcome: KindleThumbnail.Outcome) {
