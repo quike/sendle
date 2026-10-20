@@ -23,15 +23,17 @@ public struct BookDetailsDraft: Hashable, Sendable {
     self.changesWriter = changesWriter
   }
 
-  /// What the sheet opens with: what `book` shows, its file's year and ISBN where it has no edit
-  /// of its own, and the writer checkbox ticked.
-  public init(showing book: Book, fileValues: Edition?) {
+  /// What the sheet opens with: what `book` shows, and its file's year and ISBN where it has no
+  /// edit of its own. `otherBooks` is the count of `EditBookDetails.otherBooks(by:in:)`. The
+  /// writer checkbox starts ticked when there are any, or when the book follows a writer rename,
+  /// so that reverting its author also removes the rename.
+  public init(showing book: Book, fileValues: Edition?, otherBooks: Int) {
     self.init(
       title: book.title, author: book.author ?? "", sortTitle: book.sortTitle ?? book.title,
       sortName: book.sortAuthor ?? book.author ?? "",
       year: book.edits.year ?? fileValues?.year ?? "",
       isbn: book.edits.isbn ?? fileValues?.isbn ?? "", language: book.language, cover: .keep,
-      changesWriter: true)
+      changesWriter: otherBooks > 0 || book.edits.fields.contains(.writerName))
   }
 }
 
@@ -63,10 +65,11 @@ public struct EditBookDetails: Sendable {
   }
 
   /// Saves the fields of `draft` that differ from what the sheet opened with; the others keep
-  /// their edits. A field cleared, or set back to what the book would show without its edit, is
-  /// saved as no edit.
+  /// their edits. A cleared field is reverted, as is one set back to what the book would show
+  /// without its edit.
   ///
-  /// `fileValues` is the book's own year and ISBN from its package, when known.
+  /// `book` and `fileValues` must be the ones the draft was opened from, or untouched values may
+  /// be saved as edits. `fileValues` is the book's own year and ISBN from its package, when known.
   public func save(
     _ draft: BookDetailsDraft, for book: Book, fileValues: Edition?
   ) async throws(EditDetailsError) {
@@ -112,7 +115,7 @@ private struct DraftChanges: Sendable {
     self.coverFolder = coverFolder
     self.date = date
 
-    let opened = BookDetailsDraft(showing: book, fileValues: fileValues)
+    let opened = BookDetailsDraft(showing: book, fileValues: fileValues, otherBooks: 0)
     func changed(_ field: KeyPath<BookDetailsDraft, String>) -> String? {
       let typed = draft[keyPath: field].trimmed
       return typed == opened[keyPath: field].trimmed ? nil : typed

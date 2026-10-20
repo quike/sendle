@@ -29,14 +29,16 @@ struct EditBookDetailsTests {
     edits.apply(to: book, authorSort: authorSort, coverFolder: folder)
   }
 
-  /// Opens the sheet on `book` shown with `edits`, makes `change` and saves; returns the edits.
+  /// Opens the sheet on `book` shown with `edits`, its writer having `otherBooks` other books,
+  /// makes `change` and saves; returns the edits.
   private func save(
     _ book: Book, with edits: MetadataEdits = MetadataEdits.none, fileValues: Edition? = nil,
-    authorSort: AuthorSort = .surname, _ change: (inout BookDetailsDraft) -> Void
+    authorSort: AuthorSort = .surname, otherBooks: Int = 1,
+    _ change: (inout BookDetailsDraft) -> Void
   ) async throws(EditDetailsError) -> MetadataEdits {
     let store = InMemoryMetadataEditStore(edits, coverFolder: folder)
     let book = shown(book, with: edits, authorSort)
-    var draft = BookDetailsDraft(showing: book, fileValues: fileValues)
+    var draft = BookDetailsDraft(showing: book, fileValues: fileValues, otherBooks: otherBooks)
     change(&draft)
     try await editor(store, authorSort).save(draft, for: book, fileValues: fileValues)
     return await store.edits()
@@ -46,14 +48,15 @@ struct EditBookDetailsTests {
 
   @Test func theDraftOpensWithTheShownValuesAndTheFilesYearAndISBN() {
     let edits = MetadataEdits(books: [eva.id: BookEdit(isbn: "123")])
-    let draft = BookDetailsDraft(showing: shown(eva, with: edits), fileValues: fileValues)
+    let draft = BookDetailsDraft(
+      showing: shown(eva, with: edits), fileValues: fileValues, otherBooks: 2)
     #expect(
       draft
         == BookDetailsDraft(
           title: "Los ritos del agua", author: "Eva Garcia Saenz",
           sortTitle: "ritos del agua, Los", sortName: "Saenz, Eva Garcia", year: "1851",
           isbn: "123", language: "es", cover: .keep, changesWriter: true))
-    let unknown = BookDetailsDraft(showing: .fixture(author: nil), fileValues: nil)
+    let unknown = BookDetailsDraft(showing: .fixture(author: nil), fileValues: nil, otherBooks: 0)
     #expect(unknown.author == "" && unknown.sortName == "" && unknown.year == "")
     #expect(unknown.sortTitle == "Moby-Dick")
   }
@@ -105,7 +108,7 @@ struct EditBookDetailsTests {
 
   @Test func emptyTitleIsRefused() async {
     let store = InMemoryMetadataEditStore(coverFolder: folder)
-    var draft = BookDetailsDraft(showing: eva, fileValues: nil)
+    var draft = BookDetailsDraft(showing: eva, fileValues: nil, otherBooks: 0)
     draft.title = " \n"
     draft.year = "2016"
     await #expect(throws: EditDetailsError.emptyTitle) {
@@ -206,6 +209,67 @@ struct EditBookDetailsTests {
     #expect(saved.writers == [evasKey: WriterEdit(nameChangedAt: now)])
   }
 
+  @Test func theCheckboxStartsTickedWithOtherBooksOrAWriterRenameToRevert() {
+    func ticked(_ edits: MetadataEdits, otherBooks: Int) -> Bool {
+      BookDetailsDraft(showing: shown(eva, with: edits), fileValues: nil, otherBooks: otherBooks)
+        .changesWriter
+    }
+    let renamed = MetadataEdits(writers: [evasKey: WriterEdit(name: "Eva G. Sáenz")])
+    var overridden = renamed
+    overridden.books[eva.id] = BookEdit(author: "E. G. Sáenz")
+    #expect(ticked(MetadataEdits.none, otherBooks: 3))
+    #expect(!ticked(MetadataEdits.none, otherBooks: 0))
+    #expect(ticked(renamed, otherBooks: 0))
+    #expect(!ticked(overridden, otherBooks: 0))
+  }
+
+  @Test func aRenameWithNoOtherBooksStaysTheBooksOwn() async throws {
+    let saved = try await save(eva, otherBooks: 0) { $0.author = "Eva G. Sáenz" }
+    #expect(saved.books[eva.id] == BookEdit(author: "Eva G. Sáenz", changedAt: now))
+    #expect(saved.writers.isEmpty)
+  }
+
+  @Test func revertingAWriterRenameWithNoOtherBooksRemovesIt() async throws {
+    let edits = MetadataEdits(writers: [
+      evasKey: WriterEdit(name: "Eva G. Sáenz", nameChangedAt: earlier)
+    ])
+    let saved = try await save(eva, with: edits, otherBooks: 0) { $0.author = "Eva Garcia Saenz" }
+    #expect(saved.writers == [evasKey: WriterEdit(nameChangedAt: now)])
+    #expect(saved.books[eva.id] == nil)
+    let reverted = shown(eva, with: saved)
+    #expect(reverted.author == "Eva Garcia Saenz")
+    #expect(!reverted.edits.isEdited)
+  }
+
+  @Test func revertAllKeepsOnlyASortNameTheRenameHadMovedTheBookTo() async throws {
+    let movedTo = WriterKey(author: "Eva G. Sáenz")!
+    let edits = MetadataEdits(
+      books: [eva.id: BookEdit(title: "Ritos", changedAt: earlier)],
+      writers: [
+        evasKey: WriterEdit(
+          name: "Eva G. Sáenz", sortName: "García Sáenz, Eva", nameChangedAt: earlier,
+          sortNameChangedAt: earlier),
+        movedTo: WriterEdit(sortName: "Sáenz, Eva G.", sortNameChangedAt: earlier),
+      ])
+    #expect(shown(eva, with: edits).sortAuthor == "Sáenz, Eva G.")
+    let books = BookDetailsDraft(
+      showing: shown(eva, with: MetadataEdits.none), fileValues: nil, otherBooks: 2)
+    let saved = try await save(eva, with: edits, otherBooks: 2) {
+      $0 = books
+      $0.cover = .revert
+    }
+    #expect(saved.books[eva.id] == BookEdit(changedAt: now))
+    #expect(
+      saved.writers == [
+        evasKey: WriterEdit(nameChangedAt: now, sortNameChangedAt: now),
+        movedTo: WriterEdit(sortName: "Sáenz, Eva G.", sortNameChangedAt: earlier),
+      ])
+    let reverted = shown(eva, with: saved)
+    #expect(reverted.author == "Eva Garcia Saenz")
+    #expect(reverted.sortAuthor == "Saenz, Eva Garcia")
+    #expect(!reverted.edits.isEdited)
+  }
+
   @Test func aSortNameIsStoredUnderTheShownAuthorsKey() async throws {
     let edits = MetadataEdits(books: [eva.id: BookEdit(author: "E. G. Sáenz")])
     let saved = try await save(eva, with: edits) { $0.sortName = "García Sáenz, E." }
@@ -295,7 +359,7 @@ struct EditBookDetailsTests {
 
   @Test func coverChangesPassToTheStore() async throws {
     let store = InMemoryMetadataEditStore(coverFolder: folder)
-    var draft = BookDetailsDraft(showing: eva, fileValues: nil)
+    var draft = BookDetailsDraft(showing: eva, fileValues: nil, otherBooks: 0)
     draft.cover = .replace(Data([1, 2, 3]))
     try await editor(store, at: earlier).save(draft, for: eva, fileValues: nil)
     #expect(await store.covers[eva.id] == Data([1, 2, 3]))
@@ -304,7 +368,7 @@ struct EditBookDetailsTests {
     #expect(replaced.changedAt == earlier)
 
     let edited = shown(eva, with: await store.edits())
-    var revert = BookDetailsDraft(showing: edited, fileValues: nil)
+    var revert = BookDetailsDraft(showing: edited, fileValues: nil, otherBooks: 0)
     revert.cover = .revert
     try await editor(store).save(revert, for: edited, fileValues: nil)
     #expect(await store.covers[eva.id] == nil)
@@ -318,7 +382,7 @@ struct EditBookDetailsTests {
     ]
     for (failure, expected) in failures {
       let store = InMemoryMetadataEditStore(coverFolder: folder, failure: failure)
-      var draft = BookDetailsDraft(showing: eva, fileValues: nil)
+      var draft = BookDetailsDraft(showing: eva, fileValues: nil, otherBooks: 0)
       draft.cover = .replace(Data([1]))
       await #expect(throws: expected) {
         try await editor(store).save(draft, for: eva, fileValues: nil)
