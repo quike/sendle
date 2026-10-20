@@ -187,13 +187,40 @@ struct LibraryItemsTests {
     #expect(!item.isEdited)
   }
 
-  @Test func anUnconfirmedSendKeepsItsWarningOverAnEdit() throws {
+  @Test func anEditAfterAnUnconfirmedSendSaysChangedSinceSent() throws {
     let book = edited(daysAgo: 1)
+
+    let item = try #require(items([book], sends: [sent(book, daysAgo: 2, .unconfirmed)]).first)
+
+    #expect(item.detail == "Changed since sent")
+    #expect(item.tone == .warning)
+  }
+
+  @Test func anUnconfirmedSendAfterTheEditKeepsItsWarning() throws {
+    let book = edited(daysAgo: 3)
 
     let item = try #require(items([book], sends: [sent(book, daysAgo: 2, .unconfirmed)]).first)
 
     #expect(item.detail == "May have been sent · check your Kindle")
     #expect(item.tone == .warning)
+  }
+
+  @Test func aSettledSendAfterAnUnconfirmedOneIsWhatAnEditFollows() throws {
+    let book = edited(daysAgo: 1)
+    let sends = [sent(book, daysAgo: 4, .unconfirmed), sent(book, daysAgo: 3)]
+
+    let item = try #require(items([book], sends: sends).first)
+
+    #expect(item.detail == "Changed since sent")
+  }
+
+  @Test func anEditAtTheMomentOfTheSendKeepsTheSentLine() throws {
+    let book = edited(daysAgo: 2)
+
+    let item = try #require(items([book], sends: [sent(book, daysAgo: 2)]).first)
+
+    #expect(item.detail == "Sent by email · 2d ago")
+    #expect(item.tone == .sent)
   }
 
   @Test func aBlockedEditedBookKeepsItsProblemLine() throws {
@@ -211,6 +238,14 @@ struct LibraryItemsTests {
     #expect(try #require(items([edited(daysAgo: 1)]).first).isEdited)
     #expect(try #require(items([writerOnly]).first).isEdited)
     #expect(!(try #require(items([moby]).first).isEdited))
+  }
+
+  @Test func editedBooksAreSpokenAsEdited() throws {
+    let item = try #require(items([edited(daysAgo: 1)]).first)
+    let plain = try #require(items([moby]).first)
+
+    #expect(item.spokenEdit == "Edited in Sendle")
+    #expect(plain.spokenEdit == nil)
   }
 
   @Test func marksEveryWayABookWasSent() throws {

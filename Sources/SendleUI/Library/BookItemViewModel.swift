@@ -51,6 +51,8 @@ package struct BookItemViewModel: Identifiable, Hashable, Sendable {
   package let canSend: Bool
   /// Whether any edit of the user's applies to the book, which the cover marks with a pencil.
   package let isEdited: Bool
+  /// The pencil in words, since the cover is hidden from VoiceOver.
+  package let spokenEdit: String?
 
   package var id: BookID { book.id }
 
@@ -67,6 +69,7 @@ package struct BookItemViewModel: Identifiable, Hashable, Sendable {
     byline = book.author ?? "Unknown author"
     badge = book.isStorePurchase ? "STORE" : book.format.rawValue.uppercased()
     isEdited = book.edits.isEdited
+    spokenEdit = isEdited ? "Edited in Sendle" : nil
     routes = sends?.routes ?? []
     marks = Self.marks(routes: routes, kindle: kindle)
     kindleText = Self.kindleText(routes: routes, kindle: kindle)
@@ -77,11 +80,11 @@ package struct BookItemViewModel: Identifiable, Hashable, Sendable {
       tone = book.availability == .ready ? .warning : .unavailable
       canSend = false
     case .send:
-      if sends?.latest.outcome == .unconfirmed {
-        detail = "May have been sent · check your Kindle"
-        tone = .warning
-      } else if let sends, let changedAt = book.edits.changedAt, changedAt > sends.latest.date {
+      if let sends, let changedAt = book.edits.changedAt, changedAt > sends.latest.date {
         detail = "Changed since sent"
+        tone = .warning
+      } else if sends?.latest.outcome == .unconfirmed {
+        detail = "May have been sent · check your Kindle"
         tone = .warning
       } else if let sends {
         detail = "\(sentWording) · \(Formatting.age(of: sends.latest.date, now: now))"

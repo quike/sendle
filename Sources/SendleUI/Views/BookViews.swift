@@ -504,8 +504,10 @@ extension View {
   /// per book, whose actions select it or send it.
   func bookInteractions(_ panel: PanelModel, _ item: BookItemViewModel) -> some View {
     let library = panel.library
-    let details = [item.badge, item.detail, item.spokenRoutes ?? "", item.kindleText ?? ""]
-      .filter { !$0.isEmpty }
+    let details = [
+      item.badge, item.detail, item.spokenRoutes ?? "", item.spokenEdit ?? "",
+      item.kindleText ?? "",
+    ].filter { !$0.isEmpty }
     let helpLines = [
       item.detail, item.kindleText ?? "",
       item.isEdited ? "Edited in Sendle. Send again to update your Kindle." : "",
