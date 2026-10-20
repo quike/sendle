@@ -65,7 +65,8 @@ struct SettingsViewModelTests {
     #expect(model.section == nil)
     #expect(
       SettingsSection.allCases.map { model.summary(of: $0) } == [
-        "Doesn't open at login · Controls: Floating · A–Z bar: Full · Formats on · Logs off",
+        "Doesn't open at login · Controls: Floating · A–Z bar: Full · Authors by surname "
+          + "· Formats on · Logs off",
         "reader@kindle.com",
         "Gmail · me@gmail.com", "boko not found",
       ])
@@ -146,7 +147,8 @@ struct SettingsViewModelTests {
     #expect(changes == 2)
     #expect(
       model.summary(of: .general)
-        == "Doesn't open at login · Controls: Floating · A–Z bar: Compact · Formats on · Logs on")
+        == "Doesn't open at login · Controls: Floating · A–Z bar: Compact · Authors by surname "
+        + "· Formats on · Logs on")
   }
 
   @Test func savesTheControlsStyleAtOnceAndSaysSo() async {
@@ -184,7 +186,44 @@ struct SettingsViewModelTests {
     #expect(changes == 1)
     #expect(
       model.summary(of: .general)
-        == "Doesn't open at login · Controls: Floating · A–Z bar: Full · Formats off · Logs off")
+        == "Doesn't open at login · Controls: Floating · A–Z bar: Full · Authors by surname "
+        + "· Formats off · Logs off")
+  }
+
+  @Test func generalSummaryNamesTheAuthorSort() async {
+    let model = makeModel()
+    await model.open(at: nil)
+    #expect(model.summary(of: .general).contains("A–Z bar: Full · Authors by surname · Formats"))
+
+    await model.setAuthorSort(.firstName)
+
+    #expect(model.summary(of: .general).contains("Authors by first name"))
+  }
+
+  @Test func readsTheAuthorSortBeforeSettingsOpenAndWhenItDoes() async {
+    let saved = InMemorySettingsStore(AppSettings(authorSort: .firstName))
+    let model = makeModel(saved)
+
+    await model.start()
+    #expect(model.authorSort == .firstName)
+
+    try? await saved.update { $0.authorSort = .surname }
+    await model.open(at: .general)
+    #expect(model.authorSort == .surname)
+  }
+
+  @Test func settingAuthorSortSavesIt() async {
+    let model = makeModel()
+    var changes = 0
+    model.onChange = { changes += 1 }
+    await model.open(at: .general)
+    #expect(model.authorSort == .surname)
+
+    await model.setAuthorSort(.firstName)
+
+    #expect(model.authorSort == .firstName)
+    #expect(await settings.settings.authorSort == .firstName)
+    #expect(changes == 1)
   }
 
   // MARK: Kindle addresses
@@ -347,7 +386,8 @@ struct SettingsViewModelTests {
     #expect(model.launchAtLoginNote?.contains("Login Items") == true)
     #expect(
       model.summary(of: .general)
-        == "Waiting for approval · Controls: Floating · A–Z bar: Full · Formats on · Logs off")
+        == "Waiting for approval · Controls: Floating · A–Z bar: Full · Authors by surname "
+        + "· Formats on · Logs off")
   }
 
   @Test func explainsWhyLaunchAtLoginCouldNotChange() async {

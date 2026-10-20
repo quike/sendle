@@ -16,6 +16,7 @@ public final class SettingsViewModel {
   package private(set) var launchAtLoginError: String?
   package private(set) var jumpBar = JumpBarStyle.full
   package private(set) var controls = ControlsStyle.floating
+  package private(set) var authorSort = AuthorSort.surname
   package private(set) var showsFormat = true
   package private(set) var showsLogs = false
   package private(set) var kindleAddresses: [KindleEmail] = []
@@ -28,8 +29,8 @@ public final class SettingsViewModel {
   /// The boko the user chose, found or not.
   package private(set) var chosenBoko: URL?
   package private(set) var bokoError: String?
-  /// Told whenever a choice the panel shows changes: the controls, the A–Z bar, formats, logs,
-  /// the Kindle address, boko.
+  /// Told whenever a choice the panel shows changes: the controls, the A–Z bar, the author sort,
+  /// formats, logs, the Kindle address, boko.
   @ObservationIgnored package var onChange: (@MainActor () async -> Void)?
   @ObservationIgnored private var unmark: Task<Void, Never>?
   /// The email setup as saved; the form may hold edits that aren't.
@@ -66,6 +67,7 @@ public final class SettingsViewModel {
     let saved = await settings.load()
     jumpBar = saved.jumpBar
     controls = saved.controls
+    authorSort = saved.authorSort
     showsFormat = saved.showsFormat
     showsLogs = saved.showsLogs
   }
@@ -130,10 +132,12 @@ public final class SettingsViewModel {
         }
       let controls = controls == .attached ? "Attached" : "Floating"
       let bar = jumpBar == .full ? "Full" : "Compact"
+      let authors = authorSort == .surname ? "surname" : "first name"
       let formats = showsFormat ? "on" : "off"
       let logs = showsLogs ? "on" : "off"
       return
-        "\(login) · Controls: \(controls) · A–Z bar: \(bar) · Formats \(formats) · Logs \(logs)"
+        "\(login) · Controls: \(controls) · A–Z bar: \(bar) · Authors by \(authors) "
+        + "· Formats \(formats) · Logs \(logs)"
     case .kindle:
       guard let active = activeKindleAddress else { return "Not set up" }
       let others = kindleAddresses.count - 1
@@ -189,6 +193,11 @@ public final class SettingsViewModel {
   package func setControls(_ style: ControlsStyle) async {
     controls = style
     await store { $0.controls = style }
+  }
+
+  package func setAuthorSort(_ sort: AuthorSort) async {
+    authorSort = sort
+    await store { $0.authorSort = sort }
   }
 
   package func setShowsFormat(_ shows: Bool) async {
@@ -291,6 +300,7 @@ public final class SettingsViewModel {
   private func show(_ saved: AppSettings) {
     jumpBar = saved.jumpBar
     controls = saved.controls
+    authorSort = saved.authorSort
     showsFormat = saved.showsFormat
     showsLogs = saved.showsLogs
     savedEmail = saved.email

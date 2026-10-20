@@ -291,6 +291,21 @@ private struct GeneralPage: View {
         RowDivider()
         HStack(spacing: 10) {
           RowText(
+            title: "Sort authors by",
+            detail:
+              "Also how Sendle writes authors into the books it sends, so your Kindle files them the same way."
+          )
+          Spacer(minLength: 8)
+          SegmentedSwitch(
+            label: "Sort authors by", options: [AuthorSort.surname, .firstName],
+            selection: settings.authorSort, title: { $0 == .surname ? "Surname" : "First name" }
+          ) { sort in Task { await settings.setAuthorSort(sort) } }
+        }
+        .padding(12)
+        .settingsHighlight(settings.highlighted == .authorSort)
+        RowDivider()
+        HStack(spacing: 10) {
+          RowText(
             title: "Show book format",
             detail:
               "A small format label, like EPUB or PDF, on covers in the library and on the Kindle.")

@@ -41,6 +41,7 @@ public final class LibraryViewModel {
   package private(set) var sort = LibrarySort.recent
   package private(set) var jumpBar = JumpBarStyle.full
   package private(set) var controls = ControlsStyle.floating
+  package private(set) var authorSort = AuthorSort.surname
   package private(set) var showsFormat = true
   /// The books the filter and search show, in the sort's order. Built once per change: with
   /// hundreds of books, building them on every read slowed each render.
@@ -152,6 +153,7 @@ public final class LibraryViewModel {
     sort = saved.sort
     jumpBar = saved.jumpBar
     controls = saved.controls
+    authorSort = saved.authorSort
     showsFormat = saved.showsFormat
     preferredDestination = saved.activeDestination
     hasKindleEmail = saved.email != nil
@@ -208,7 +210,8 @@ public final class LibraryViewModel {
   }
 
   /// A new Kindle email or boko shows at once; the destination stream only re-reads the email
-  /// when a Kindle moves.
+  /// when a Kindle moves. The books are read again when the author sort changes, as it decides
+  /// how they are filed.
   package func refreshSettings() async {
     let saved = await settings.load()
     let email = saved.email?.kindleAddress
@@ -218,6 +221,10 @@ public final class LibraryViewModel {
     showsFormat = saved.showsFormat
     converterAvailable = converter.isAvailable
     show(ObserveDestinations.destinations(email: email, volumes: volumes))
+    if saved.authorSort != authorSort {
+      authorSort = saved.authorSort
+      await reload()
+    }
   }
 
   // MARK: Choices

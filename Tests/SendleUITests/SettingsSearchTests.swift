@@ -25,6 +25,15 @@ struct SettingsSearchTests {
     #expect(SettingsItem.showFormat.section == .general)
   }
 
+  @Test func searchFindsSortAuthorsBy() {
+    #expect(SettingsSearch.results(for: "surname") == [.authorSort])
+    #expect(SettingsSearch.results(for: "last name") == [.authorSort])
+    #expect(SettingsSearch.results(for: "first name") == [.authorSort])
+    #expect(SettingsSearch.results(for: "author") == [.authorSort])
+    #expect(SettingsItem.authorSort.title == "Sort authors by")
+    #expect(SettingsItem.authorSort.section == .general)
+  }
+
   @Test func findsTheControlsStyleByNameAndByItsChoices() {
     #expect(SettingsSearch.results(for: "controls") == [.controls])
     #expect(SettingsSearch.results(for: "floating") == [.controls])

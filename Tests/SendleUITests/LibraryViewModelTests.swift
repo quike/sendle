@@ -603,6 +603,39 @@ struct LibraryViewModelTests {
     #expect(!model.showsFormatOnCovers)
   }
 
+  @Test func readsTheAuthorSortWhenItStarts() async {
+    let (model, _) = makeModel(AppSettings(email: .fixture, authorSort: .firstName))
+
+    await model.start()
+
+    #expect(model.authorSort == .firstName)
+  }
+
+  @Test func changingAuthorSortReloadsTheLibrary() async throws {
+    let (model, settings) = makeModel()
+    await model.start()
+    await model.appear()
+    let loads = library.loads
+
+    try await settings.update { $0.authorSort = .firstName }
+    await model.refreshSettings()
+
+    #expect(model.authorSort == .firstName)
+    #expect(library.loads == loads + 1)
+  }
+
+  @Test func otherSettingChangesLeaveTheLibraryAlone() async throws {
+    let (model, settings) = makeModel()
+    await model.start()
+    await model.appear()
+    let loads = library.loads
+
+    try await settings.update { $0.showsFormat = false }
+    await model.refreshSettings()
+
+    #expect(library.loads == loads)
+  }
+
   @Test func indexesOnlyTheBooksTheSearchShows() async {
     library.result = .success(titled(["Moby-Dick", "Emma", "Candide"]))
     let (model, _) = makeModel(AppSettings(email: .fixture, sort: .title))
