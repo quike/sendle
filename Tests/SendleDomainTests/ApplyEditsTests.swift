@@ -195,6 +195,22 @@ struct ApplyEditsTests {
     #expect(applied.edits.fields.isEmpty)
   }
 
+  @Test func aRevertedWriterKeepsItsChangeDatesWithoutBeingEdited() {
+    let book = Book.fixture(id: "b", author: "Eva Garcia Saenz")
+    let edits = MetadataEdits(writers: [
+      WriterKey(author: "Eva Garcia Saenz")!: WriterEdit(
+        nameChangedAt: middle, sortNameChangedAt: late)
+    ])
+    let surname = apply(edits, to: book, .surname).edits
+    #expect(surname.changedAt == late)
+    #expect(!surname.isEdited)
+    #expect(apply(edits, to: book, .firstName).edits.changedAt == middle)
+
+    var overridden = edits
+    overridden.books[book.id] = BookEdit(author: "Another Writer", changedAt: early)
+    #expect(apply(overridden, to: book).edits.changedAt == early)
+  }
+
   @Test func coverEditsResolveInsideTheCoverFolder() {
     let book = Book.fixture(id: "b")
     var edits = MetadataEdits.none

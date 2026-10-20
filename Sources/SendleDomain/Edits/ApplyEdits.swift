@@ -10,18 +10,23 @@ extension MetadataEdits {
     var changes = [own.changedAt]
 
     var author = own.author ?? original.author
-    if own.author == nil, let rename = writer(for: original.author), let name = rename.name {
-      author = name
-      fields.insert(.writerName)
+    // A writer's dates outlive a revert of its rename or sort name, so the revert still counts.
+    if own.author == nil, let rename = writer(for: original.author) {
       changes.append(rename.nameChangedAt)
+      if let name = rename.name {
+        author = name
+        fields.insert(.writerName)
+      }
     }
     let authorEdited = own.author != nil || fields.contains(.writerName)
 
     var writerSortName: String?
-    if authorSort == .surname, let writer = writer(for: author), let name = writer.sortName {
-      writerSortName = name
-      fields.insert(.writerSortName)
+    if authorSort == .surname, let writer = writer(for: author) {
       changes.append(writer.sortNameChangedAt)
+      if let name = writer.sortName {
+        writerSortName = name
+        fields.insert(.writerSortName)
+      }
     }
 
     let title = own.title ?? original.title
