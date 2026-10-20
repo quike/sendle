@@ -127,4 +127,48 @@ struct KindleMatcherTests {
   @Test func differentTitlesNeverMatch() {
     #expect(match(moby, [.fixture(title: "Dracula", authors: ["Herman Melville"])]) == nil)
   }
+
+  let edited = Book.fixture(
+    id: "moby", title: "Moby Dick Annotated", author: "H. Melville",
+    original: BooksDetails(title: "Moby-Dick", author: "Herman Melville"))
+
+  @Test func anEditedBookStillMatchesItsCopyByEditionKey() {
+    let copy = KindleBook.fixture(source: .sendle, asin: "SNEDITION1")
+    let found = match(edited, [copy], editionASINs: [edited.id: ["SNEDITION1"]])
+    #expect(found?.reason == .editionKey)
+    #expect(found?.confidence == .sure)
+  }
+
+  @Test func anEditedBookStillMatchesItsCopyByOldSendleName() {
+    let copy = KindleBook.fixture(
+      title: "Other", authors: [], source: .sendle, asin: "SNFNYTPPHY", asinFollowsFileName: true)
+    #expect(match(edited, [copy])?.reason == .sendleName)
+  }
+
+  @Test func anEditedBookMatchesByTitleAndAuthorOfEitherSet() {
+    let original = KindleBook.fixture(title: "Moby-Dick", authors: ["Herman Melville"])
+    let shown = KindleBook.fixture(
+      path: "Annotated.azw3", title: "Moby Dick Annotated", authors: ["H. Melville"])
+    let mixed = KindleBook.fixture(
+      path: "Mixed.azw3", title: "Moby Dick Annotated", authors: ["Herman Melville"])
+    for copy in [original, shown, mixed] {
+      let found = match(edited, [copy])
+      #expect(found?.reason == .titleAndAuthor)
+      #expect(found?.confidence == .maybe)
+    }
+  }
+
+  @Test func anEditedBookMatchesItsEmailedCopyByEitherTitle() {
+    let download = KindleBook.fixture(
+      path: "Downloads/Items01/Moby-Dick_0123456789ABCDEF0123456789ABCDEF.kfx",
+      title: "Moby-Dick", authors: [], source: .email)
+    #expect(match(edited, [download], emailed: [edited.id])?.reason == .emailedTitle)
+  }
+
+  @Test func replaceStaysUnavailableForACopyUnderTheOldName() {
+    let old = KindleBook.fixture(path: "Moby-Dick - Herman Melville.azw3")
+    let new = KindleBook.fixture(path: "Moby Dick Annotated - H. Melville.azw3")
+    #expect(!FileNaming.isSendlesCopy(old, of: edited))
+    #expect(FileNaming.isSendlesCopy(new, of: edited))
+  }
 }

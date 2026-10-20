@@ -114,12 +114,14 @@ public enum KindleMatcher {
     let isbn: String?
   }
 
+  /// An edited book is known by the values it shows and by Books' own, since its earlier copy on
+  /// the Kindle carries whichever it was sent with.
   private struct Subject {
     let book: Book
-    let titleKey: String
+    let titleKeys: Set<String>
     let authors: Set<String>
     let isbn: String?
-    let sendleStem: String
+    let sendleStems: Set<String>
     let asins: Set<String>
     let isEmailed: Bool
     let sameContent: Set<ContentPair>
@@ -129,10 +131,10 @@ public enum KindleMatcher {
       sameContent: Set<ContentPair>
     ) {
       self.book = book
-      titleKey = NameKey.title(book.title)
-      authors = NameKey.authors(book.author.map { [$0] } ?? [])
+      titleKeys = Set([book.title, book.original.title].map(NameKey.title)).subtracting([""])
+      authors = NameKey.authors([book.author, book.original.author].compactMap { $0 })
       isbn = edition?.isbn.flatMap(ISBN.normalised)
-      sendleStem = FileNaming.baseName(for: book).lowercased()
+      sendleStems = Set([book, book.unedited].map { FileNaming.baseName(for: $0).lowercased() })
       self.asins = asins
       self.isEmailed = isEmailed
       self.sameContent = sameContent
@@ -142,7 +144,7 @@ public enum KindleMatcher {
       let kindle = candidate.book
       // A placeholder identifier can give unrelated EPUBs one edition key.
       if let asin = kindle.asin, asins.contains(asin),
-        titleKey == candidate.titleKey || !authors.isDisjoint(with: candidate.authors)
+        titleKeys.contains(candidate.titleKey) || !authors.isDisjoint(with: candidate.authors)
       {
         return .editionKey
       }
@@ -151,16 +153,16 @@ public enum KindleMatcher {
         return .sameContent
       }
       if kindle.source == .sendle, kindle.asinFollowsFileName,
-        kindle.stem.lowercased() == sendleStem
+        sendleStems.contains(kindle.stem.lowercased())
       {
         return .sendleName
       }
       if isEmailed, kindle.source == .email,
-        !titleKey.isEmpty, titleKey == candidate.titleKey || titleKey == candidate.nameKey
+        titleKeys.contains(candidate.titleKey) || candidate.nameKey.map(titleKeys.contains) == true
       {
         return .emailedTitle
       }
-      guard !titleKey.isEmpty, titleKey == candidate.titleKey else { return nil }
+      guard titleKeys.contains(candidate.titleKey) else { return nil }
       if !authors.isDisjoint(with: candidate.authors) { return .titleAndAuthor }
       if authors.isEmpty || candidate.authors.isEmpty { return .titleOnly }
       return nil
@@ -207,8 +209,8 @@ public enum KindleMatcher {
       }
       for asin in subject.asins { add(byASIN[asin]) }
       if let isbn = subject.isbn { add(byISBN[isbn]) }
-      add(bySendleStem[subject.sendleStem])
-      add(byTitleKey[subject.titleKey])
+      for stem in subject.sendleStems { add(bySendleStem[stem]) }
+      for key in subject.titleKeys { add(byTitleKey[key]) }
       for pair in subject.sameContent where pair.book == subject.book.id {
         if let candidate = byID[pair.kindleBook] { found[pair.kindleBook] = candidate }
       }
