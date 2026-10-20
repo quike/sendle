@@ -334,6 +334,9 @@ struct PanelKindleTests {
     panel.choose(.skip)
 
     #expect(panel.duplicateReview == nil)
+    await panel.waitUntilReviewed()
+    await panel.queue.waitUntilFinished()
+    #expect(panel.checkingKindle == nil)
     #expect(channel.deliveries.isEmpty)
     #expect(panel.queue.isEmpty)
     #expect(panel.route == .library)
@@ -459,6 +462,10 @@ struct PanelKindleTests {
     #expect(panel.duplicateReview?.choices == [.skip, .keepBoth])
     panel.chooseDefault()
 
+    #expect(panel.duplicateReview == nil)
+    await panel.waitUntilReviewed()
+    await panel.queue.waitUntilFinished()
+    #expect(panel.checkingKindle == nil)
     #expect(channel.deliveries.isEmpty)
     #expect(panel.queue.isEmpty)
   }
@@ -677,6 +684,9 @@ struct PanelKindleTests {
     panel.chooseDefault()
 
     #expect(panel.duplicateReview == nil)
+    await panel.waitUntilReviewed()
+    await panel.queue.waitUntilFinished()
+    #expect(panel.checkingKindle == nil)
     #expect(channel.deliveries.isEmpty)
     #expect(panel.queue.isEmpty)
     #expect(panel.notice == ProblemPresenter.kindleChangedWhileChecking(.fixture()))

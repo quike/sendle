@@ -131,7 +131,7 @@ public final class KindleViewModel {
     }
   }
 
-  /// `copies`, with each copy moved to an ASIN that no file in `listing` and no other book has.
+  /// `copies` as `KindleCopyPlanner` plans them against `listing`.
   package func plannedCopies(
     for books: [Book], copies: [BookID: KindleCopy], listing: [KindleBook]
   ) async -> [BookID: KindleCopy] {

@@ -66,16 +66,44 @@ struct KindleCopyPlannerTests {
     #expect(planned == copies)
   }
 
-  @Test func givesUpAtTheEditionCopyLimit() {
-    let listing = (1...FileNaming.editionCopyLimit).map { onKindle(copy: $0) }
-    let copies: [BookID: KindleCopy] = [moby.id: .keepBoth(2)]
+  @Test func aCopyOverwritingAFileKeepsThatFilesASIN() {
+    let own = KindleBook.fixture(
+      path: "moby-dick - herman melville.AZW3", source: .sendle, asin: onKindle(copy: 1).asin)
+    let nested = KindleBook.fixture(
+      path: "Books/Moby-Dick - Herman Melville.azw3", source: .sendle, asin: onKindle(copy: 1).asin)
 
-    #expect(
-      planner.plan([moby], copies: copies, editions: [moby.id: edition], listing: listing)
-        == copies)
+    #expect(planner.plan([moby], copies: [:], editions: [moby.id: edition], listing: [own]).isEmpty)
     #expect(
       planner.plan(
-        [moby], copies: [moby.id: .keepBoth(12)], editions: [moby.id: edition], listing: listing)
-        == [moby.id: .keepBoth(12)])
+        [moby], copies: [:], editions: [moby.id: edition], listing: [own, onKindle(copy: 1)])
+        == [moby.id: KindleCopy(name: 1, asin: 2)])
+    #expect(
+      planner.plan([moby], copies: [:], editions: [moby.id: edition], listing: [nested])
+        == [moby.id: KindleCopy(name: 1, asin: 2)])
+  }
+
+  @Test func wrapsAroundToAFreeNumberBelowItsOwn() {
+    let listing = ([1] + Array(3...FileNaming.editionCopyLimit)).map { onKindle(copy: $0) }
+
+    #expect(
+      planner.plan(
+        [moby], copies: [moby.id: .keepBoth(3)], editions: [moby.id: edition], listing: listing)
+        == [moby.id: KindleCopy(name: 3, asin: 2)])
+    #expect(
+      planner.plan(
+        [moby], copies: [moby.id: .keepBoth(12)], editions: [moby.id: edition],
+        listing: listing + [onKindle(copy: 12)])
+        == [moby.id: KindleCopy(name: 12, asin: 2)])
+  }
+
+  @Test func givesUpAtTheEditionCopyLimit() {
+    let listing = (1...FileNaming.editionCopyLimit).map { onKindle(copy: $0) }
+
+    #expect(
+      planner.plan([moby], copies: [:], editions: [moby.id: edition], listing: listing).isEmpty)
+    #expect(
+      planner.plan(
+        [moby], copies: [moby.id: .keepBoth(5)], editions: [moby.id: edition], listing: listing)
+        == [moby.id: .keepBoth(5)])
   }
 }

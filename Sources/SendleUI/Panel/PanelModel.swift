@@ -44,8 +44,8 @@ public final class PanelModel {
   package var focusedChip: KindleVolume?
   /// The duplicates of a USB send, while the user decides what to do with each.
   package private(set) var duplicateReview: DuplicateReviewModel?
-  /// The Kindle a send is checked against, while it is: read for duplicates, then its books given
-  /// ASINs free on it. Another send would only race it.
+  /// The Kindle a send is checked against, while it is: read for duplicates, then its copies' ASINs
+  /// planned against it. Another send would only race it.
   package private(set) var checkingKindle: KindleVolume?
   /// Bumped by ⌘F; the search field takes the keyboard when it changes.
   package private(set) var searchFocusRequests = 0
@@ -354,8 +354,8 @@ public final class PanelModel {
     route = .queue
   }
 
-  /// Moves each copy to an ASIN no other file in `listing` has, then sends, unless the destination
-  /// changed meanwhile.
+  /// Plans the copies' ASINs against `listing` (see `KindleCopyPlanner`), then sends, unless the
+  /// destination changed meanwhile.
   private func planAndStart(
     _ books: [Book], to destination: Destination, copies: [BookID: KindleCopy],
     against listing: [KindleBook]
