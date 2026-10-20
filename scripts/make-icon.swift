@@ -7,10 +7,12 @@
 //                                                                  tile alone, 128 px, no shadow
 import AppKit
 
-/// The tile in the source, in pixels from its top left: the edge just inside its rim, and the
-/// radius of its corners.
-let tileInSource = CGRect(x: 90.5, y: 85.5, width: 1072, height: 1066)
-let cornerInSource: CGFloat = 254
+/// The tile in the source, in pixels from its top left: the edge just inside its rim, and its
+/// corners, each a quarter of a superellipse that starts this far from the corner and bulges by
+/// `cornerExponent` (2 would be a circle).
+let tileInSource = CGRect(x: 94, y: 89, width: 1059.5, height: 1062.5)
+let cornerInSource: CGFloat = 325
+let cornerExponent: CGFloat = 2.5
 /// The canvas behind the tile, which the source paints in place of transparency.
 let canvasWhite = 254
 
@@ -37,8 +39,8 @@ func context(_ width: Int, _ height: Int) -> CGContext {
     bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)!
 }
 
-/// The source's shadow on its own: each pixel darker than the canvas becomes the colour and
-/// opacity that, laid over the canvas, give that pixel.
+/// The source's shadow on its own: black, with the opacity that, laid over the canvas, gives each
+/// pixel's darkest channel. A tint would be noise wherever the shadow is faint.
 func shadowLayer() -> CGImage {
   let width = source.width
   let height = source.height
@@ -50,10 +52,7 @@ func shadowLayer() -> CGImage {
     for offset in stride(from: row * rowBytes, to: row * rowBytes + width * 4, by: 4) {
       let darkest = min(Int(pixels[offset]), Int(pixels[offset + 1]), Int(pixels[offset + 2]))
       let alpha = max(0, canvasWhite - darkest)
-      for channel in 0..<3 {
-        let value = Int(pixels[offset + channel]) - darkest
-        pixels[offset + channel] = UInt8(min(alpha, max(0, value)))
-      }
+      for channel in 0..<3 { pixels[offset + channel] = 0 }
       pixels[offset + 3] = UInt8(alpha * 255 / canvasWhite)
     }
   }
@@ -73,8 +72,22 @@ func drawSource(_ image: CGImage, in context: CGContext, tile: CGRect) {
 }
 
 func tilePath(_ tile: CGRect) -> CGPath {
-  let radius = cornerInSource * tile.width / tileInSource.width
-  return CGPath(roundedRect: tile, cornerWidth: radius, cornerHeight: radius, transform: nil)
+  let extent = cornerInSource * tile.width / tileInSource.width
+  let straight = CGSize(width: tile.width / 2 - extent, height: tile.height / 2 - extent)
+  let steps = 360
+  let path = CGMutablePath()
+  for step in 0...steps {
+    let angle = 2 * CGFloat.pi * CGFloat(step) / CGFloat(steps)
+    let (cosine, sine) = (cos(angle), sin(angle))
+    let point = CGPoint(
+      x: tile.midX + (cosine < 0 ? -1 : 1)
+        * (straight.width + pow(abs(cosine), 2 / cornerExponent) * extent),
+      y: tile.midY + (sine < 0 ? -1 : 1)
+        * (straight.height + pow(abs(sine), 2 / cornerExponent) * extent))
+    if step == 0 { path.move(to: point) } else { path.addLine(to: point) }
+  }
+  path.closeSubpath()
+  return path
 }
 
 func png(_ image: CGImage) -> Data {
