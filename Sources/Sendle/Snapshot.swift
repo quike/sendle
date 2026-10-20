@@ -247,6 +247,7 @@ enum Snapshot {
     place(.trailing)
     await write(window, "floating-kindle-right.png", to: folder)
     panel.showSide(.library)
+    await renderFloatingRails(panel, place: place, window: window, to: folder)
 
     await panel.openSettings(.general)
     await write(window, "floating-settings-general.png", to: folder)
@@ -259,6 +260,29 @@ enum Snapshot {
     await panel.library.setLayout(saved)
     await panel.settings.setControls(.attached)
     place(.trailing)
+  }
+
+  /// The A–Z card on each side of the card, full and compact, on the library and the Kindle side.
+  private static func renderFloatingRails(
+    _ panel: PanelModel, place: (RailSide) -> Void, window: NSWindow, to folder: URL
+  ) async {
+    for (side, sideName) in [(LibrarySide.library, "library"), (.kindle, "kindle")] {
+      panel.showSide(side)
+      for style in [JumpBarStyle.full, .compact] {
+        await panel.settings.setJumpBar(style)
+        panel.library.letterJump.isHovered = style == .compact
+        panel.kindle.letterJump.isHovered = style == .compact
+        for (railSide, name) in [(RailSide.leading, "left"), (.trailing, "right")] {
+          place(railSide)
+          await write(
+            window, "floating-az-\(name)-\(style.rawValue)-\(sideName).png", to: folder)
+        }
+      }
+    }
+    panel.library.letterJump.isHovered = false
+    panel.kindle.letterJump.isHovered = false
+    await panel.settings.setJumpBar(.full)
+    panel.showSide(.library)
   }
 
   /// Each side and layout at rest, attached and floating, for the rows the card's height shows;
