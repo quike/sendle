@@ -84,6 +84,19 @@ struct JSONMetadataEditStoreTests {
     #expect(!FileManager.default.fileExists(atPath: file.path(percentEncoded: false)))
   }
 
+  @Test func aCorruptEditStoreStillLoadsTheLibrary() async throws {
+    try Data("{ not json".utf8).write(to: file)
+    let book = Book.fixture(id: "A1", title: "Patria")
+    let load = LoadLibrary(
+      library: FakeBooksLibrary(.success([book])), inspector: StubProtectionInspector(),
+      edits: JSONMetadataEditStore(directory: directory))
+
+    let books = try await load()
+
+    #expect(books.map(\.title) == ["Patria"])
+    #expect(books.first?.edits.isEdited == false)
+  }
+
   @Test func replacesACoverWithAScaledJPEGNamedByItsContents() async throws {
     let store = JSONMetadataEditStore(directory: directory)
 

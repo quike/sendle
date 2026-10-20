@@ -49,4 +49,16 @@ struct MetadataEditsTests {
     #expect(MetadataEdits.none.books.isEmpty)
     #expect(MetadataEdits.none.writers.isEmpty)
   }
+
+  @Test func theNoEditStoreHoldsNothingAndRefusesChanges() async {
+    let store = NoMetadataEdits()
+
+    #expect(await store.edits() == .none)
+    await #expect(throws: MetadataEditError.storage(.writeFailed("No edits"))) {
+      try await store.update(book: BookID(rawValue: "A1"), cover: .keep) {
+        $0.books[BookID(rawValue: "A1")] = BookEdit(title: "Patria")
+      }
+    }
+    #expect(await store.edits() == .none)
+  }
 }

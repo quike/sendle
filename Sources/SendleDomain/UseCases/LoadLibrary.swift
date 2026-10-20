@@ -3,6 +3,8 @@ import Foundation
 public struct LoadLibrary: Sendable {
   private let library: any BooksLibrary
   private let inspector: any ProtectionInspector
+  private let editStore: any MetadataEditStore
+  private let settings: (any SettingsStore)?
   private let log: any ActivityLog
   /// Books' folder changes about once a second while someone reads, so only news is logged.
   private let lastReport = LastReport()
@@ -10,15 +12,19 @@ public struct LoadLibrary: Sendable {
   public init(
     library: any BooksLibrary,
     inspector: any ProtectionInspector,
+    edits: any MetadataEditStore = NoMetadataEdits(),
+    settings: (any SettingsStore)? = nil,
     log: any ActivityLog = NoActivityLog()
   ) {
     self.library = library
     self.inspector = inspector
+    self.editStore = edits
+    self.settings = settings
     self.log = log
   }
 
-  /// Books newest first, with DRM-protected ones marked. Only local files are inspected,
-  /// so reading the library never triggers an iCloud download.
+  /// Books newest first, with DRM-protected ones shown and the user's edits applied. Only local
+  /// files are inspected, so reading the library never triggers an iCloud download.
   public func callAsFunction() async throws(LibraryError) -> [Book] {
     let clock = ContinuousClock()
     let start = clock.now
@@ -30,7 +36,9 @@ public struct LoadLibrary: Sendable {
       if lastReport.replace(with: report) { log.error(.library, report) }
       throw error
     }
-    let marked =
+    let edits = await editStore.edits()
+    let authorSort = await settings?.load().authorSort ?? .surname
+    let shown =
       books
       .map { book in
         guard book.availability == .ready, inspector.isProtected(book) else { return book }
@@ -38,15 +46,18 @@ public struct LoadLibrary: Sendable {
         protected.availability = .protected
         return protected
       }
+      .map {
+        edits.apply(to: $0, authorSort: authorSort, coverFolder: editStore.coverFolder)
+      }
       .sorted { lhs, rhs in
         if lhs.addedAt != rhs.addedAt { return lhs.addedAt > rhs.addedAt }
         return lhs.title.localizedStandardCompare(rhs.title) == .orderedAscending
       }
-    let report = Self.summary(of: marked)
+    let report = Self.summary(of: shown)
     if lastReport.replace(with: report) {
       log.info(.library, "\(report) in \(Elapsed.text(clock.now - start))")
     }
-    return marked
+    return shown
   }
 
   /// Emits whenever the library may have changed. Ends at once when the library can't be watched.

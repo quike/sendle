@@ -46,3 +46,18 @@ public protocol MetadataEditStore: Sendable {
     book: BookID, cover: CoverChange, _ change: @Sendable (inout MetadataEdits) -> Void
   ) async throws(MetadataEditError)
 }
+
+/// Holds no edits and refuses changes, for code that runs without a store.
+public struct NoMetadataEdits: MetadataEditStore {
+  public init() {}
+
+  public var coverFolder: URL { URL(filePath: "/dev/null", directoryHint: .isDirectory) }
+
+  public func edits() async -> MetadataEdits { MetadataEdits.none }
+
+  public func update(
+    book: BookID, cover: CoverChange, _ change: @Sendable (inout MetadataEdits) -> Void
+  ) async throws(MetadataEditError) {
+    throw .storage(.writeFailed("No edits"))
+  }
+}
