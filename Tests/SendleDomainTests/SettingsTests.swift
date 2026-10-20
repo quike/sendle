@@ -39,7 +39,7 @@ struct AppSettingsTests {
     let settings = AppSettings(
       email: .fixture, layout: .shelf, activeDestination: .usb, sort: .author,
       jumpBar: .compact, controls: .floating, showsFormat: false, showsLogs: true,
-      kindleAddresses: [.fixture, KindleEmail(rawValue: "pw5@kindle.com")],
+      authorSort: .firstName, kindleAddresses: [.fixture, KindleEmail(rawValue: "pw5@kindle.com")],
       bokoPath: "/Users/reader/bin/boko")
     let data = try JSONEncoder().encode(settings)
     #expect(try JSONDecoder().decode(AppSettings.self, from: data) == settings)
@@ -59,6 +59,7 @@ struct AppSettingsTests {
     #expect(settings.controls == .floating)
     #expect(settings.showsFormat)
     #expect(!settings.showsLogs)
+    #expect(settings.authorSort == .surname)
     #expect(settings.bokoPath == nil)
     #expect(settings.savedKindleAddresses == [.fixture])
   }
@@ -99,6 +100,23 @@ struct AppSettingsTests {
     #expect(settings.showsFormat)
   }
 
+  @Test func authorSortDefaultsToSurnameAndOldFilesDecodeWithIt() throws {
+    #expect(AppSettings().authorSort == .surname)
+    let settings = try JSONDecoder().decode(AppSettings.self, from: Data("{}".utf8))
+    #expect(settings.authorSort == .surname)
+  }
+
+  @Test func authorSortRoundTrips() throws {
+    let saved = try JSONEncoder().encode(AppSettings(authorSort: .firstName))
+    #expect(try JSONDecoder().decode(AppSettings.self, from: saved).authorSort == .firstName)
+  }
+
+  @Test func unknownAuthorSortFallsBackToSurname() throws {
+    let settings = try JSONDecoder().decode(
+      AppSettings.self, from: Data(#"{"authorSort": "alphabet"}"#.utf8))
+    #expect(settings.authorSort == .surname)
+  }
+
   @Test func theControlsFloatUnlessTheUserAttachedThem() throws {
     #expect(AppSettings().controls == .floating)
     let saved = try JSONEncoder().encode(AppSettings(controls: .attached))
@@ -113,7 +131,7 @@ struct AppSettingsTests {
   @Test func unknownValuesFromNewerVersionsFallBackToDefaults() throws {
     let json = #"""
       {"layout": "carousel", "activeDestination": "bluetooth", "sort": "rating",
-      "jumpBar": "huge", "controls": "hovering", "showsFormat": "yes", "showsLogs": "yes", "kindleAddresses": 7, "bokoPath": false}
+      "jumpBar": "huge", "controls": "hovering", "showsFormat": "yes", "showsLogs": "yes", "authorSort": "alphabet", "kindleAddresses": 7, "bokoPath": false}
       """#
     let settings = try JSONDecoder().decode(AppSettings.self, from: Data(json.utf8))
     #expect(settings == .defaults)
@@ -138,5 +156,6 @@ struct PersistedEnumTests {
     #expect(LibrarySort.allCases.map(\.rawValue) == ["recent", "title", "author"])
     #expect(JumpBarStyle.allCases.map(\.rawValue) == ["full", "compact"])
     #expect(ControlsStyle.allCases.map(\.rawValue) == ["attached", "floating"])
+    #expect(AuthorSort.allCases.map(\.rawValue) == ["surname", "firstName"])
   }
 }

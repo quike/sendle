@@ -98,3 +98,54 @@ public enum EditedField: String, Hashable, Sendable, CaseIterable {
   case writerName
   case writerSortName
 }
+
+/// What Books itself holds for a book, kept beside the values shown.
+public struct BooksDetails: Hashable, Sendable {
+  public let title: String
+  public let author: String?
+  public let language: String?
+  public let sortTitle: String?
+  public let sortAuthor: String?
+
+  public init(
+    title: String,
+    author: String? = nil,
+    language: String? = nil,
+    sortTitle: String? = nil,
+    sortAuthor: String? = nil
+  ) {
+    self.title = title
+    self.author = author
+    self.language = language
+    self.sortTitle = sortTitle
+    self.sortAuthor = sortAuthor
+  }
+}
+
+/// The edits that reach one book, once the book's own and its writer's are resolved.
+public struct AppliedEdits: Hashable, Sendable {
+  public var fields: Set<EditedField>
+  public var year: String?
+  public var isbn: String?
+  public var cover: URL?
+  /// The latest change to what Sendle writes into the file.
+  public var changedAt: Date?
+
+  public init(
+    fields: Set<EditedField> = [],
+    year: String? = nil,
+    isbn: String? = nil,
+    cover: URL? = nil,
+    changedAt: Date? = nil
+  ) {
+    self.fields = fields
+    self.year = year
+    self.isbn = isbn
+    self.cover = cover
+    self.changedAt = changedAt
+  }
+
+  public var isEdited: Bool { !fields.isEmpty }
+
+  public static let none = AppliedEdits()
+}

@@ -14,7 +14,9 @@ extension Book {
     isStorePurchase: Bool = false,
     availability: Availability = .ready,
     sortTitle: String? = nil,
-    sortAuthor: String? = nil
+    sortAuthor: String? = nil,
+    original: BooksDetails? = nil,
+    edits: AppliedEdits = .none
   ) -> Book {
     Book(
       id: BookID(rawValue: id),
@@ -28,7 +30,12 @@ extension Book {
       isStorePurchase: isStorePurchase,
       availability: availability,
       sortTitle: sortTitle,
-      sortAuthor: sortAuthor
+      sortAuthor: sortAuthor,
+      original: original
+        ?? BooksDetails(
+          title: title, author: author, language: language,
+          sortTitle: sortTitle, sortAuthor: sortAuthor),
+      edits: edits
     )
   }
 }

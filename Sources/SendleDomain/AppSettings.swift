@@ -27,6 +27,12 @@ public enum ControlsStyle: String, Sendable, Codable, CaseIterable {
   case floating
 }
 
+/// How authors are filed: "Sáenz, Eva García" under surname, "Eva García Sáenz" under first name.
+public enum AuthorSort: String, Sendable, Codable, CaseIterable {
+  case surname
+  case firstName
+}
+
 public struct AppSettings: Hashable, Sendable, Codable {
   public var email: EmailSettings?
   public var layout: LibraryLayout
@@ -36,6 +42,7 @@ public struct AppSettings: Hashable, Sendable, Codable {
   public var controls: ControlsStyle
   public var showsFormat: Bool
   public var showsLogs: Bool
+  public var authorSort: AuthorSort
   /// Kindle addresses kept for later; `email.kindleAddress` is the active one.
   public var kindleAddresses: [KindleEmail]
   /// The boko the user chose; nil looks in the usual folders.
@@ -52,6 +59,7 @@ public struct AppSettings: Hashable, Sendable, Codable {
     controls: ControlsStyle = .floating,
     showsFormat: Bool = true,
     showsLogs: Bool = false,
+    authorSort: AuthorSort = .surname,
     kindleAddresses: [KindleEmail] = [],
     bokoPath: String? = nil
   ) {
@@ -63,6 +71,7 @@ public struct AppSettings: Hashable, Sendable, Codable {
     self.controls = controls
     self.showsFormat = showsFormat
     self.showsLogs = showsLogs
+    self.authorSort = authorSort
     self.kindleAddresses = kindleAddresses
     self.bokoPath = bokoPath
   }
@@ -81,6 +90,8 @@ public struct AppSettings: Hashable, Sendable, Codable {
       (try? container.decodeIfPresent(ControlsStyle.self, forKey: .controls)) ?? .floating
     showsFormat = (try? container.decodeIfPresent(Bool.self, forKey: .showsFormat)) ?? true
     showsLogs = (try? container.decodeIfPresent(Bool.self, forKey: .showsLogs)) ?? false
+    authorSort =
+      (try? container.decodeIfPresent(AuthorSort.self, forKey: .authorSort)) ?? .surname
     kindleAddresses =
       (try? container.decodeIfPresent([KindleEmail].self, forKey: .kindleAddresses)) ?? []
     bokoPath = (try? container.decodeIfPresent(String.self, forKey: .bokoPath)) ?? nil

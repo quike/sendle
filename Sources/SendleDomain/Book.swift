@@ -42,9 +42,13 @@ public struct Book: Sendable, Hashable, Identifiable {
   public let addedAt: Date
   public let isStorePurchase: Bool
   public var availability: Availability
-  /// Books' own sort keys, such as "Hobbit, The" or "Tolkien, J. R. R.", when it has them.
+  /// The sort keys the library orders by, such as "Hobbit, The" or "Tolkien, J. R. R.", when the
+  /// book has them.
   public let sortTitle: String?
   public let sortAuthor: String?
+  /// What Books holds for the details above, which the user's edits may have replaced.
+  public let original: BooksDetails
+  public let edits: AppliedEdits
 
   public init(
     id: BookID,
@@ -60,6 +64,33 @@ public struct Book: Sendable, Hashable, Identifiable {
     sortTitle: String? = nil,
     sortAuthor: String? = nil
   ) {
+    self.init(
+      id: id, title: title, author: author, language: language, format: format,
+      fileURL: fileURL, sizeBytes: sizeBytes, addedAt: addedAt,
+      isStorePurchase: isStorePurchase, availability: availability,
+      sortTitle: sortTitle, sortAuthor: sortAuthor,
+      original: BooksDetails(
+        title: title, author: author, language: language,
+        sortTitle: sortTitle, sortAuthor: sortAuthor),
+      edits: .none)
+  }
+
+  package init(
+    id: BookID,
+    title: String,
+    author: String?,
+    language: String?,
+    format: BookFormat,
+    fileURL: URL,
+    sizeBytes: Int64?,
+    addedAt: Date,
+    isStorePurchase: Bool,
+    availability: Availability,
+    sortTitle: String?,
+    sortAuthor: String?,
+    original: BooksDetails,
+    edits: AppliedEdits
+  ) {
     self.id = id
     self.title = title
     self.author = author
@@ -72,5 +103,16 @@ public struct Book: Sendable, Hashable, Identifiable {
     self.availability = availability
     self.sortTitle = sortTitle
     self.sortAuthor = sortAuthor
+    self.original = original
+    self.edits = edits
+  }
+
+  /// The book as Books has it, with none of the user's edits.
+  public var unedited: Book {
+    Book(
+      id: id, title: original.title, author: original.author, language: original.language,
+      format: format, fileURL: fileURL, sizeBytes: sizeBytes, addedAt: addedAt,
+      isStorePurchase: isStorePurchase, availability: availability,
+      sortTitle: original.sortTitle, sortAuthor: original.sortAuthor)
   }
 }
