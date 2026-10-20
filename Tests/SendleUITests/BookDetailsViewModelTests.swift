@@ -282,6 +282,16 @@ struct BookDetailsViewModelTests {
     #expect(saved.drafts.last?.sortName == "")
   }
 
+  @Test func revertAllRemovesALoneWritersSortName() async {
+    let edits = MetadataEdits(writers: [evasKey: WriterEdit(sortName: "García, Eva")])
+    let saved = SavedDrafts()
+    let sheet = sheet(shown(eva, with: edits), library: [eva], saved: saved)
+    sheet.revertAll()
+    #expect(!sheet.showsWriterCheckbox && !sheet.isEdited(.sortName))
+    #expect(await sheet.save())
+    #expect(saved.drafts.last?.sortName == "")
+  }
+
   @Test func sortNameLineHiddenUnderFirstName() {
     #expect(sheet().showsSortName)
     let firstName = sheet(authorSort: .firstName)

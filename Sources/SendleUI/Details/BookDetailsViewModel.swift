@@ -271,7 +271,10 @@ package final class BookDetailsViewModel {
 
   private var sortNameFollowsCheckbox: Bool { revertedAll && typedSortName == nil }
 
-  private var removesWriterSortName: Bool { sortNameFollowsCheckbox && savedChangesWriter }
+  /// With no other books, the writer's sort name is effectively the book's own.
+  private var removesWriterSortName: Bool {
+    sortNameFollowsCheckbox && (otherBooks == 0 || savedChangesWriter)
+  }
 
   // MARK: Private
 
