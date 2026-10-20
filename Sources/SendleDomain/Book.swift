@@ -9,6 +9,8 @@ public struct BookID: RawRepresentable, Hashable, Sendable, Codable {
   }
 }
 
+extension BookID: CodingKeyRepresentable {}
+
 /// Formats Books can hold that Sendle knows how to send.
 public enum BookFormat: String, Sendable, Codable, CaseIterable {
   case epub
