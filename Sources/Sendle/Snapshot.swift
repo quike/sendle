@@ -7,8 +7,8 @@ import SwiftUI
 import os
 
 /// `SENDLE_SNAPSHOT_DIR=<folder>` writes a PNG of each panel screen there and quits, to look at
-/// the UI without clicking through it. It saves layout choices and records a fake send, so it
-/// needs `SENDLE_DATA_DIR`. Its Kindle is a mock tree under that folder.
+/// the UI without clicking through it. It saves layout choices, records fake sends and edits some
+/// books, so it needs `SENDLE_DATA_DIR`. Its Kindle is a mock tree under that folder.
 @MainActor
 enum Snapshot {
   static let environmentKey = "SENDLE_SNAPSHOT_DIR"
@@ -124,6 +124,61 @@ enum Snapshot {
     kindles.plugIn(["Kindle", "Kindle Oasis", "Kindle Scribe"])
     await panel.library.activate(.usb(kindles.volume(named: "Kindle Oasis")))
     await write(window, "library-usb-3.png", to: folder)
+    await renderDetails(panel, window: window, to: folder)
+  }
+
+  /// The edit sheet for an EPUB and for a PDF, and the list of books it edited, after the edits
+  /// and the sends around them are saved through the stores. This runs last because it leaves
+  /// them in the data folder.
+  private static func renderDetails(
+    _ panel: PanelModel, window: NSWindow, to folder: URL
+  ) async {
+    await seedEdits(in: panel)
+    await panel.library.activate(DestinationKind.email)
+    await panel.library.reload()
+    await panel.library.setLayout(.list)
+    await panel.library.setSort(.author)
+    panel.library.letterJump.top = BookID(rawValue: "A002")
+    await write(window, "library-edited.png", to: folder)
+
+    await panel.openDetails(BookID(rawValue: "A010"))
+    // Typing a new author is what brings up the writer checkbox.
+    panel.bookDetails?.author = "Charles John Huffam Dickens"
+    panel.bookDetails?.sortName = "Dickens, Charles J. H."
+    await write(window, "edit-epub.png", to: folder)
+    panel.closeDetails()
+
+    await panel.openDetails(BookID(rawValue: "A022"))
+    await write(window, "edit-pdf.png", to: folder)
+    panel.closeDetails()
+  }
+
+  /// Renames Dickens, gives him a sort name and one of his books a year, a day ago. Two of his
+  /// books were sent before that and one after.
+  private static func seedEdits(in panel: PanelModel) async {
+    let data = DataDirectory.url()
+    let now = Date()
+    let edited = now.addingTimeInterval(-86_400)
+    let id = BookID(rawValue: "A010")
+    guard let book = panel.library.books.first(where: { $0.id == id }) else { return }
+    var draft = BookDetailsDraft(showing: book, fileValues: nil, otherBooks: 2)
+    draft.author = "Charles J. H. Dickens"
+    draft.sortName = "Dickens, Charles John Huffam"
+    draft.year = "1861"
+    let editor = EditBookDetails(
+      store: JSONMetadataEditStore(directory: data), settings: nil, now: { edited })
+    do throws(EditDetailsError) {
+      try await editor.save(draft, for: book, fileValues: nil)
+    } catch {
+      FileHandle.standardError.write(Data("Couldn't seed the edits: \(error)\n".utf8))
+    }
+    let history = JSONSendHistoryStore(directory: data)
+    for (sent, ago) in [("A002", 4 * 86_400.0), ("A010", 3 * 86_400.0), ("A020", 3 * 3_600.0)] {
+      let record = SendRecord(
+        bookID: BookID(rawValue: sent), destination: .email, date: now.addingTimeInterval(-ago),
+        outcome: .sent)
+      try? await history.append(record)
+    }
   }
 
   /// Plugs in the mock Kindle, holds its first read at the third book, then lets it finish
