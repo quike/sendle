@@ -55,6 +55,54 @@ struct JSONMetadataEditStoreTests {
     #expect(json["writers"] as? [String: Any] != nil)
   }
 
+  @Test func readsAFileFromANewerVersionButNeverRewritesIt() async throws {
+    let newer = #"{"books":{"ABC123":{"title":"Patria"}},"version":2,"writers":{}}"#
+    try Data(newer.utf8).write(to: file)
+    let store = JSONMetadataEditStore(directory: directory)
+    try FileManager.default.createDirectory(
+      at: store.coverFolder, withIntermediateDirectories: true)
+    try Data("newer".utf8).write(to: store.coverFolder.appending(path: "ABC123.webp"))
+
+    #expect(await store.edits().books[id] == BookEdit(title: "Patria"))
+    let refused = MetadataEditError.storage(
+      .writeFailed("edits.json is from a newer version of Sendle"))
+    await #expect(throws: refused) {
+      try await store.update(book: id, cover: .replace(try png(width: 10, height: 10))) {
+        $0.books[id]?.year = "2016"
+      }
+    }
+
+    #expect(try String(contentsOf: file, encoding: .utf8) == newer)
+    #expect(coverFiles(of: store) == ["ABC123.webp"])
+  }
+
+  @Test func ignoresACoverNameThatIsNotAFileInTheCoverFolder() async throws {
+    let outside = directory.appending(path: "keep.txt")
+    try Data("keep".utf8).write(to: outside)
+    let names = ["../keep.txt", "sub/cover.jpg", "/keep.txt", "..", ".", ""]
+    var books: [String: [String: String]] = ["ok": ["cover": "ok-0123456789ab.jpg"]]
+    for (index, name) in names.enumerated() {
+      books["bad\(index)"] = ["title": "Patria", "cover": name]
+    }
+    let json = ["version": 1, "books": books, "writers": [String: String]()] as [String: Any]
+    try JSONSerialization.data(withJSONObject: json).write(to: file)
+    let store = JSONMetadataEditStore(directory: directory)
+
+    let edits = await store.edits()
+    #expect(edits.books[BookID(rawValue: "ok")]?.cover == "ok-0123456789ab.jpg")
+    for index in names.indices {
+      #expect(edits.books[BookID(rawValue: "bad\(index)")] == BookEdit(title: "Patria"))
+    }
+
+    let traversing = #"{"books":{"ABC123":{"cover":"../keep.txt"}},"version":1,"writers":{}}"#
+    try Data(traversing.utf8).write(to: file)
+    try FileManager.default.createDirectory(
+      at: store.coverFolder, withIntermediateDirectories: true)
+    try await store.update(book: id, cover: .keep) { $0.books = [:] }
+
+    #expect(FileManager.default.fileExists(atPath: outside.path(percentEncoded: false)))
+  }
+
   @Test func appliesTheChangeAndKeepsTheCoverWhenAskedTo() async throws {
     let store = JSONMetadataEditStore(directory: directory)
     try await store.update(book: id, cover: .replace(try png(width: 100, height: 150))) {

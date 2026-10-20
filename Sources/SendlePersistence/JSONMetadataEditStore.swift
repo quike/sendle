@@ -9,7 +9,9 @@ public actor JSONMetadataEditStore: MetadataEditStore {
   nonisolated public let coverFolder: URL
 
   private struct File: Codable {
-    var version = 1
+    static let currentVersion = 1
+
+    var version = currentVersion
     var books: [BookID: BookEdit]
     var writers: [WriterKey: WriterEdit]
 
@@ -18,7 +20,22 @@ public actor JSONMetadataEditStore: MetadataEditStore {
       writers = edits.writers
     }
 
-    var edits: MetadataEdits { MetadataEdits(books: books, writers: writers) }
+    var isFromANewerVersion: Bool { version > Self.currentVersion }
+
+    /// A cover name that isn't a file in the cover folder is ignored, so the store never reads or
+    /// deletes anything else.
+    var edits: MetadataEdits {
+      var books = books
+      for (id, edit) in books {
+        if let cover = edit.cover, !Self.isFileName(cover) { books[id]?.cover = nil }
+      }
+      return MetadataEdits(books: books, writers: writers)
+    }
+
+    private static func isFileName(_ name: String) -> Bool {
+      !name.isEmpty && name != "." && name != ".."
+        && URL(filePath: name).lastPathComponent == name
+    }
   }
 
   private let file: JSONFile<File>
@@ -31,12 +48,16 @@ public actor JSONMetadataEditStore: MetadataEditStore {
     self.log = log
   }
 
-  /// The first call after launch also deletes cover files no edit refers to.
+  /// The first call after launch also deletes cover files no edit refers to, unless the file is
+  /// from a newer version, which may name them in a way this one can't read.
   public func edits() -> MetadataEdits {
-    let edits = load()
+    let stored = load()
+    let edits = stored.edits
     if !sweptUnusedCovers {
       sweptUnusedCovers = true
-      deleteCovers(coverFileNames().subtracting(coverNames(in: edits)))
+      if !stored.isFromANewerVersion {
+        deleteCovers(coverFileNames().subtracting(coverNames(in: edits)))
+      }
     }
     return edits
   }
@@ -44,7 +65,13 @@ public actor JSONMetadataEditStore: MetadataEditStore {
   public func update(
     book: BookID, cover: CoverChange, _ change: @Sendable (inout MetadataEdits) -> Void
   ) throws(MetadataEditError) {
-    let previous = load()
+    let stored = load()
+    // Rewriting a newer file as this version would drop what this version can't read.
+    guard !stored.isFromANewerVersion else {
+      log.error(.app, "Couldn't save edits.json: it is from a newer version of Sendle")
+      throw .storage(.writeFailed("edits.json is from a newer version of Sendle"))
+    }
+    let previous = stored.edits
     var updated = previous
     change(&updated)
 
@@ -67,9 +94,9 @@ public actor JSONMetadataEditStore: MetadataEditStore {
     deleteCovers(coverNames(in: previous).subtracting(coverNames(in: updated)))
   }
 
-  private func load() -> MetadataEdits {
+  private func load() -> File {
     // An unreadable file may still name covers, so none are swept before the next launch.
-    file.read(quarantiningCorruptAt: Date()) { _ in sweptUnusedCovers = true }?.edits ?? .none
+    file.read(quarantiningCorruptAt: Date()) { _ in sweptUnusedCovers = true } ?? File(.none)
   }
 
   /// The file's URL when this call created it.
