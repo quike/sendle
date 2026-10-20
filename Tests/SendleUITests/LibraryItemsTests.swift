@@ -48,6 +48,14 @@ struct LibraryItemsTests {
       outcome: outcome)
   }
 
+  func edited(
+    daysAgo: Double, fields: Set<EditedField> = [.title], availability: Availability = .ready
+  ) -> Book {
+    .fixture(
+      id: "moby", sizeBytes: 1_400_000, availability: availability,
+      edits: AppliedEdits(fields: fields, changedAt: now.addingTimeInterval(-daysAgo * 86_400)))
+  }
+
   @Test func filtersByFormat() {
     #expect(items([moby, manual], format: .epub).map(\.id) == [moby.id])
     #expect(items([moby, manual], format: .pdf).map(\.id) == [manual.id])
@@ -141,6 +149,68 @@ struct LibraryItemsTests {
 
     #expect(item.detail == "Sent by email · 2d ago")
     #expect(item.tone == .sent)
+  }
+
+  @Test func anEditAfterTheLastSendSaysChangedSinceSent() throws {
+    let book = edited(daysAgo: 1)
+
+    let item = try #require(items([book], sends: [sent(book, daysAgo: 2)]).first)
+
+    #expect(item.detail == "Changed since sent")
+    #expect(item.tone == .warning)
+    #expect(item.spokenRoutes == "Sent by email before")
+    #expect(item.canSend)
+  }
+
+  @Test func anEditBeforeTheLastSendKeepsTheSentLine() throws {
+    let book = edited(daysAgo: 3)
+
+    let item = try #require(items([book], sends: [sent(book, daysAgo: 2)]).first)
+
+    #expect(item.detail == "Sent by email · 2d ago")
+    #expect(item.tone == .sent)
+  }
+
+  @Test func aNeverSentEditedBookKeepsItsSize() throws {
+    let item = try #require(items([edited(daysAgo: 1)]).first)
+
+    #expect(item.detail == "1.4 MB")
+    #expect(item.tone == .plain)
+  }
+
+  @Test func aRevertAfterTheLastSendAlsoSaysChangedSinceSent() throws {
+    let book = edited(daysAgo: 1, fields: [])
+
+    let item = try #require(items([book], sends: [sent(book, daysAgo: 2)]).first)
+
+    #expect(item.detail == "Changed since sent")
+    #expect(!item.isEdited)
+  }
+
+  @Test func anUnconfirmedSendKeepsItsWarningOverAnEdit() throws {
+    let book = edited(daysAgo: 1)
+
+    let item = try #require(items([book], sends: [sent(book, daysAgo: 2, .unconfirmed)]).first)
+
+    #expect(item.detail == "May have been sent · check your Kindle")
+    #expect(item.tone == .warning)
+  }
+
+  @Test func aBlockedEditedBookKeepsItsProblemLine() throws {
+    let book = edited(daysAgo: 1, availability: .inCloudOnly)
+
+    let item = try #require(items([book], sends: [sent(book, daysAgo: 2)]).first)
+
+    #expect(item.detail == ProblemPresenter.problem(for: .inCloudOnly).title)
+    #expect(!item.canSend)
+  }
+
+  @Test func editedBooksAreMarked() throws {
+    let writerOnly = Book.fixture(edits: AppliedEdits(fields: [.writerName]))
+
+    #expect(try #require(items([edited(daysAgo: 1)]).first).isEdited)
+    #expect(try #require(items([writerOnly]).first).isEdited)
+    #expect(!(try #require(items([moby]).first).isEdited))
   }
 
   @Test func marksEveryWayABookWasSent() throws {

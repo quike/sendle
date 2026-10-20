@@ -249,6 +249,8 @@ struct BookCover: View {
   let size: CoverSize
   var titleSize: CGFloat = 10
   var showsFormat = false
+  /// Marked with a pencil, even where the sent marks are left out.
+  let isEdited: Bool
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
   init(
@@ -261,6 +263,7 @@ struct BookCover: View {
   ) {
     self.panel = panel
     book = item.book
+    isEdited = item.isEdited
     self.item = showsMarks ? item : nil
     self.size = size
     self.titleSize = titleSize
@@ -271,6 +274,7 @@ struct BookCover: View {
   init(panel: PanelModel, book: Book, size: CoverSize) {
     self.panel = panel
     self.book = book
+    isEdited = false
     item = nil
     self.size = size
   }
@@ -293,8 +297,10 @@ struct BookCover: View {
       }
     }
     .overlay(alignment: .topTrailing) {
-      if let marks = item?.marks, !marks.isEmpty {
+      let marks = item?.marks ?? []
+      if isEdited || !marks.isEmpty {
         HStack(spacing: 2) {
+          if isEdited { CoverMark(symbol: "pencil", color: Theme.warm) }
           ForEach(marks, id: \.self) { BookMarkView(mark: $0) }
         }
         .padding(5)
@@ -500,6 +506,10 @@ extension View {
     let library = panel.library
     let details = [item.badge, item.detail, item.spokenRoutes ?? "", item.kindleText ?? ""]
       .filter { !$0.isEmpty }
+    let helpLines = [
+      item.detail, item.kindleText ?? "",
+      item.isEdited ? "Edited in Sendle. Send again to update your Kindle." : "",
+    ]
     return contentShape(Rectangle())
       .onTapGesture { panel.click(item.id, .current) }
       .onHover { inside in
@@ -509,7 +519,7 @@ extension View {
           library.hovered = nil
         }
       }
-      .help([item.detail, item.kindleText ?? ""].filter { !$0.isEmpty }.joined(separator: "\n"))
+      .help(helpLines.filter { !$0.isEmpty }.joined(separator: "\n"))
       .accessibilityElement(children: .ignore)
       .accessibilityLabel("\(item.title), \(item.byline)")
       .accessibilityValue(details.joined(separator: ", "))

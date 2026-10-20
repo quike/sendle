@@ -37,7 +37,7 @@ package struct BookItemViewModel: Identifiable, Hashable, Sendable {
   package let title: String
   package let byline: String
   package let badge: String
-  /// Size, last send, or why the book can't go to the active destination.
+  /// Size, last send, an edit made since, or why the book can't go to the active destination.
   package let detail: String
   package let tone: Tone
   /// Where the book was sent for sure.
@@ -49,6 +49,8 @@ package struct BookItemViewModel: Identifiable, Hashable, Sendable {
   /// The earlier sends VoiceOver can't see as marks, when the detail doesn't already name them.
   package let spokenRoutes: String?
   package let canSend: Bool
+  /// Whether any edit of the user's applies to the book, which the cover marks with a pencil.
+  package let isEdited: Bool
 
   package var id: BookID { book.id }
 
@@ -64,6 +66,7 @@ package struct BookItemViewModel: Identifiable, Hashable, Sendable {
     title = book.title
     byline = book.author ?? "Unknown author"
     badge = book.isStorePurchase ? "STORE" : book.format.rawValue.uppercased()
+    isEdited = book.edits.isEdited
     routes = sends?.routes ?? []
     marks = Self.marks(routes: routes, kindle: kindle)
     kindleText = Self.kindleText(routes: routes, kindle: kindle)
@@ -76,6 +79,9 @@ package struct BookItemViewModel: Identifiable, Hashable, Sendable {
     case .send:
       if sends?.latest.outcome == .unconfirmed {
         detail = "May have been sent · check your Kindle"
+        tone = .warning
+      } else if let sends, let changedAt = book.edits.changedAt, changedAt > sends.latest.date {
+        detail = "Changed since sent"
         tone = .warning
       } else if let sends {
         detail = "\(sentWording) · \(Formatting.age(of: sends.latest.date, now: now))"
