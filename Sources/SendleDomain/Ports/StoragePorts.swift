@@ -38,6 +38,10 @@ public protocol MetadataEditStore: Sendable {
   var coverFolder: URL { get }
   func edits() async -> MetadataEdits
   /// Applies `change` and `cover` (for `book`) in one step; nothing changes when it throws.
+  ///
+  /// `change` runs first; then the cover is recorded on `book`'s entry, which is created when
+  /// missing. So inside `change`, `books[id]?.x = …` does nothing for a book without an entry:
+  /// assign through `books[id, default: BookEdit()]`.
   func update(
     book: BookID, cover: CoverChange, _ change: @Sendable (inout MetadataEdits) -> Void
   ) async throws(MetadataEditError)

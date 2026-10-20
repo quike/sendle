@@ -21,7 +21,8 @@ struct JSONMetadataEditStoreTests {
   private var file: URL { directory.appending(path: "edits.json") }
 
   private func coverFiles(of store: JSONMetadataEditStore) -> [String] {
-    let names = try? FileManager.default.contentsOfDirectory(atPath: store.coverFolder.path())
+    let names = try? FileManager.default.contentsOfDirectory(
+      atPath: store.coverFolder.path(percentEncoded: false))
     return (names ?? []).sorted()
   }
 
@@ -75,11 +76,12 @@ struct JSONMetadataEditStoreTests {
 
     #expect(await JSONMetadataEditStore(directory: directory).edits() == .none)
 
-    let names = try FileManager.default.contentsOfDirectory(atPath: directory.path())
+    let names = try FileManager.default.contentsOfDirectory(
+      atPath: directory.path(percentEncoded: false))
     let moved = try #require(names.first { $0.wholeMatch(of: /edits\.corrupt-\d+\.json/) != nil })
     #expect(
       try String(contentsOf: directory.appending(path: moved), encoding: .utf8) == "{ not json")
-    #expect(!FileManager.default.fileExists(atPath: file.path()))
+    #expect(!FileManager.default.fileExists(atPath: file.path(percentEncoded: false)))
   }
 
   @Test func replacesACoverWithAScaledJPEGNamedByItsContents() async throws {
@@ -130,6 +132,14 @@ struct JSONMetadataEditStoreTests {
     let name = try #require(await store.edits().books[awkward]?.cover)
     #expect(name.wholeMatch(of: /a%2Fb%20c-[0-9a-f]{12}\.jpg/) != nil)
     #expect(coverFiles(of: store) == [name])
+
+    try await store.update(book: awkward, cover: .replace(try png(width: 10, height: 10, red: 0))) {
+      _ in
+    }
+
+    let replaced = try #require(await store.edits().books[awkward]?.cover)
+    #expect(replaced != name)
+    #expect(coverFiles(of: store) == [replaced])
   }
 
   @Test func replacingAgainDeletesTheOldFileOnlyAfterSaving() async throws {
@@ -154,10 +164,10 @@ struct JSONMetadataEditStoreTests {
     let before = await store.edits()
     let old = try #require(before.books[id]?.cover)
     try FileManager.default.setAttributes(
-      [.posixPermissions: 0o555], ofItemAtPath: directory.path())
+      [.posixPermissions: 0o555], ofItemAtPath: directory.path(percentEncoded: false))
     defer {
       try? FileManager.default.setAttributes(
-        [.posixPermissions: 0o755], ofItemAtPath: directory.path())
+        [.posixPermissions: 0o755], ofItemAtPath: directory.path(percentEncoded: false))
     }
 
     await #expect(throws: MetadataEditError.self) {
@@ -216,8 +226,8 @@ struct JSONMetadataEditStoreTests {
     }
 
     #expect(await store.edits() == .none)
-    #expect(!FileManager.default.fileExists(atPath: file.path()))
-    #expect(!FileManager.default.fileExists(atPath: store.coverFolder.path()))
+    #expect(!FileManager.default.fileExists(atPath: file.path(percentEncoded: false)))
+    #expect(!FileManager.default.fileExists(atPath: store.coverFolder.path(percentEncoded: false)))
   }
 
   @Test func refusesImagesOver20MB() async throws {
@@ -229,8 +239,8 @@ struct JSONMetadataEditStoreTests {
       try await store.update(book: id, cover: .replace(tooLarge)) { _ in }
     }
 
-    #expect(!FileManager.default.fileExists(atPath: file.path()))
-    #expect(!FileManager.default.fileExists(atPath: store.coverFolder.path()))
+    #expect(!FileManager.default.fileExists(atPath: file.path(percentEncoded: false)))
+    #expect(!FileManager.default.fileExists(atPath: store.coverFolder.path(percentEncoded: false)))
   }
 
   @Test func deletesCoverFilesNoEditUses() async throws {
@@ -241,6 +251,19 @@ struct JSONMetadataEditStoreTests {
     try Data("old".utf8).write(to: stray)
 
     let afterLaunch = JSONMetadataEditStore(directory: directory)
+    _ = await afterLaunch.edits()
+
+    #expect(coverFiles(of: afterLaunch) == [used])
+  }
+
+  @Test func sweepsUnusedCoversInAFolderWhoseNameHasASpace() async throws {
+    let spaced = directory.appending(path: "Application Support", directoryHint: .isDirectory)
+    let store = JSONMetadataEditStore(directory: spaced)
+    try await store.update(book: id, cover: .replace(try png(width: 100, height: 150))) { _ in }
+    let used = try #require(await store.edits().books[id]?.cover)
+    try Data("old".utf8).write(to: store.coverFolder.appending(path: "GONE-0123456789ab.jpg"))
+
+    let afterLaunch = JSONMetadataEditStore(directory: spaced)
     _ = await afterLaunch.edits()
 
     #expect(coverFiles(of: afterLaunch) == [used])

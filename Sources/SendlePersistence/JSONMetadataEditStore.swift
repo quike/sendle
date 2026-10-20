@@ -91,7 +91,9 @@ public actor JSONMetadataEditStore: MetadataEditStore {
   }
 
   private func coverFileNames() -> Set<String> {
-    Set((try? FileManager.default.contentsOfDirectory(atPath: coverFolder.path())) ?? [])
+    Set(
+      (try? FileManager.default.contentsOfDirectory(atPath: coverFolder.path(percentEncoded: false)))
+        ?? [])
   }
 
   private func deleteCovers(_ names: Set<String>) {
