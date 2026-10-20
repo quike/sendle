@@ -259,8 +259,8 @@ struct KindleViewModelTests {
     await model.follow(.fixture(), books: [])
 
     model.sort = .author
-    #expect(model.letterJump.index?.lettersWithBooks == ["H", "J", "V"])
-    #expect(model.letterJump.letters(.compact) == ["H", "J", "V"])
+    #expect(model.letterJump.index?.lettersWithBooks == ["A", "M", "V"])
+    #expect(model.letterJump.letters(.compact) == ["A", "M", "V"])
     #expect(model.letterJump.letters(.full) == LibraryOrder.letters)
   }
 

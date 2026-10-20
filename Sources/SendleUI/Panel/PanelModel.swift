@@ -95,6 +95,7 @@ public final class PanelModel {
     library.reportProblem = { [weak self] problem in self?.show(notice: problem) }
     library.onKindleInputsChange = { [weak self] in self?.followKindle() }
     library.onSortChange = { [weak kindle] in kindle?.sort = $0 }
+    library.onAuthorSortChange = { [weak kindle] in kindle?.authorSort = $0 }
     kindle.onMatchesChange = { [weak library] in library?.showKindleMatches($0) }
     settings.onChange = { [weak library] in await library?.refreshSettings() }
     queue.onFinish = { [weak self] in await self?.refreshAfterSend() }

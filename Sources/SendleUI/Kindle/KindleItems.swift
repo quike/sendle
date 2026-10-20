@@ -48,7 +48,9 @@ package struct KindleItemViewModel: Identifiable, Hashable, Sendable {
     self.book = book
     self.inLibrary = inLibrary
     title = book.title
-    byline = book.authors.isEmpty ? "Unknown author" : book.authors.joined(separator: ", ")
+    byline =
+      book.authors.isEmpty
+      ? "Unknown author" : book.authors.map(SortNames.displayForm).joined(separator: ", ")
     badge = book.format.uppercased()
     detail = "\(Formatting.size(book.byteCount)) · \(book.source.label)"
     spoken = [badge, detail, Self.libraryText(inLibrary)].joined(separator: ", ")
@@ -68,11 +70,12 @@ package struct KindleItemViewModel: Identifiable, Hashable, Sendable {
 }
 
 extension SortFields {
-  /// A Kindle book files under its title and first author.
-  package init(_ item: KindleItemViewModel) {
-    self.init(
-      title: item.title, author: item.book.authors.first, tiebreak: item.title,
-      id: item.id.relativePath)
+  /// A Kindle book files under its title and first author, as `authorSort` names it.
+  package init(_ item: KindleItemViewModel, authorSort: AuthorSort) {
+    let author = item.book.authors.first.map {
+      authorSort == .surname ? SortNames.author($0) : SortNames.displayForm($0)
+    }
+    self.init(title: item.title, author: author, tiebreak: item.title, id: item.id.relativePath)
   }
 }
 

@@ -34,6 +34,10 @@ public final class KindleViewModel {
   package var sort = LibrarySort.recent {
     didSet { listChanged(sort != oldValue) }
   }
+  /// Shared with the library's, from Settings › General › Sort authors by.
+  package var authorSort = AuthorSort.surname {
+    didSet { listChanged(sort == .author && authorSort != oldValue) }
+  }
   /// Bumped when a new query, scope, format, sort or Kindle should start at the top of the list.
   package private(set) var scrollToTopRequests = 0
   /// The books the scope, format and search show, in the sort's order.
@@ -194,10 +198,11 @@ public final class KindleViewModel {
     }
     let newestFirst = KindleItems.make(
       books: listing?.books ?? [], matches: matches, scope: scope, format: format, query: query)
-    items = LibraryOrder.sorted(newestFirst, by: sort, fields: SortFields.init)
+    let fields = { [authorSort] in SortFields($0, authorSort: authorSort) }
+    items = LibraryOrder.sorted(newestFirst, by: sort, fields: fields)
     recentItems = Array(newestFirst.prefix(8))
     letterJump.index =
-      sort == .recent ? nil : AlphabetIndex(items, sort: sort, id: \.id, fields: SortFields.init)
+      sort == .recent ? nil : AlphabetIndex(items, sort: sort, id: \.id, fields: fields)
   }
 
   private func forget() {

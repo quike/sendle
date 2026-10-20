@@ -77,6 +77,51 @@ struct KindleItemsTests {
     #expect(model.items.map(\.title) == ["Panza de burro", "Dracula", "notes", "The Hobbit"])
   }
 
+  func makeCortazarModel() async -> KindleViewModel {
+    let model = makeKindleModel(
+      reading: FakeKindleLibrary(
+        .success(
+          .fixture([
+            .fixture(path: "rayuela.azw3", title: "Rayuela", authors: ["Cortázar, Julio"]),
+            .fixture(path: "dracula.azw3", title: "Dracula", authors: ["Bram Stoker"]),
+            .fixture(path: "ficciones.azw3", title: "Ficciones", authors: ["Jorge Luis Borges"]),
+          ]))))
+    await model.follow(.fixture(), books: [])
+    return model
+  }
+
+  @Test func commaAuthorsShowGivenNameFirst() async {
+    let model = await makeCortazarModel()
+    let byline = { (title: String) in model.items.first { $0.title == title }?.byline }
+    #expect(byline("Rayuela") == "Julio Cortázar")
+    #expect(byline("Dracula") == "Bram Stoker")
+  }
+
+  @Test func surnameSortFilesCortazarUnderC() async {
+    let model = await makeCortazarModel()
+    model.authorSort = .surname
+    model.sort = .author
+    #expect(model.items.map(\.title) == ["Ficciones", "Rayuela", "Dracula"])
+    #expect(model.letterJump.index?.lettersWithBooks == ["B", "C", "S"])
+  }
+
+  @Test func firstNameSortFilesCortazarUnderJ() async {
+    let model = await makeCortazarModel()
+    model.authorSort = .firstName
+    model.sort = .author
+    #expect(model.items.map(\.title) == ["Dracula", "Ficciones", "Rayuela"])
+    #expect(model.letterJump.index?.lettersWithBooks == ["B", "J"])
+  }
+
+  @Test func changingTheAuthorSortReordersTheKindle() async {
+    let model = await makeCortazarModel()
+    model.sort = .author
+    model.authorSort = .firstName
+    #expect(model.items.map(\.title) == ["Dracula", "Ficciones", "Rayuela"])
+    model.authorSort = .surname
+    #expect(model.items.map(\.title) == ["Ficciones", "Rayuela", "Dracula"])
+  }
+
   @Test func theShelfShowsTheNewestEight() async {
     let many = (1...10).map {
       KindleBook.fixture(

@@ -67,6 +67,8 @@ public final class LibraryViewModel {
   @ObservationIgnored package var onKindleInputsChange: (@MainActor () -> Void)?
   /// Told of the sort in force, once it is read and each time it changes.
   @ObservationIgnored package var onSortChange: (@MainActor (LibrarySort) -> Void)?
+  /// Told of the author sort in force, once it is read and each time it changes.
+  @ObservationIgnored package var onAuthorSortChange: (@MainActor (AuthorSort) -> Void)?
 
   private var sends: [BookID: BookSends] = [:]
   private var volumes: [KindleVolume] = []
@@ -160,6 +162,7 @@ public final class LibraryViewModel {
     converterAvailable = converter.isAvailable
     refreshItems()
     onSortChange?(sort)
+    onAuthorSortChange?(authorSort)
     let updates = observeDestinations()
     destinationUpdates = Task { [weak self] in
       for await destinations in updates {
@@ -223,6 +226,7 @@ public final class LibraryViewModel {
     show(ObserveDestinations.destinations(email: email, volumes: volumes))
     if saved.authorSort != authorSort {
       authorSort = saved.authorSort
+      onAuthorSortChange?(authorSort)
       await reload()
     }
   }

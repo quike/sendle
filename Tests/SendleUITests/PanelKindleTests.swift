@@ -89,6 +89,22 @@ struct PanelKindleTests {
     #expect(panel.kindle.sort == .title)
   }
 
+  @Test func theSavedAuthorSortReachesTheKindleAtStart() async {
+    let (panel, _) = harness.makePanel(AppSettings(email: .fixture, authorSort: .firstName))
+    await panel.launch()
+    #expect(panel.kindle.authorSort == .firstName)
+  }
+
+  @Test func theKindleSideFollowsTheAuthorSortSetting() async {
+    let (panel, _) = harness.makePanel()
+    await panel.launch()
+    #expect(panel.kindle.authorSort == .surname)
+    await panel.settings.setAuthorSort(.firstName)
+    #expect(await eventually { panel.kindle.authorSort == .firstName })
+    await panel.settings.setAuthorSort(.surname)
+    #expect(await eventually { panel.kindle.authorSort == .surname })
+  }
+
   @Test func kindleCoversShowTheirFormatInEveryScopeUntilOneFormatIsChosen() async {
     let mixed = FakeKindleLibrary(.success(.fixture([.fixture(), .fixture(path: "notes.txt")])))
     let (panel, _) = harness.makePanel(kindle: mixed)
