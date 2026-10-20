@@ -16,7 +16,8 @@ package struct PackageDetailsEditor {
     }
   }
 
-  /// Nil when there is something to write but the text can't be parsed; the caller sends the book
+  /// The text comes back as it was when no element changes. Nil when there is something to write
+  /// but the text can't be parsed or wouldn't parse once edited; the caller sends the book
   /// unedited.
   package static func apply(
     _ details: PackageDetails, to text: String, at path: String, package: EPUBPackage,
@@ -50,8 +51,11 @@ package struct PackageDetailsEditor {
       coverFile = write(cover: coverImage, in: document, at: path, package: package)
       if coverFile != nil { applied.append(.cover) }
     }
-    return Result(
-      text: applied.isEmpty ? text : document.text, applied: applied, coverFile: coverFile)
+    guard document.isModified else {
+      return Result(text: text, applied: applied, coverFile: coverFile)
+    }
+    guard let edited = document.text else { return nil }
+    return Result(text: edited, applied: applied, coverFile: coverFile)
   }
 
   /// The main title, refined as `title-type main` or else the first, holds `title`; every other
@@ -67,16 +71,16 @@ package struct PackageDetailsEditor {
     for other in titles where other !== main {
       removeWithRefinements(other, in: document)
     }
-    document.metas(named: "calibre:title_sort").forEach { $0.detach() }
+    document.metas(named: "calibre:title_sort").forEach(document.remove)
     guard let main else {
-      document.metadata.addChild(document.newDublinCore("title", text: title))
+      document.append(document.newDublinCore("title", text: title), to: document.metadata)
       return
     }
-    main.stringValue = title
-    main.removeOPFAttribute("file-as")
+    document.setText(title, of: main)
+    document.removeOPFAttribute("file-as", from: main)
     document.refinements(of: main)
       .filter { $0.attributeValue("property") == "file-as" }
-      .forEach { $0.detach() }
+      .forEach(document.remove)
   }
 
   /// One creator in the first author's place replaces every creator whose role is `aut` or
@@ -102,7 +106,7 @@ package struct PackageDetailsEditor {
       if let anchor = authors.first ?? creators.first {
         document.insert(node, before: anchor)
       } else {
-        document.metadata.addChild(node)
+        document.append(node, to: document.metadata)
       }
     }
     for old in creators {
@@ -112,41 +116,45 @@ package struct PackageDetailsEditor {
         document.rename(old, to: "contributor")
       }
     }
-    document.metas(named: "calibre:author_link_map").forEach { $0.detach() }
+    document.metas(named: "calibre:author_link_map").forEach(document.remove)
   }
 
   private static func write(language: String, in document: PackageDocument) {
     let languages = document.dublinCore("language")
     guard let first = languages.first else {
-      document.metadata.addChild(document.newDublinCore("language", text: language))
+      document.append(
+        document.newDublinCore("language", text: language), to: document.metadata)
       return
     }
-    first.stringValue = language
-    languages.dropFirst().forEach { $0.detach() }
+    document.setText(language, of: first)
+    languages.dropFirst().forEach(document.remove)
   }
 
   /// The first date becomes the year unless it already falls in it.
   private static func write(year: String, in document: PackageDocument) {
     guard let date = document.dublinCore("date").first else {
-      document.metadata.addChild(document.newDublinCore("date", text: year))
+      document.append(document.newDublinCore("date", text: year), to: document.metadata)
       return
     }
     let digits = date.trimmedText.prefix { $0.isASCII && $0.isNumber }
-    if digits != year { date.stringValue = year }
+    if digits != year { document.setText(year, of: date) }
   }
 
   /// The first ISBN identifier other than the package's unique identifier, which never changes,
-  /// holds `isbn` in its own style; without one, an identifier is added.
+  /// holds `isbn` after the same `urn:isbn:` or `isbn:` prefix, if any; without one, an
+  /// identifier is added.
   private static func write(isbn: String, in document: PackageDocument) {
     let existing = document.dublinCore("identifier").first {
       isISBN($0) && !document.isUniqueIdentifier($0)
     }
     guard let existing else {
-      document.metadata.addChild(document.newDublinCore("identifier", text: "urn:isbn:\(isbn)"))
+      document.append(
+        document.newDublinCore("identifier", text: "urn:isbn:\(isbn)"), to: document.metadata)
       return
     }
-    let isURN = existing.trimmedText.lowercased().hasPrefix("urn:isbn:")
-    existing.stringValue = isURN ? "urn:isbn:\(isbn)" : isbn
+    let current = existing.trimmedText.lowercased()
+    let prefix = ["urn:isbn:", "isbn:"].first { current.hasPrefix($0) } ?? ""
+    document.setText(prefix + isbn, of: existing)
   }
 
   /// A declared JPEG or PNG is overwritten in its own type. Otherwise `sendle-cover.jpg` is added
@@ -169,19 +177,17 @@ package struct PackageDetailsEditor {
         properties.contains("cover-image")
       else { continue }
       let rest = properties.filter { $0 != "cover-image" }.joined(separator: " ")
-      if rest.isEmpty {
-        item.removeAttribute(forName: "properties")
-      } else {
-        item.attribute(forName: "properties")?.stringValue = rest
-      }
+      document.setAttribute("properties", rest.isEmpty ? nil : rest, of: item)
     }
     var attributes = [("id", id), ("href", name), ("media-type", "image/jpeg")]
     if document.isEPUB3 { attributes.append(("properties", "cover-image")) }
-    manifest.addChild(document.newElement("item", in: manifest, attributes: attributes))
-    document.metas(named: "cover").forEach { $0.detach() }
-    document.metadata.addChild(
+    document.append(
+      document.newElement("item", in: manifest, attributes: attributes), to: manifest)
+    document.metas(named: "cover").forEach(document.remove)
+    document.append(
       document.newElement(
-        "meta", in: document.metadata, attributes: [("name", "cover"), ("content", id)]))
+        "meta", in: document.metadata, attributes: [("name", "cover"), ("content", id)]),
+      to: document.metadata)
     return (archivePath, data)
   }
 
@@ -203,8 +209,8 @@ package struct PackageDetailsEditor {
   }
 
   private static func removeWithRefinements(_ element: XMLElement, in document: PackageDocument) {
-    document.refinements(of: element).forEach { $0.detach() }
-    element.detach()
+    document.refinements(of: element).forEach(document.remove)
+    document.remove(element)
   }
 
   private static func role(of creator: XMLElement, in document: PackageDocument) -> String? {

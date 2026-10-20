@@ -193,6 +193,20 @@ struct PackageDetailsEditorTests {
       ])
   }
 
+  @Test func isbnKeepsAnISBNColonPrefix() throws {
+    let text = EPUBFixture.package(
+      metadata: EPUBFixture.metadata
+        + #"<dc:identifier id="isbn">ISBN:1-86197-271-7</dc:identifier>"#,
+      manifest: EPUBFixture.manifest)
+
+    let result = try apply(PackageDetails(isbn: "9780306406157"), to: text)
+
+    #expect(
+      try metadata(of: result.text).named("dc:identifier").map(\.text) == [
+        "urn:uuid:moby-dick", "isbn:9780306406157",
+      ])
+  }
+
   @Test func isbnIsAddedWhenTheOnlyISBNIsTheUniqueIdentifier() throws {
     let text = EPUBFixture.package(
       metadata: """
@@ -400,7 +414,7 @@ struct PackageDetailsEditorTests {
     #expect(nodes.named("dc:creator").map(\.text) == ["Auteur"])
   }
 
-  @Test func keepsEntities() throws {
+  @Test func keepsEntitiesAndWritesCharacterReferencesAsCharactersWhenRewritten() throws {
     let text = epub3Sample.replacing(
       "<dc:publisher>Probe Press</dc:publisher>",
       with: "<dc:publisher>Caf&#233; &amp; Fils &lt;Paris&gt;</dc:publisher>")
@@ -408,11 +422,65 @@ struct PackageDetailsEditorTests {
     let result = try apply(PackageDetails(title: "Tom & Jerry <Live>"), to: text)
 
     #expect(result.text.contains("<dc:title id=\"title\">Tom &amp; Jerry &lt;Live&gt;</dc:title>"))
+    #expect(result.text.contains("<dc:publisher>Café &amp; Fils &lt;Paris&gt;</dc:publisher>"))
     #expect(
       result.text.contains(##"<meta refines="#author1" property="file-as">Doe, John</meta>"##))
+  }
+
+  @Test func anEditThatChangesNoNodeReturnsTheInputByteForByte() throws {
+    let text = epub3Sample.replacing(
+      "<dc:publisher>Probe Press</dc:publisher>",
+      with: "<dc:publisher>Caf&#233; &amp; l&apos;Atelier</dc:publisher>"
+        + "\n<dc:date>2017-03-01</dc:date>")
+    let details = PackageDetails(language: "en", year: "2017", cover: coverURL)
+
+    let result = try apply(details, to: text, coverImage: try Self.image(.jpeg))
+
+    #expect(result.text == text)
+    #expect(result.applied == [.language, .year, .cover])
+    #expect(result.coverFile?.path == "OEBPS/images/cover.jpg")
+  }
+
+  @Test func dropsCharactersXMLCannotHold() throws {
+    let result = try apply(
+      PackageDetails(title: "Bad\u{0B}title\u{0C}", creator: "Ann\u{01} Writer\u{FFFE}"),
+      to: epub3Sample)
+
     let nodes = try metadata(of: result.text)
-    #expect(nodes.named("dc:publisher").map(\.text) == ["Café & Fils <Paris>"])
-    #expect(nodes.named("dc:title").map(\.text) == ["Tom & Jerry <Live>"])
+    #expect(nodes.named("dc:title").map(\.text) == ["Badtitle"])
+    #expect(nodes.named("dc:creator").map(\.text) == ["Ann Writer"])
+  }
+
+  @Test func findsTheRootPastCommentsAndInstructionsThatMentionIt() throws {
+    let prolog = """
+      <?xml version="1.0" encoding="utf-8"?>
+      <!-- <package> made by x -->
+      <?generator name="<package maker>"?>
+      <!DOCTYPE package>
+
+      """
+    let epilogue = "\n<!-- </package> ends here -->\n"
+    let body = epub3Sample.drop { $0 != "\n" }.dropFirst()
+    let text = prolog + body + epilogue
+
+    let result = try apply(PackageDetails(title: "New Title"), to: text)
+
+    #expect(result.text.hasPrefix(prolog + "<package "))
+    #expect(result.text.hasSuffix("</package>" + epilogue))
+    #expect(try metadata(of: result.text).named("dc:title").map(\.text) == ["New Title"])
+  }
+
+  @Test func removesCalibreSortKeysInTheirEPUB3FormToo() throws {
+    let text = EPUBFixture.package(
+      metadata: EPUBFixture.metadata + """
+
+        <meta property="calibre:title_sort">Moby-Dick</meta>
+        <meta property="calibre:author_link_map">{"Herman Melville": ""}</meta>
+        """, manifest: EPUBFixture.manifest)
+
+    let result = try apply(PackageDetails(title: "Moby Dick", creator: "Melville, H."), to: text)
+
+    #expect(try metadata(of: result.text).named("meta").filter { $0.text != "aut" } == [])
   }
 
   // MARK: Unusable input
