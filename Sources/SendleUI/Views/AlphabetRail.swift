@@ -77,11 +77,12 @@ struct FloatingRail<ID: Hashable & Sendable>: View {
       height: isFull
         ? nil : CGFloat(letters.count) * AlphabetRail<ID>.compactLetterHeight + 2 * inset)
     let isTrailing = side == .trailing
+    let outer: Alignment = isTrailing ? .trailing : .leading
     let zone =
       isTrailing
       ? CGRect(x: books.maxX, y: books.minY, width: frame.maxX - books.maxX, height: books.height)
       : CGRect(x: frame.minX, y: books.minY, width: books.minX - frame.minX, height: books.height)
-    ZStack(alignment: isTrailing ? .trailing : .leading) {
+    ZStack(alignment: outer) {
       if !isFull, isAvailable {
         Color.clear.contentShape(Rectangle())
       }
@@ -92,7 +93,8 @@ struct FloatingRail<ID: Hashable & Sendable>: View {
         .transition(.offset(x: isTrailing ? -12 : 12).combined(with: .opacity))
       }
     }
-    .frame(width: zone.width, height: zone.height)
+    // Without the clear hover shape the stack is only as wide as the card, so this places it.
+    .frame(width: zone.width, height: zone.height, alignment: outer)
     .overlay(alignment: isTrailing ? .leading : .trailing) {
       if let dragged = jump.draggedLetter {
         DraggedLetter(letter: dragged).offset(x: isTrailing ? -62 : 62)
