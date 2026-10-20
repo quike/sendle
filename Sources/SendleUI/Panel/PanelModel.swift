@@ -31,6 +31,7 @@ public final class PanelModel {
   package let queue: SendQueueViewModel
   package let logs: LogsViewModel
   package let kindle: KindleViewModel
+  package let pointer = PointerModel()
   package private(set) var route = PanelRoute.library
   package private(set) var side = LibrarySide.library
   package private(set) var isShowingSettings = false
@@ -200,6 +201,7 @@ public final class PanelModel {
     session += 1
     hoveredChip = nil
     focusedChip = nil
+    pointer.location = nil
     library.disappear()
     logs.stop()
     accessWatch?.cancel()

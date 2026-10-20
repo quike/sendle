@@ -118,6 +118,45 @@ extension View {
   }
 }
 
+/// The hover feedback of the icon and text buttons: a brighter surface, icon and text, eased in.
+/// The pointer comes from the panel (`PointerModel`) and is compared with the button's frame, so
+/// the button holds no state. A disabled button, such as one under a sheet, ignores it.
+private struct HoverHighlight<Surface: InsettableShape>: ViewModifier {
+  let shape: Surface
+  let isPressed: Bool
+  @Environment(PointerModel.self) private var pointer: PointerModel?
+  @Environment(\.isEnabled) private var isEnabled
+  @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+  func body(content: Content) -> some View {
+    let location: CGPoint? = isEnabled ? pointer?.location : nil
+    let animation: Animation? = reduceMotion ? nil : ButtonHover.animation
+    @Sendable func isHovered(_ proxy: GeometryProxy) -> Bool {
+      ButtonHover.isOver(location, proxy.frame(in: PointerModel.space))
+    }
+    return
+      content
+      .visualEffect { label, proxy in
+        label.brightness(ButtonHover.brightness(isHovered: isHovered(proxy)))
+      }
+      .background {
+        GeometryReader { proxy in
+          shape.fill(ButtonHover.surface(isHovered: isHovered(proxy), isPressed: isPressed))
+        }
+      }
+      .overlay(shape.strokeBorder(Theme.line))
+      .animation(animation, value: location)
+  }
+}
+
+extension View {
+  fileprivate func hoverHighlight(
+    _ shape: some InsettableShape, isPressed: Bool
+  ) -> some View {
+    modifier(HoverHighlight(shape: shape, isPressed: isPressed))
+  }
+}
+
 /// The blue call to action. No glow: inside a scroll view its shadow draws a grey band.
 struct PrimaryButtonStyle: ButtonStyle {
   var fullWidth = false
@@ -146,7 +185,9 @@ struct SecondaryButtonStyle: ButtonStyle {
       .foregroundStyle(Theme.text)
       .padding(.horizontal, 12)
       .frame(maxWidth: fullWidth ? .infinity : nil, minHeight: 30)
-      .glass(cornerRadius: 11, highlighted: configuration.isPressed)
+      .hoverHighlight(
+        RoundedRectangle(cornerRadius: 11, style: .continuous), isPressed: configuration.isPressed
+      )
       .opacity(isEnabled ? 1 : 0.4)
       .pressEffect(configuration.isPressed)
       .contentShape(Rectangle())
@@ -170,8 +211,7 @@ struct CircleButtonStyle: ButtonStyle {
       .font(.system(size: 13, weight: .semibold))
       .foregroundStyle(Color(hex: 0xc9d3ea))
       .frame(width: 30, height: 30)
-      .background(configuration.isPressed ? Theme.glassHigh : Theme.glass, in: Circle())
-      .overlay(Circle().strokeBorder(Theme.line))
+      .hoverHighlight(Circle(), isPressed: configuration.isPressed)
       .pressEffect(configuration.isPressed, scale: 0.94)
   }
 }

@@ -117,6 +117,9 @@ enum Snapshot {
     panel.finishQueue()
     panel.openLogs()
     await write(window, "logs.png", to: folder)
+    hover(panel, at: CGPoint(x: Theme.cardWidth - 118, y: 31))
+    await write(window, "hover-copy-button.png", to: folder)
+    hover(panel, at: nil)
     panel.closeLogs()
     kindles.plugIn(["Kindle", "Kindle Oasis", "Kindle Scribe"])
     await panel.library.activate(.usb(kindles.volume(named: "Kindle Oasis")))
@@ -184,6 +187,9 @@ enum Snapshot {
     await panel.settings.setJumpBar(.full)
     await panel.library.setSort(.recent)
     await panel.library.setLayout(saved)
+    hover(panel, at: CGPoint(x: Theme.cardWidth - 29, y: 31))
+    await write(window, "hover-header-button.png", to: folder)
+    hover(panel, at: nil)
     panel.showSide(.library)
 
     await panel.library.setSort(.title)
@@ -404,6 +410,14 @@ enum Snapshot {
     for _ in 0..<500 {
       if condition() { return }
       try? await Task.sleep(for: .milliseconds(10))
+    }
+  }
+
+  /// Puts the pointer over a point of the card, measured from its top left, or takes it away.
+  private static func hover(_ panel: PanelModel, at point: CGPoint?) {
+    let margins = panel.windowMargins
+    panel.pointer.location = point.map {
+      CGPoint(x: margins.leading + $0.x, y: margins.top + $0.y)
     }
   }
 

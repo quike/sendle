@@ -73,6 +73,14 @@ public struct PanelView: View {
       .offset(x: frame.minX, y: frame.minY)
       .animation(reduceMotion ? nil : Theme.press, value: panel.showsSendCard)
     }
+    .environment(panel.pointer)
+    .coordinateSpace(PointerModel.space)
+    .onContinuousHover(coordinateSpace: PointerModel.space) { phase in
+      switch phase {
+      case .active(let location): panel.pointer.location = location
+      case .ended: panel.pointer.location = nil
+      }
+    }
   }
 
   @ViewBuilder
