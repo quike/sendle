@@ -1,8 +1,10 @@
 import Foundation
 
 public protocol EPUBPreparer: Sendable {
-  /// Packages the book's EPUB into `staging` and applies the Kindle fixes.
-  func prepare(_ book: Book, in staging: URL) async throws(SendFailure) -> PreparedFile
+  /// Packages the book's EPUB into `staging`, writes `details` into its package document and
+  /// applies the Kindle fixes.
+  func prepare(_ book: Book, details: PackageDetails, in staging: URL) async throws(SendFailure)
+    -> PreparedFile
 }
 
 public protocol FormatConverter: Sendable {

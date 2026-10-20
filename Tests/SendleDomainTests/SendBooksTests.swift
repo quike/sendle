@@ -12,6 +12,7 @@ struct SendBooksTests {
     let converter: FakeFormatConverter
     let staging: FakeStagingArea
     let history: InMemorySendHistoryStore
+    let settings: InMemorySettingsStore?
     let sleeps = Recorder<Duration>()
     let now = Date(timeIntervalSince1970: 1_800_000_000)
     let log = FakeActivityLog()
@@ -22,7 +23,8 @@ struct SendBooksTests {
       preparer: FakeEPUBPreparer = FakeEPUBPreparer(),
       converter: FakeFormatConverter = FakeFormatConverter(),
       staging: FakeStagingArea = FakeStagingArea(),
-      history: InMemorySendHistoryStore = InMemorySendHistoryStore()
+      history: InMemorySendHistoryStore = InMemorySendHistoryStore(),
+      settings: InMemorySettingsStore? = nil
     ) {
       self.channel = channel
       self.channels = FakeDeliveryChannelFactory(channel: channel, failure: channelFailure)
@@ -30,6 +32,7 @@ struct SendBooksTests {
       self.converter = converter
       self.staging = staging
       self.history = history
+      self.settings = settings
     }
 
     var sendBooks: SendBooks {
@@ -37,7 +40,7 @@ struct SendBooksTests {
       let now = now
       return SendBooks(
         channels: channels, preparer: preparer, converter: converter, staging: staging,
-        history: history, now: { now }, retryDelay: .seconds(2),
+        history: history, settings: settings, now: { now }, retryDelay: .seconds(2),
         sleep: { await sleeps.record($0) }, log: log)
     }
 
@@ -88,6 +91,47 @@ struct SendBooksTests {
         "info MAIL Sent",
       ])
     #expect(harness.log.entries().first?.heading == .book(book.id))
+  }
+
+  @Test func logsAppliedDetails() async {
+    let harness = Harness(
+      preparer: FakeEPUBPreparer(fixes: [.addedLanguage], applied: [.title, .author, .cover]))
+    let book = Book.fixture()
+
+    _ = await harness.send([book], to: email)
+
+    #expect(
+      harness.log.summary == [
+        "info MAIL Moby-Dick · reader@kindle.com",
+        "debug MAIL Plan: prepare the EPUB, then deliver it",
+        "info EPUB Applied to the book: title, author, cover",
+        "info EPUB Fixed the EPUB: added its language",
+        "info MAIL Sent",
+      ])
+  }
+
+  @Test func namesEveryDetailItApplied() async {
+    let harness = Harness(
+      preparer: FakeEPUBPreparer(applied: [.language, .year, .isbn]))
+
+    _ = await harness.send([.fixture()], to: email)
+
+    #expect(
+      harness.log.messages(in: .epub).first == "Applied to the book: language, year, ISBN")
+  }
+
+  @Test func logsASkippedISBN() async {
+    let harness = Harness(preparer: FakeEPUBPreparer(applied: [.title]))
+    let book = Book.fixture(edits: AppliedEdits(fields: [.title, .isbn], isbn: "123"))
+
+    _ = await harness.send([book], to: email)
+
+    #expect(
+      harness.log.messages(in: .epub) == [
+        "Applied to the book: title", "ISBN not written: it isn't a valid ISBN",
+        "The EPUB needed no fixes",
+      ])
+    #expect(harness.log.entries().contains { $0.level == .warning && $0.area == .epub })
   }
 
   @Test func logsAConversionForUSB() async {
@@ -164,6 +208,62 @@ struct SendBooksTests {
     #expect(harness.channel.deliveries.map(\.file.format) == [.azw3])
     #expect(harness.channel.deliveries.map(\.name) == ["Moby-Dick - Herman Melville"])
     #expect(events.last == .sent(book.id, fixes: [.addedXMLDeclaration]))
+  }
+
+  @Test func carriesTheAppliedDetailsThroughConversion() async {
+    let harness = Harness(preparer: FakeEPUBPreparer(applied: [.year]))
+
+    _ = await harness.send([.fixture()], to: .usb(.fixture()))
+
+    #expect(harness.converter.convertedFiles.first?.applied == [.year])
+    #expect(harness.channel.deliveries.first?.file.applied == [.year])
+  }
+
+  // MARK: Details
+
+  @Test(arguments: [(AuthorSort.surname, "Melville, Herman" as String?), (.firstName, nil)])
+  func passesDetailsForTheAuthorSortSetting(sort: AuthorSort, creator: String?) async {
+    let harness = Harness(settings: InMemorySettingsStore(AppSettings(authorSort: sort)))
+    let cover = URL(filePath: "/Edits/edit-covers/book-1.jpg")
+    let book = Book.fixture(
+      sortAuthor: "Melville, Herman",
+      edits: AppliedEdits(fields: [.title, .cover], year: "1851", cover: cover))
+
+    _ = await harness.send([book], to: email)
+
+    #expect(
+      harness.preparer.receivedDetails == [
+        PackageDetails(title: "Moby-Dick", creator: creator, year: "1851", cover: cover)
+      ])
+  }
+
+  @Test func appliesTheAuthorSortToEveryBookInTheRun() async {
+    let harness = Harness(settings: InMemorySettingsStore(AppSettings(authorSort: .firstName)))
+    let books = [
+      Book.fixture(id: "a", sortAuthor: "Melville, Herman"),
+      Book.fixture(id: "b", sortAuthor: "Melville, Herman"),
+    ]
+
+    _ = await harness.send(books, to: email)
+
+    #expect(harness.preparer.receivedDetails.map(\.creator) == [nil, nil])
+  }
+
+  @Test func filesAuthorsBySurnameWithoutASettingsStore() async {
+    let harness = Harness()
+
+    _ = await harness.send([.fixture(sortAuthor: "Melville, Herman")], to: email)
+
+    #expect(harness.preparer.receivedDetails.map(\.creator) == ["Melville, Herman"])
+  }
+
+  @Test func anInvalidISBNIsNotPassedOnButIsMarkedSkipped() async {
+    let harness = Harness()
+    let book = Book.fixture(edits: AppliedEdits(fields: [.isbn], isbn: "123"))
+
+    _ = await harness.send([book], to: email)
+
+    #expect(harness.preparer.receivedDetails == [PackageDetails(skipsISBN: true)])
   }
 
   @Test func keepsTheEditionThroughConversion() async {

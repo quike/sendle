@@ -5,11 +5,16 @@ public struct Edition: Hashable, Sendable, Codable {
   public var key: String?
   public var isbn: String?
   public var publisher: String?
+  /// Four digits, from the package's first `dc:date`.
+  public var year: String?
 
-  public init(key: String? = nil, isbn: String? = nil, publisher: String? = nil) {
+  public init(
+    key: String? = nil, isbn: String? = nil, publisher: String? = nil, year: String? = nil
+  ) {
     self.key = key
     self.isbn = isbn
     self.publisher = publisher
+    self.year = year
   }
 
   /// The key without surrounding whitespace, or nil when nothing is left.

@@ -32,6 +32,8 @@ public struct PreparedFile: Sendable, Hashable {
   public let url: URL
   public let format: FileFormat
   public let fixes: [EPUBFix]
+  /// The details written into the book's package document.
+  public let applied: [PackageDetail]
   public let edition: Edition?
   /// What the ASIN of a delivered AZW3 derives from, when it isn't the delivered name.
   public let asinSeed: String?
@@ -39,12 +41,13 @@ public struct PreparedFile: Sendable, Hashable {
   public let asin: String?
 
   public init(
-    url: URL, format: FileFormat, fixes: [EPUBFix] = [], edition: Edition? = nil,
-    asinSeed: String? = nil, asin: String? = nil
+    url: URL, format: FileFormat, fixes: [EPUBFix] = [], applied: [PackageDetail] = [],
+    edition: Edition? = nil, asinSeed: String? = nil, asin: String? = nil
   ) {
     self.url = url
     self.format = format
     self.fixes = fixes
+    self.applied = applied
     self.edition = edition
     self.asinSeed = asinSeed
     self.asin = asin

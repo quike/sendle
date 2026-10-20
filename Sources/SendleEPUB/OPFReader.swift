@@ -99,7 +99,7 @@ public enum OPFReader {
     }
     return Edition(
       key: unique.flatMap { $0.isEmpty ? nil : $0 } ?? isbn, isbn: isbn,
-      publisher: reader.publisher)
+      publisher: reader.publisher, year: reader.year)
   }
 
   @discardableResult
@@ -146,7 +146,7 @@ private final class PackageReader: NSObject, XMLParserDelegate {
   }
 
   private static let dublinCore = "http://purl.org/dc/elements/1.1/"
-  private static let fields: Set<String> = ["language", "identifier", "publisher"]
+  private static let fields: Set<String> = ["language", "identifier", "publisher", "date"]
 
   var items: [RawItem] = []
   var coverID: String?
@@ -154,6 +154,9 @@ private final class PackageReader: NSObject, XMLParserDelegate {
   var uniqueIdentifier: String?
   var identifiers: [Identifier] = []
   var publisher: String?
+  /// Four digits from the first `dc:date`, when it starts with them.
+  var year: String?
+  private var sawDate = false
   private var field: Field?
 
   func parser(
@@ -197,6 +200,11 @@ private final class PackageReader: NSObject, XMLParserDelegate {
       hasLanguage = hasLanguage || !text.isEmpty
     case "identifier":
       identifiers.append(Identifier(id: finished.id, scheme: finished.scheme, text: text))
+    case "date":
+      guard !sawDate else { return }
+      sawDate = true
+      let digits = text.prefix { $0.isASCII && $0.isNumber }
+      year = digits.count == 4 ? String(digits) : nil
     default:
       if publisher == nil, !text.isEmpty { publisher = text }
     }

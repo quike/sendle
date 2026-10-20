@@ -199,6 +199,33 @@ struct OPFReaderTests {
 
     #expect(OPFReader.package(inEPUBAt: root)?.edition.isbn == nil)
   }
+
+  @Test func readsTheYearOfTheFirstDate() throws {
+    try EPUBFixture.book(
+      metadata: EPUBFixture.metadata + """
+        <dc:date opf:event="publication" xmlns:opf="http://www.idpf.org/2007/opf">1851-10-18T00:00:00+00:00</dc:date>
+        <dc:date>2020-01-01</dc:date>
+        """
+    ).write(to: root)
+
+    #expect(OPFReader.package(inEPUBAt: root)?.edition.year == "1851")
+  }
+
+  @Test(arguments: ["", "c. 1851", "18511018", "-0044", "١٨٥١"])
+  func aDateWithoutAFourDigitYearGivesNoYear(date: String) throws {
+    try EPUBFixture.book(metadata: EPUBFixture.metadata + "<dc:date>\(date)</dc:date>")
+      .write(to: root)
+
+    #expect(OPFReader.package(inEPUBAt: root)?.edition.year == nil)
+  }
+
+  @Test func onlyTheFirstDateCounts() throws {
+    try EPUBFixture.book(
+      metadata: EPUBFixture.metadata + "<dc:date>unknown</dc:date><dc:date>2020-01-01</dc:date>"
+    ).write(to: root)
+
+    #expect(OPFReader.package(inEPUBAt: root)?.edition.year == nil)
+  }
 }
 
 struct ArchivePathTests {

@@ -4,24 +4,36 @@ import os
 
 public final class FakeEPUBPreparer: EPUBPreparer {
   private let prepared = OSAllocatedUnfairLock<[BookID]>(initialState: [])
+  private let received = OSAllocatedUnfairLock<[PackageDetails]>(initialState: [])
   private let fixes: [EPUBFix]
+  private let applied: [PackageDetail]
   private let failure: SendFailure?
   private let edition: Edition?
 
-  public init(fixes: [EPUBFix] = [], failure: SendFailure? = nil, edition: Edition? = nil) {
+  public init(
+    fixes: [EPUBFix] = [], applied: [PackageDetail] = [], failure: SendFailure? = nil,
+    edition: Edition? = nil
+  ) {
     self.fixes = fixes
+    self.applied = applied
     self.failure = failure
     self.edition = edition
   }
 
   public var preparedIDs: [BookID] { prepared.withLock { $0 } }
 
-  public func prepare(_ book: Book, in staging: URL) async throws(SendFailure) -> PreparedFile {
+  /// The details each prepared book came with, in order.
+  public var receivedDetails: [PackageDetails] { received.withLock { $0 } }
+
+  public func prepare(_ book: Book, details: PackageDetails, in staging: URL)
+    async throws(SendFailure) -> PreparedFile
+  {
     prepared.withLock { $0.append(book.id) }
+    received.withLock { $0.append(details) }
     if let failure { throw failure }
     return PreparedFile(
       url: staging.appending(path: "\(book.id.rawValue).epub"), format: .epub, fixes: fixes,
-      edition: edition)
+      applied: applied, edition: edition)
   }
 }
 

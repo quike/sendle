@@ -11,7 +11,7 @@ public actor OPFEditionReader: EditionReader {
   }
 
   private struct Cache: Codable {
-    var version = 1
+    var version = 2
     var entries: [String: Entry] = [:]
   }
 
@@ -85,7 +85,7 @@ public actor OPFEditionReader: EditionReader {
   private func loadedCache() -> Cache {
     if let cache { return cache }
     guard let data = try? Data(contentsOf: cacheFile),
-      let stored = try? JSONDecoder().decode(Cache.self, from: data), stored.version == 1
+      let stored = try? JSONDecoder().decode(Cache.self, from: data), stored.version == 2
     else { return Cache() }
     return stored
   }

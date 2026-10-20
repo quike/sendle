@@ -68,8 +68,8 @@ struct Composition {
       covers: CoverStore(provider: CachedCoverProvider()),
       queue: SendQueueViewModel(
         sendBooks: SendBooks(
-          channels: channels, preparer: KindleEPUBPreparer(), converter: converter,
-          staging: staging, history: history, log: log)),
+          channels: channels, preparer: KindleEPUBPreparer(log: log), converter: converter,
+          staging: staging, history: history, settings: settings, log: log)),
       logs: LogsViewModel(feed: log), kindle: kindle,
       ejector: VolumeEjector(log: log), log: log)
     self.settings = settings

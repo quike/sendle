@@ -100,6 +100,27 @@ struct OPFEditionReaderTests {
     #expect(await reader().editions(of: [moby])[moby.id]?.key == "urn:uuid:moby-dick")
   }
 
+  @Test func aCacheFromBeforeEditionsHeldAYearIsReadAgain() async throws {
+    let moby = try epub(
+      id: "moby", metadata: EPUBFixture.metadata + "<dc:date>1851-10-18</dc:date>")
+    let modified = try #require(
+      try FileManager.default.attributesOfItem(atPath: moby.fileURL.path)[.modificationDate]
+        as? Date)
+    let stale: [String: Any] = [
+      "version": 1,
+      "entries": [
+        moby.fileURL.path(percentEncoded: false): [
+          "modified": Int(modified.timeIntervalSince1970), "edition": ["key": "urn:uuid:moby-dick"],
+        ]
+      ],
+    ]
+    try JSONSerialization.data(withJSONObject: stale).write(to: cacheFile)
+
+    #expect(
+      await reader().editions(of: [moby])
+        == [moby.id: Edition(key: "urn:uuid:moby-dick", year: "1851")])
+  }
+
   private func reader() -> OPFEditionReader {
     OPFEditionReader(cacheFile: cacheFile)
   }

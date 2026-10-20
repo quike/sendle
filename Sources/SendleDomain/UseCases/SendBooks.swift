@@ -16,6 +16,7 @@ public struct SendBooks: Sendable {
   private let converter: any FormatConverter
   private let staging: any StagingArea
   private let history: any SendHistoryStore
+  private let settings: (any SettingsStore)?
   private let now: @Sendable () -> Date
   private let retryDelay: Duration
   private let sleep: Sleep
@@ -27,6 +28,7 @@ public struct SendBooks: Sendable {
     converter: any FormatConverter,
     staging: any StagingArea,
     history: any SendHistoryStore,
+    settings: (any SettingsStore)? = nil,
     now: @escaping @Sendable () -> Date = { Date() },
     retryDelay: Duration = .seconds(2),
     sleep: @escaping Sleep = { try? await Task.sleep(for: $0) },
@@ -37,6 +39,7 @@ public struct SendBooks: Sendable {
     self.converter = converter
     self.staging = staging
     self.history = history
+    self.settings = settings
     self.now = now
     self.retryDelay = retryDelay
     self.sleep = sleep
@@ -45,20 +48,22 @@ public struct SendBooks: Sendable {
 
   /// Reports every step through `onEvent`, in order. Cancel the calling task to stop;
   /// books not yet sent are reported as `.cancelled`. Over USB, a book in `copies` goes out as
-  /// that copy.
+  /// that copy. The author sort setting is read once, when the send starts.
   public func callAsFunction(
     _ books: [Book],
     to destination: Destination,
     copies: [BookID: KindleCopy] = [:],
     onEvent: @Sendable (SendEvent) async -> Void
   ) async {
+    let authorSort = await settings?.load().authorSort ?? AppSettings.defaults.authorSort
     for book in books {
       if Task.isCancelled {
         await onEvent(.failed(book.id, .cancelled))
         continue
       }
       await onEvent(
-        await send(book, to: destination, copy: copies[book.id], onEvent: onEvent))
+        await send(
+          book, to: destination, copy: copies[book.id], authorSort: authorSort, onEvent: onEvent))
     }
   }
 
@@ -66,6 +71,7 @@ public struct SendBooks: Sendable {
     _ book: Book,
     to destination: Destination,
     copy: KindleCopy?,
+    authorSort: AuthorSort,
     onEvent: @Sendable (SendEvent) async -> Void
   ) async -> SendEvent {
     let area = destination.logArea
@@ -85,7 +91,8 @@ public struct SendBooks: Sendable {
       let directory = try staging.makeDirectory()
       defer { staging.remove(directory) }
       let file = try await run(
-        steps, for: book, to: destination, copy: copy, in: directory, onEvent: onEvent)
+        steps, for: book, to: destination, copy: copy, authorSort: authorSort, in: directory,
+        onEvent: onEvent)
       await record(book, to: destination, .sent)
       log.info(area, destination.kind == .usb ? "On the Kindle" : "Sent")
       return .sent(book.id, fixes: file.fixes)
@@ -124,6 +131,7 @@ public struct SendBooks: Sendable {
     for book: Book,
     to destination: Destination,
     copy: KindleCopy?,
+    authorSort: AuthorSort,
     in directory: URL,
     onEvent: @Sendable (SendEvent) async -> Void
   ) async throws(SendFailure) -> PreparedFile {
@@ -132,12 +140,15 @@ public struct SendBooks: Sendable {
       if Task.isCancelled { throw .cancelled }
       switch step {
       case .prepareEPUB:
-        file = try await preparer.prepare(book, in: directory)
+        let details = PackageDetails.for(book, authorSort: authorSort)
+        file = try await preparer.prepare(book, details: details, in: directory)
+        logApplied(file.applied, skippedISBN: details.skipsISBN)
         logFixes(file.fixes)
       case .convert(let format):
         let converted = try await converter.convert(file, to: format, in: directory)
         file = PreparedFile(
-          url: converted.url, format: converted.format, fixes: file.fixes, edition: file.edition)
+          url: converted.url, format: converted.format, fixes: file.fixes, applied: file.applied,
+          edition: file.edition)
       case .deliver:
         let channel = try await channels.channel(for: destination)
         try await deliver(
@@ -160,7 +171,8 @@ public struct SendBooks: Sendable {
   ) -> PreparedFile {
     guard destination.kind == .usb, file.format == .azw3 else { return file }
     return PreparedFile(
-      url: file.url, format: file.format, fixes: file.fixes, edition: file.edition,
+      url: file.url, format: file.format, fixes: file.fixes, applied: file.applied,
+      edition: file.edition,
       asinSeed: FileNaming.asinSeed(for: book, edition: file.edition, copy: copy?.number ?? 1),
       asin: copy?.keptASIN)
   }
@@ -186,6 +198,13 @@ public struct SendBooks: Sendable {
     }
   }
 
+  private func logApplied(_ applied: [PackageDetail], skippedISBN: Bool) {
+    if !applied.isEmpty {
+      log.info(.epub, "Applied to the book: \(applied.map(\.logName).joined(separator: ", "))")
+    }
+    if skippedISBN { log.warning(.epub, "ISBN not written: it isn't a valid ISBN") }
+  }
+
   private func logFixes(_ fixes: [EPUBFix]) {
     guard !fixes.isEmpty else { return log.debug(.epub, "The EPUB needed no fixes") }
     let names = fixes.map { fix in
@@ -208,6 +227,10 @@ public struct SendBooks: Sendable {
       log.warning(.app, "Couldn't add the send to the history: \(error.detail)")
     }
   }
+}
+
+extension PackageDetail {
+  fileprivate var logName: String { self == .isbn ? "ISBN" : rawValue }
 }
 
 extension KindleCopy {
