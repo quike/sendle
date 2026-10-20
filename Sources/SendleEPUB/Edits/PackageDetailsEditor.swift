@@ -1,8 +1,7 @@
 import Foundation
 import SendleDomain
 
-/// Writes the details a send carries into the text of a book's package document, following the
-/// rules in Spike B §5 and spec §5.3.
+/// Writes the details a send carries into the text of a book's package document.
 package struct PackageDetailsEditor {
   package struct Result: Equatable {
     package var text: String
@@ -30,7 +29,9 @@ package struct PackageDetailsEditor {
       write(title: title, in: document)
       applied.append(.title)
     }
-    if let creator = details.creator {
+    if let creator = details.creator,
+      !details.onlyIfSingleAuthor || authors(in: document).count == 1
+    {
       write(creator: creator, in: document)
       applied.append(.author)
     }
@@ -88,7 +89,7 @@ package struct PackageDetailsEditor {
   /// author.
   private static func write(creator: String, in document: PackageDocument) {
     let creators = document.dublinCore("creator")
-    let authors = creators.filter { (role(of: $0, in: document) ?? "aut") == "aut" }
+    let authors = authors(in: document)
     let added = document.newDublinCore("creator", text: creator)
     var nodes = [added]
     if document.isEPUB3 {
@@ -206,6 +207,11 @@ package struct PackageDetailsEditor {
       }
       number += 1
     }
+  }
+
+  /// Creators whose role is `aut` or missing.
+  private static func authors(in document: PackageDocument) -> [XMLElement] {
+    document.dublinCore("creator").filter { (role(of: $0, in: document) ?? "aut") == "aut" }
   }
 
   private static func removeWithRefinements(_ element: XMLElement, in document: PackageDocument) {

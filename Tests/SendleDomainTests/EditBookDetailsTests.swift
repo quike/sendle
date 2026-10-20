@@ -53,12 +53,11 @@ struct EditBookDetailsTests {
     #expect(
       draft
         == BookDetailsDraft(
-          title: "Los ritos del agua", author: "Eva Garcia Saenz",
-          sortTitle: "ritos del agua, Los", sortName: "Saenz, Eva Garcia", year: "1851",
-          isbn: "123", language: "es", cover: .keep, changesWriter: true))
+          title: "Los ritos del agua", author: "Eva Garcia Saenz", sortTitle: nil,
+          sortName: nil, year: "1851", isbn: "123", language: "es", cover: .keep,
+          changesWriter: true))
     let unknown = BookDetailsDraft(showing: .fixture(author: nil), fileValues: nil, otherBooks: 0)
-    #expect(unknown.author == "" && unknown.sortName == "" && unknown.year == "")
-    #expect(unknown.sortTitle == "Moby-Dick")
+    #expect(unknown.author == "" && unknown.year == "")
   }
 
   @Test func aValueEqualToTheBooksOwnRemovesTheEdit() async throws {
@@ -155,6 +154,16 @@ struct EditBookDetailsTests {
     #expect(
       saved.books[eva.id]
         == BookEdit(title: "Los ritos", author: "E. G. Sáenz", sortTitle: "Ritos", changedAt: now))
+  }
+
+  @Test func aTypedSortTitleIsSavedEvenWhenTheSheetOpenedWithIt() async throws {
+    let retitled = try await save(eva) {
+      $0.title = "Las aguas"
+      $0.sortTitle = "ritos del agua, Los"
+    }
+    #expect(
+      retitled.books[eva.id]
+        == BookEdit(title: "Las aguas", sortTitle: "ritos del agua, Los", changedAt: now))
   }
 
   @Test func aSortTitleEqualToTheDerivedOneRemovesIt() async throws {
@@ -274,10 +283,11 @@ struct EditBookDetailsTests {
         movedTo: WriterEdit(sortName: "Sáenz, Eva G.", sortNameChangedAt: earlier),
       ])
     #expect(shown(eva, with: edits).sortAuthor == "Sáenz, Eva G.")
-    let books = BookDetailsDraft(
-      showing: shown(eva, with: MetadataEdits.none), fileValues: nil, otherBooks: 2)
     let saved = try await save(eva, with: edits, otherBooks: 2) {
-      $0 = books
+      $0.title = "Los ritos del agua"
+      $0.author = ""
+      $0.sortTitle = ""
+      $0.sortName = ""
       $0.cover = .revert
     }
     #expect(saved.books[eva.id] == BookEdit(changedAt: now))
@@ -310,6 +320,31 @@ struct EditBookDetailsTests {
     #expect(
       renamed.writers == [evitasKey: WriterEdit(sortName: "Sáenz, E.", sortNameChangedAt: now)])
     #expect(shown(eva, with: renamed).sortAuthor == "Sáenz, E.")
+  }
+
+  @Test func aSortNameTypedAfterARenameIsSavedEvenWhenTheSheetOpenedWithIt() async throws {
+    let saved = try await save(eva) {
+      $0.author = "Evita Sáenz"
+      $0.changesWriter = false
+      $0.sortName = "Saenz, Eva Garcia"
+    }
+    let evitasKey = WriterKey(author: "Evita Sáenz")!
+    #expect(
+      saved.writers == [
+        evitasKey: WriterEdit(sortName: "Saenz, Eva Garcia", sortNameChangedAt: now)
+      ])
+    #expect(shown(eva, with: saved).sortAuthor == "Saenz, Eva Garcia")
+  }
+
+  @Test func clearingTheAuthorOfABookThatAlreadyHasTheRenamedSpellingKeepsTheRename()
+    async throws
+  {
+    let accented = Book.fixture(id: "accented", author: "Eva García Sáenz")
+    let renamed = MetadataEdits(writers: [
+      evasKey: WriterEdit(name: "Eva García Sáenz", nameChangedAt: earlier)
+    ])
+    let saved = try await save(accented, with: renamed, otherBooks: 2) { $0.author = "" }
+    #expect(saved == renamed)
   }
 
   @Test func aSortNameEqualToTheDefaultRemovesIt() async throws {

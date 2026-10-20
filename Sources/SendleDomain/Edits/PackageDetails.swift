@@ -16,6 +16,9 @@ public struct PackageDetails: Hashable, Sendable {
   public var cover: URL?
   /// The edited ISBN isn't valid, so it isn't written.
   public var skipsISBN: Bool
+  /// `creator` is written only over a package with exactly one author, so an author the user
+  /// didn't edit never loses a co-author.
+  public var onlyIfSingleAuthor: Bool
 
   public init(
     title: String? = nil,
@@ -24,7 +27,8 @@ public struct PackageDetails: Hashable, Sendable {
     year: String? = nil,
     isbn: String? = nil,
     cover: URL? = nil,
-    skipsISBN: Bool = false
+    skipsISBN: Bool = false,
+    onlyIfSingleAuthor: Bool = false
   ) {
     self.title = title
     self.creator = creator
@@ -33,6 +37,7 @@ public struct PackageDetails: Hashable, Sendable {
     self.isbn = isbn
     self.cover = cover
     self.skipsISBN = skipsISBN
+    self.onlyIfSingleAuthor = onlyIfSingleAuthor
   }
 
   /// Nothing to write.
@@ -45,26 +50,29 @@ public struct PackageDetails: Hashable, Sendable {
   public static func `for`(_ book: Book, authorSort: AuthorSort) -> PackageDetails {
     let edits = book.edits
     let isbn = edits.isbn.flatMap(ISBN.normalised)
-    return PackageDetails(
+    var details = PackageDetails(
       title: edits.fields.contains(.title) ? book.title : nil,
-      creator: creator(of: book, authorSort: authorSort),
       language: edits.fields.contains(.language) ? book.language : nil,
       year: edits.year,
       isbn: isbn,
       cover: edits.cover,
       skipsISBN: edits.isbn != nil && isbn == nil)
+    details.setCreator(of: book, authorSort: authorSort)
+    return details
   }
 
   /// The sort form for a single writer under Surname when it is valid, else the shown author
-  /// once it is edited; nil leaves the book's creators alone.
-  private static func creator(of book: Book, authorSort: AuthorSort) -> String? {
-    guard let author = book.author else { return nil }
+  /// once it is edited; none leaves the book's creators alone.
+  private mutating func setCreator(of book: Book, authorSort: AuthorSort) {
+    guard let author = book.author else { return }
+    let edited = !book.edits.fields.isDisjoint(with: [.author, .writerName])
     if authorSort == .surname, SortNames.isSingleWriter(author), let sort = book.sortAuthor,
       SortNames.isSortForm(sort)
     {
-      return sort
+      creator = sort
+      onlyIfSingleAuthor = !edited
+    } else if edited {
+      creator = author
     }
-    let edited = !book.edits.fields.isDisjoint(with: [.author, .writerName])
-    return edited ? author : nil
   }
 }

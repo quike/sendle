@@ -130,19 +130,23 @@ public struct AppliedEdits: Hashable, Sendable {
   public var cover: URL?
   /// The latest change to what Sendle writes into the file.
   public var changedAt: Date?
+  /// The book's own author hides a rename of its writer.
+  public var overridesWriterRename: Bool
 
   public init(
     fields: Set<EditedField> = [],
     year: String? = nil,
     isbn: String? = nil,
     cover: URL? = nil,
-    changedAt: Date? = nil
+    changedAt: Date? = nil,
+    overridesWriterRename: Bool = false
   ) {
     self.fields = fields
     self.year = year
     self.isbn = isbn
     self.cover = cover
     self.changedAt = changedAt
+    self.overridesWriterRename = overridesWriterRename
   }
 
   public var isEdited: Bool { !fields.isEmpty }

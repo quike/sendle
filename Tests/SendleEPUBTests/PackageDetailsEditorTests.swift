@@ -106,6 +106,20 @@ struct PackageDetailsEditorTests {
         == [Node("dc:contributor", ["opf:role": "edt"], "Some Editor")])
   }
 
+  @Test func anAuthorOnlyForASingleAuthorLeavesCoAuthorsAlone() throws {
+    let twoAuthors = try apply(
+      PackageDetails(creator: "Doe, John", onlyIfSingleAuthor: true), to: epub3Sample)
+    #expect(twoAuthors.text == epub3Sample)
+    #expect(twoAuthors.applied.isEmpty)
+
+    let oneAuthor = try apply(
+      PackageDetails(creator: "Writer, Old", onlyIfSingleAuthor: true), to: epub2Sample)
+    #expect(
+      try metadata(of: oneAuthor.text).named("dc:creator")
+        == [Node("dc:creator", ["opf:role": "aut"], "Writer, Old")])
+    #expect(oneAuthor.applied == [.author])
+  }
+
   // MARK: Language
 
   @Test func languageReplacesEveryDCLanguage() throws {

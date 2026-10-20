@@ -141,7 +141,7 @@ struct BookDetailsViewModelTests {
       saved.drafts == [
         BookDetailsDraft(
           title: "Los ritos del agua", author: "Eva Garcia Saenz", sortTitle: "",
-          sortName: "Saenz, Eva Garcia", year: "2016", isbn: "", language: nil, cover: .keep,
+          sortName: nil, year: "2016", isbn: "", language: nil, cover: .keep,
           changesWriter: true)
       ])
 
@@ -153,7 +153,7 @@ struct BookDetailsViewModelTests {
     #expect(unknown.revertHelp(.language) == "Back to Books: no language")
   }
 
-  @Test func anUntouchedSortLineFollowsTheTitleAndAuthor() async {
+  @Test func anUntouchedSortLineFollowsTheTitleAndAuthor() async throws {
     let saved = SavedDrafts()
     let sheet = sheet(saved: saved)
     sheet.title = "Los ritos del fuego"
@@ -161,10 +161,15 @@ struct BookDetailsViewModelTests {
     #expect(sheet.sortTitle == "ritos del fuego, Los")
     #expect(sheet.sortName == "Sáenz, Eva García")
     #expect(!sheet.isEdited(.sortTitle) && !sheet.isEdited(.sortName))
-    // The draft keeps the opening sort forms, so saving derives them afresh.
+    // The draft leaves untouched lines out, so saving derives them afresh.
     #expect(await sheet.save())
-    #expect(saved.drafts.last?.sortTitle == "ritos del agua, Los")
-    #expect(saved.drafts.last?.sortName == "Saenz, Eva Garcia")
+    let untouched = try #require(saved.drafts.last)
+    #expect(untouched.sortTitle == nil && untouched.sortName == nil)
+
+    // A line typed back to the opening sort form is still saved as typed.
+    sheet.sortName = "Saenz, Eva Garcia"
+    #expect(await sheet.save())
+    #expect(try #require(saved.drafts.last).sortName == "Saenz, Eva Garcia")
 
     let custom = self.sheet(
       shown(eva, with: MetadataEdits(books: [eva.id: BookEdit(sortTitle: "Agua")])))
@@ -262,7 +267,7 @@ struct BookDetailsViewModelTests {
     #expect(!alone.showsWriterCheckbox)
   }
 
-  @Test func revertAllRemovesAWritersSortNameOnlyWithTheBoxTicked() async {
+  @Test func revertAllRemovesAWritersSortNameOnlyWithTheBoxTicked() async throws {
     let edits = MetadataEdits(writers: [evasKey: WriterEdit(sortName: "García, Eva")])
     let saved = SavedDrafts()
     let sheet = sheet(shown(eva, with: edits), saved: saved)
@@ -274,7 +279,7 @@ struct BookDetailsViewModelTests {
     sheet.changesWriter = false
     #expect(sheet.isEdited(.sortName) && sheet.sortName == "García, Eva")
     #expect(await sheet.save())
-    #expect(saved.drafts.last?.sortName == "García, Eva")
+    #expect(try #require(saved.drafts.last).sortName == nil)
 
     // The line's own ↺ removes it whatever the checkbox says.
     sheet.revert(.sortName)

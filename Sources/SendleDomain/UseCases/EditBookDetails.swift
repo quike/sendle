@@ -2,14 +2,16 @@ import Foundation
 
 /// The edit sheet's fields as the user left them.
 public struct BookDetailsDraft: Hashable, Sendable {
-  public var title, author, sortTitle, sortName, year, isbn: String
+  public var title, author, year, isbn: String
+  /// What the user typed into a "Sorted as" line; nil when they left it alone.
+  public var sortTitle, sortName: String?
   public var language: String?
   public var cover: CoverChange
   /// "Also change the N other books by …".
   public var changesWriter: Bool
 
   public init(
-    title: String, author: String, sortTitle: String, sortName: String, year: String,
+    title: String, author: String, sortTitle: String?, sortName: String?, year: String,
     isbn: String, language: String?, cover: CoverChange, changesWriter: Bool
   ) {
     self.title = title
@@ -29,8 +31,7 @@ public struct BookDetailsDraft: Hashable, Sendable {
   /// so that reverting its author also removes the rename.
   public init(showing book: Book, fileValues: Edition?, otherBooks: Int) {
     self.init(
-      title: book.title, author: book.author ?? "", sortTitle: book.sortTitle ?? book.title,
-      sortName: book.sortAuthor ?? book.author ?? "",
+      title: book.title, author: book.author ?? "", sortTitle: nil, sortName: nil,
       year: book.edits.year ?? fileValues?.year ?? "",
       isbn: book.edits.isbn ?? fileValues?.isbn ?? "", language: book.language, cover: .keep,
       changesWriter: otherBooks > 0 || book.edits.fields.contains(.writerName))
@@ -64,9 +65,9 @@ public struct EditBookDetails: Sendable {
     self.now = now
   }
 
-  /// Saves the fields of `draft` that differ from what the sheet opened with; the others keep
-  /// their edits. A cleared field is reverted, as is one set back to what the book would show
-  /// without its edit.
+  /// Saves the fields of `draft` that differ from what the sheet opened with, and the sort lines
+  /// it holds; the others keep their edits. A cleared field is reverted, as is one set back to
+  /// what the book would show without its edit.
   ///
   /// `book` and `fileValues` must be the ones the draft was opened from, or untouched values may
   /// be saved as edits. `fileValues` is the book's own year and ISBN from its package, when known.
@@ -123,8 +124,8 @@ private struct DraftChanges: Sendable {
     guard !draft.title.trimmed.isEmpty else { throw .emptyTitle }
     title = changed(\.title)
     author = changed(\.author)
-    sortTitle = changed(\.sortTitle)
-    sortName = changed(\.sortName)
+    sortTitle = draft.sortTitle?.trimmed
+    sortName = draft.sortName?.trimmed
     isbn = changed(\.isbn)
 
     let year = changed(\.year)
@@ -159,9 +160,13 @@ private struct DraftChanges: Sendable {
 
   /// A writer-wide rename goes under the key of the author Books has, and the book follows it.
   /// Cleared for this book alone, the author is Books', which overrides a writer's rename.
+  /// Cleared on a book that neither shows nor hides the writer's rename, it leaves the rename.
   private func rename(to author: String, own: inout BookEdit, in edits: inout MetadataEdits) {
     own.author = nil
-    guard changesWriter, let key = WriterKey(author: book.original.author) else {
+    let reachesWriter =
+      !author.isEmpty || book.edits.fields.contains(.writerName)
+      || book.edits.overridesWriterRename
+    guard changesWriter, reachesWriter, let key = WriterKey(author: book.original.author) else {
       let typed = author.isEmpty ? book.original.author?.trimmed ?? "" : author
       own.author = Self.edit(typed, standard: shown(edits, own: own).author)
       return

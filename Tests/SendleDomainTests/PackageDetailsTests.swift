@@ -10,7 +10,9 @@ struct PackageDetailsTests {
     edits: AppliedEdits(fields: [.author]))
 
   @Test func editedAuthorUnderSurnameWritesTheSortForm() {
-    #expect(PackageDetails.for(cortazar, authorSort: .surname).creator == "Cortázar, Julio")
+    let details = PackageDetails.for(cortazar, authorSort: .surname)
+    #expect(details.creator == "Cortázar, Julio")
+    #expect(!details.onlyIfSingleAuthor)
   }
 
   @Test func editedAuthorUnderFirstNameWritesTheShownAuthor() {
@@ -34,6 +36,7 @@ struct PackageDetailsTests {
     let book = Book.fixture(author: "Herman Melville", sortAuthor: "Melville, Herman")
     let details = PackageDetails.for(book, authorSort: .surname)
     #expect(details.creator == "Melville, Herman")
+    #expect(details.onlyIfSingleAuthor)
     #expect(!details.isEmpty)
   }
 

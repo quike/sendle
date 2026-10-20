@@ -233,7 +233,9 @@ struct SendBooksTests {
 
     #expect(
       harness.preparer.receivedDetails == [
-        PackageDetails(title: "Moby-Dick", creator: creator, year: "1851", cover: cover)
+        PackageDetails(
+          title: "Moby-Dick", creator: creator, year: "1851", cover: cover,
+          onlyIfSingleAuthor: creator != nil)
       ])
   }
 

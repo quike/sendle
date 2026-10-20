@@ -76,6 +76,31 @@ struct ApplyEditsTests {
     #expect(apply(edits, to: book, .firstName).sortAuthor == "Eva García Sáenz")
   }
 
+  @Test func aRenameToTheSpellingABookAlreadyHasLeavesThatBookAlone() {
+    let accented = Book.fixture(
+      id: "b", author: "Eva García Sáenz ", sortAuthor: "García Sáenz, Eva")
+    let edits = MetadataEdits(writers: [
+      WriterKey(author: "Eva Garcia Saenz")!: WriterEdit(
+        name: "Eva García Sáenz", nameChangedAt: late)
+    ])
+    let applied = apply(edits, to: accented)
+    #expect(applied == accented)
+    #expect(applied.edits.fields.isEmpty)
+    #expect(applied.edits.changedAt == nil)
+    #expect(applied.sortAuthor == "García Sáenz, Eva")
+    #expect(PackageDetails.for(applied, authorSort: .surname).creator == "García Sáenz, Eva")
+  }
+
+  @Test func aBooksOwnAuthorOverridingAWriterRenameIsMarked() {
+    let book = Book.fixture(id: "b", author: "Eva Garcia Saenz")
+    var edits = MetadataEdits(books: [book.id: BookEdit(author: "E. G. Sáenz")])
+    #expect(!apply(edits, to: book).edits.overridesWriterRename)
+    edits.writers[WriterKey(author: "Eva Garcia Saenz")!] = WriterEdit(name: "Eva García Sáenz")
+    #expect(apply(edits, to: book).edits.overridesWriterRename)
+    edits.books[book.id] = nil
+    #expect(!apply(edits, to: book).edits.overridesWriterRename)
+  }
+
   @Test func aRenamedAuthorTakesTheSortNameOfTheNewWriterNotTheOldOne() {
     let book = Book.fixture(author: "Eva Garcia Saenz", sortAuthor: "Saenz, Eva Garcia")
     var edits = MetadataEdits.none

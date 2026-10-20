@@ -71,19 +71,19 @@ package final class BookDetailsViewModel {
 
   // MARK: Sort lines
 
-  /// An untouched line shows what saving would leave, following the title, while the draft keeps
-  /// the opening value so that saving it never adds or removes an edit.
+  /// An untouched line shows what saving would leave, following the title, while the draft
+  /// leaves it out so that saving it never adds or removes an edit.
   package var sortTitle: String {
     get {
       typedSortTitle
-        ?? (book.edits.fields.contains(.sortTitle) ? opened.sortTitle : standardSortTitle)
+        ?? (book.edits.fields.contains(.sortTitle) ? book.sortTitle ?? "" : standardSortTitle)
     }
     set { typedSortTitle = newValue }
   }
 
   /// Like `sortTitle`, following the author.
   package var sortName: String {
-    get { typedSortName ?? (keepsWriterSortName ? opened.sortName : standardSortName) }
+    get { typedSortName ?? (keepsWriterSortName ? book.sortAuthor ?? "" : standardSortName) }
     set { typedSortName = newValue }
   }
 
@@ -319,9 +319,9 @@ package final class BookDetailsViewModel {
 
   private var draft: BookDetailsDraft {
     BookDetailsDraft(
-      title: title, author: author, sortTitle: typedSortTitle ?? opened.sortTitle,
-      sortName: typedSortName ?? (removesWriterSortName ? "" : opened.sortName), year: year,
-      isbn: isbn, language: language, cover: cover, changesWriter: savedChangesWriter)
+      title: title, author: author, sortTitle: typedSortTitle,
+      sortName: typedSortName ?? (removesWriterSortName ? "" : nil), year: year, isbn: isbn,
+      language: language, cover: cover, changesWriter: savedChangesWriter)
   }
 
   /// A hidden checkbox keeps the draft's default.
