@@ -76,6 +76,42 @@ struct ApplyEditsTests {
     #expect(apply(edits, to: book, .firstName).sortAuthor == "Eva García Sáenz")
   }
 
+  @Test func aRenamedAuthorTakesTheSortNameOfTheNewWriterNotTheOldOne() {
+    let book = Book.fixture(author: "Eva Garcia Saenz", sortAuthor: "Saenz, Eva Garcia")
+    var edits = MetadataEdits.none
+    edits.writers[WriterKey(author: "Eva Garcia Saenz")!] = WriterEdit(
+      name: "Evita Saenz", sortName: "Old, Eva", nameChangedAt: early, sortNameChangedAt: late)
+    #expect(apply(edits, to: book).sortAuthor == "Saenz, Evita")
+
+    edits.writers[WriterKey(author: "Evita Saenz")!] = WriterEdit(
+      sortName: "Sáenz, Evita", sortNameChangedAt: late)
+    let surname = apply(edits, to: book, .surname)
+    #expect(surname.sortAuthor == "Sáenz, Evita")
+    #expect(surname.edits.fields == [.writerName, .writerSortName])
+    #expect(surname.edits.changedAt == late)
+
+    let firstName = apply(edits, to: book, .firstName)
+    #expect(firstName.sortAuthor == "Evita Saenz")
+    #expect(firstName.edits.fields == [.writerName])
+    #expect(firstName.edits.changedAt == early)
+  }
+
+  @Test func aSortNameForTheOriginalWriterStopsApplyingOnceTheBookMovesToAnotherWriter() {
+    let book = Book.fixture(id: "b", author: "Eva Garcia Saenz", sortAuthor: "Saenz, Eva Garcia")
+    var edits = MetadataEdits.none
+    edits.writers[WriterKey(author: "Eva Garcia Saenz")!] = WriterEdit(
+      sortName: "Saenz, E.", sortNameChangedAt: late)
+    let beforeMoving = apply(edits, to: book)
+    #expect(beforeMoving.sortAuthor == "Saenz, E.")
+    #expect(beforeMoving.edits.fields == [.writerSortName])
+
+    edits.books[book.id] = BookEdit(author: "Another Writer", changedAt: early)
+    let moved = apply(edits, to: book)
+    #expect(moved.sortAuthor == "Writer, Another")
+    #expect(moved.edits.fields == [.author])
+    #expect(moved.edits.changedAt == early)
+  }
+
   @Test func firstNameSortsAnUneditedAuthorAsShown() {
     let book = Book.fixture(author: "J. R. R. Tolkien", sortAuthor: "Tolkien, J. R. R.")
     #expect(apply(.none, to: book, .firstName).sortAuthor == "J. R. R. Tolkien")
