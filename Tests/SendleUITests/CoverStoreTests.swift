@@ -83,6 +83,21 @@ struct CoverStoreTests {
     #expect(store.slot(for: moby, size: .large).data == png)
   }
 
+  @Test func aNewEditedCoverGetsAFreshSlot() async {
+    let provider = FakeCoverProvider([moby.id: png])
+    let store = CoverStore(provider: provider)
+    let first = edited(cover: "moby-aaaaaaaaaaaa.jpg")
+    let second = edited(cover: "moby-bbbbbbbbbbbb.jpg")
+
+    await store.load(first, size: .large)
+    await store.load(first, size: .large)
+    await store.load(second, size: .large)
+
+    #expect(provider.requests.count == 2)
+    #expect(store.slot(for: second, size: .large) !== store.slot(for: first, size: .large))
+    #expect(store.slot(for: second, size: .large).data == png)
+  }
+
   @Test func aCoverIsPendingUntilItsFirstAnswer() async {
     let gate = Signal()
     let store = CoverStore(provider: FakeCoverProvider([moby.id: png], gate: gate))
@@ -110,5 +125,11 @@ struct CoverStoreTests {
     #expect(!slot.isPending)
     #expect(!slot.isLoaded)
     #expect(provider.requests.count == 2)
+  }
+
+  private func edited(cover: String) -> Book {
+    .fixture(
+      id: moby.id.rawValue,
+      edits: AppliedEdits(fields: [.cover], cover: URL(filePath: "/edit-covers/\(cover)")))
   }
 }

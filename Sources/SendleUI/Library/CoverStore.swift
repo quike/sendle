@@ -70,6 +70,8 @@ public final class CoverStore {
     let size: CoverSize
     /// A book that comes down from iCloud gets a fresh look.
     let availability: Availability
+    /// The chosen cover's file name, which changes with the image.
+    let edit: String?
   }
 
   private let provider: any CoverProvider
@@ -79,13 +81,19 @@ public final class CoverStore {
     self.provider = provider
   }
 
+  private func key(for book: Book, size: CoverSize) -> Key {
+    Key(
+      id: book.id, size: size, availability: book.availability,
+      edit: book.edits.cover?.lastPathComponent)
+  }
+
   package func slot(for book: Book, size: CoverSize) -> CoverSlot {
-    cache.slot(for: Key(id: book.id, size: size, availability: book.availability))
+    cache.slot(for: key(for: book, size: size))
   }
 
   package func load(_ book: Book, size: CoverSize) async {
     let provider = provider
-    await cache.load(Key(id: book.id, size: size, availability: book.availability)) {
+    await cache.load(key(for: book, size: size)) {
       await provider.cover(for: book, maxPixel: size.rawValue)
     }
   }

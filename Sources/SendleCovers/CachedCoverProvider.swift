@@ -14,23 +14,41 @@ public struct CachedCoverProvider: CoverProvider {
     self.cacheDirectory = cacheDirectory
   }
 
-  /// Never reads a book that isn't on this Mac, so a cover can't trigger an iCloud download.
+  /// The chosen cover is Sendle's own file, so it shows whatever the book's availability. The book
+  /// itself is only read when it is on this Mac, so a cover can't trigger an iCloud download.
   public func cover(for book: Book, maxPixel: Int) async -> Cover {
-    guard maxPixel > 0, book.availability == .ready || book.availability == .protected
-    else { return .none }
+    guard maxPixel > 0 else { return .none }
+    if let edited = book.edits.cover,
+      let png = editedCover(at: edited, for: book, maxPixel: maxPixel)
+    {
+      return .image(png)
+    }
+    guard book.availability == .ready || book.availability == .protected else { return .none }
     return withoutDownloads { cachedCover(for: book, maxPixel: maxPixel) } ?? .unreadable
+  }
+
+  /// The image's file name changes with its content, so it stands in for the file's date.
+  private func editedCover(at image: URL, for book: Book, maxPixel: Int) -> Data? {
+    let stem = image.deletingPathExtension().lastPathComponent
+    return cached("\(Self.fileName(for: book.id))-edit-\(stem)-\(maxPixel).png") {
+      CoverRenderer.png(fromImageAt: image, maxPixel: maxPixel)
+    }
   }
 
   /// A file that has gone, or gone back to iCloud, since the library was read may come back.
   private func cachedCover(for book: Book, maxPixel: Int) -> Cover {
     guard let modified = Self.localModificationTime(of: book.fileURL) else { return .unreadable }
-    let cached = cacheDirectory.appending(
-      path: "\(Self.fileName(for: book.id))-\(modified)-\(maxPixel).png")
-    if let data = try? Data(contentsOf: cached) { return .image(data) }
-    guard let png = Self.render(book, maxPixel: maxPixel) else { return .none }
+    let name = "\(Self.fileName(for: book.id))-\(modified)-\(maxPixel).png"
+    return cached(name) { Self.render(book, maxPixel: maxPixel) }.map(Cover.image) ?? .none
+  }
+
+  private func cached(_ name: String, render: () -> Data?) -> Data? {
+    let file = cacheDirectory.appending(path: name)
+    if let data = try? Data(contentsOf: file) { return data }
+    guard let png = render() else { return nil }
     try? FileManager.default.createDirectory(at: cacheDirectory, withIntermediateDirectories: true)
-    try? png.write(to: cached, options: .atomic)
-    return .image(png)
+    try? png.write(to: file, options: .atomic)
+    return png
   }
 
   private static func render(_ book: Book, maxPixel: Int) -> Data? {
