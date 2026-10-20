@@ -23,6 +23,11 @@ package final class BookDetailsViewModel {
   /// "Also change the N other books by …".
   package var changesWriter: Bool
   package var isCoverHovered = false
+  /// A "Sorted as" line's Edit was clicked.
+  package var isEditingSortTitle = false
+  package var isEditingSortName = false
+  /// "Other…" was chosen in the language pop-up.
+  package private(set) var isTypingLanguage = false
   /// A replacement chosen or dropped.
   package private(set) var coverPreview: Data?
   package private(set) var errorText: String?
@@ -84,11 +89,15 @@ package final class BookDetailsViewModel {
 
   package var showsSortTitle: Bool {
     let line = sortTitle.trimmed.isEmpty ? standardSortTitle : sortTitle.trimmed
-    return isEdited(.sortTitle) || line != shownTitle
+    return showsSortTitleField || line != shownTitle
   }
 
   /// Under First name the sort name would have no effect.
   package var showsSortName: Bool { authorSort == .surname }
+
+  /// A "Sorted as" line shows as a field after its Edit, and while it holds an edit.
+  package var showsSortTitleField: Bool { isEditingSortTitle || isEdited(.sortTitle) }
+  package var showsSortNameField: Bool { isEditingSortName || isEdited(.sortName) }
 
   // MARK: Writer
 
@@ -155,6 +164,32 @@ package final class BookDetailsViewModel {
     return "Amazon may not convert this language"
   }
 
+  package var languageTitle: String {
+    if isTypingLanguage { return "Other…" }
+    guard let tag = shownLanguage else { return "No language" }
+    return languages.first { Self.folded($0.tag) == Self.folded(tag) }?.name ?? tag
+  }
+
+  package func isChosenLanguage(_ tag: String) -> Bool {
+    guard !isTypingLanguage, let shown = shownLanguage else { return false }
+    return Self.folded(shown) == Self.folded(tag)
+  }
+
+  package func chooseLanguage(_ tag: String) {
+    language = tag
+    isTypingLanguage = false
+  }
+
+  /// Shows a field for any tag, starting from the chosen one.
+  package func typeOtherLanguage() {
+    isTypingLanguage = true
+  }
+
+  package var typedLanguage: String {
+    get { language ?? "" }
+    set { language = newValue }
+  }
+
   // MARK: Edits
 
   package func isEdited(_ field: Field) -> Bool {
@@ -209,7 +244,9 @@ package final class BookDetailsViewModel {
     case .sortName: typedSortName = ""
     case .year: year = ""
     case .isbn: isbn = ""
-    case .language: language = nil
+    case .language:
+      language = nil
+      isTypingLanguage = false
     }
   }
 
@@ -225,6 +262,12 @@ package final class BookDetailsViewModel {
     guard canChangeCover else { return }
     cover = .replace(data)
     coverPreview = data
+    errorText = nil
+  }
+
+  /// A file that can't be a cover says why, as saving it would.
+  package func refuseCover(_ error: EditDetailsError) {
+    errorText = Self.message(for: error)
   }
 
   package func revertCover() {
@@ -237,6 +280,8 @@ package final class BookDetailsViewModel {
   package func revertAll() {
     for field in Field.allCases where field != .sortName { revert(field) }
     typedSortName = nil
+    isEditingSortTitle = false
+    isEditingSortName = false
     revertedAll = true
     if book.edits.fields.contains(.writerSortName) { changesWriter = true }
     revertCover()

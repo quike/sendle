@@ -1,6 +1,7 @@
 import AppKit
 import SendleUI
 import SwiftUI
+import UniformTypeIdentifiers
 
 private final class FloatingPanel: NSPanel {
   override var canBecomeKey: Bool { true }
@@ -168,6 +169,22 @@ extension PanelController: SystemActions {
   }
 
   func chooseProgram() async -> URL? {
+    let picker = NSOpenPanel()
+    picker.directoryURL = FileManager.default.homeDirectoryForCurrentUser.appending(
+      path: ".cargo/bin", directoryHint: .isDirectory)
+    picker.message = "Choose the boko program."
+    return await choose(with: picker)
+  }
+
+  func chooseImage() async -> URL? {
+    let picker = NSOpenPanel()
+    picker.allowedContentTypes = [.image]
+    picker.message = "Choose an image for the book's cover."
+    return await choose(with: picker)
+  }
+
+  /// One file, keeping the panel open meanwhile.
+  private func choose(with picker: NSOpenPanel) async -> URL? {
     guard !isChoosingFile else { return nil }
     isChoosingFile = true
     defer {
@@ -175,13 +192,9 @@ extension PanelController: SystemActions {
       // A click elsewhere may have closed the panel while the picker was open.
       if isVisible { window.makeKeyAndOrderFront(nil) }
     }
-    let picker = NSOpenPanel()
     picker.canChooseFiles = true
     picker.canChooseDirectories = false
     picker.allowsMultipleSelection = false
-    picker.directoryURL = FileManager.default.homeDirectoryForCurrentUser.appending(
-      path: ".cargo/bin", directoryHint: .isDirectory)
-    picker.message = "Choose the boko program."
     picker.prompt = "Use"
     // Above the panel, which floats at the pop-up menu level.
     picker.level = NSWindow.Level(rawValue: NSWindow.Level.popUpMenu.rawValue + 1)

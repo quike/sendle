@@ -146,6 +146,11 @@ public final class LibraryViewModel {
     items.filter { selection.contains($0.id) }.map(\.book)
   }
 
+  /// The newest send of the book that may have reached the Kindle.
+  package func latestSend(of id: BookID) -> SendRecord? {
+    sends[id]?.latest
+  }
+
   // MARK: Lifecycle
 
   /// Reads the remembered layout and destination, then follows Kindles for the app's lifetime.

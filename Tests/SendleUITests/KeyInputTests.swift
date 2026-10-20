@@ -37,6 +37,13 @@ struct KeyInputTests {
     #expect(input.panelCommand == nil)
   }
 
+  @Test func commandIMapsToEditDetails() {
+    #expect(KeyInput(.character("i"), command: true).panelCommand == .editDetails)
+    #expect(KeyInput(.character("I"), command: true).panelCommand == .editDetails)
+    #expect(KeyInput(.character("i"), command: true, isEditingText: true).panelCommand == nil)
+    #expect(KeyInput(.character("i")).panelCommand == nil)
+  }
+
   @Test(
     arguments: [
       (UInt16(53), "\u{1b}", NSEvent.ModifierFlags(), KeyInput(.escape)),

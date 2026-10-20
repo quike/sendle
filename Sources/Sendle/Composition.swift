@@ -37,11 +37,12 @@ struct Composition {
     let sendTest = SendTestEmail(
       settings: settings, channels: channels, staging: staging, log: log)
     let history = JSONSendHistoryStore(directory: data, log: log)
+    let edits = JSONMetadataEditStore(directory: data, log: log)
     let chooseTool = ChooseConverterTool(settings: settings, choice: converter, log: log)
     let library = LibraryViewModel(
       loadLibrary: LoadLibrary(
         library: AppleBooksLibrary(location: .standard()), inspector: EPUBProtectionInspector(),
-        log: log),
+        edits: edits, settings: settings, log: log),
       observeDestinations: ObserveDestinations(
         monitor: kindles ?? KindleVolumeMonitor(log: log), settings: settings),
       settings: settings,
@@ -71,6 +72,7 @@ struct Composition {
           channels: channels, preparer: KindleEPUBPreparer(log: log), converter: converter,
           staging: staging, history: history, settings: settings, log: log)),
       logs: LogsViewModel(feed: log), kindle: kindle,
+      editDetails: EditBookDetails(store: edits, settings: settings),
       ejector: VolumeEjector(log: log), log: log)
     self.settings = settings
     self.chooseTool = chooseTool

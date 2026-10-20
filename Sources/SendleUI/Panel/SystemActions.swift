@@ -11,6 +11,8 @@ public protocol SystemActions: AnyObject {
   func endEditing()
   /// Asks for a program, keeping the panel open meanwhile; nil when the user cancels.
   func chooseProgram() async -> URL?
+  /// Asks for an image file, as `chooseProgram` asks for a program.
+  func chooseImage() async -> URL?
   /// Puts `text` on the pasteboard.
   func copy(_ text: String)
 }

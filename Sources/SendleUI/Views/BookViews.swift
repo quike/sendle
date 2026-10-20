@@ -385,7 +385,7 @@ struct CoverSpine: View {
   }
 }
 
-private struct CoverMark: View {
+struct CoverMark: View {
   let symbol: String
   let color: Color
 
@@ -533,6 +533,10 @@ extension View {
         if item.canSend, library.canSend {
           Button("Send") { Task { await panel.quickSend(item.id) } }
         }
+      }
+      .contextMenu {
+        Button("Edit Details…") { Task { await panel.openDetails(item.id) } }
+          .disabled(!panel.canEditDetails(item.book))
       }
   }
 }

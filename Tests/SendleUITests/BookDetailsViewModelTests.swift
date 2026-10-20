@@ -445,4 +445,54 @@ struct BookDetailsViewModelTests {
     #expect(sheet.languages.last?.name == "Other: eo")
     #expect(sheet.languageWarning == "Amazon may not convert this language")
   }
+
+  @Test func theLanguagePopUpChoosesATagOrTypesOne() {
+    let sheet = sheet()
+    #expect(sheet.languageTitle == "Spanish")
+    #expect(sheet.isChosenLanguage("es") && !sheet.isChosenLanguage("en"))
+
+    sheet.chooseLanguage("en")
+    #expect(sheet.language == "en" && sheet.languageTitle == "English")
+    #expect(sheet.isEdited(.language))
+
+    sheet.typeOtherLanguage()
+    #expect(sheet.isTypingLanguage && sheet.languageTitle == "Other…")
+    #expect(!sheet.isChosenLanguage("en"))
+    sheet.typedLanguage = "eo"
+    #expect(sheet.language == "eo")
+
+    sheet.revert(.language)
+    #expect(!sheet.isTypingLanguage && sheet.language == nil)
+    #expect(sheet.languageTitle == "Spanish" && sheet.isChosenLanguage("es"))
+
+    #expect(self.sheet(.fixture(id: "none", language: nil)).languageTitle == "No language")
+  }
+
+  @Test func aSortLineBecomesAFieldAfterEditAndWhileEdited() {
+    let sheet = sheet()
+    #expect(!sheet.showsSortTitleField && !sheet.showsSortNameField)
+
+    sheet.isEditingSortTitle = true
+    sheet.isEditingSortName = true
+    #expect(sheet.showsSortTitleField && sheet.showsSortNameField)
+    // Basque has no article to move, so the line would hide; a field opened by Edit stays.
+    sheet.language = "eu"
+    #expect(sheet.showsSortTitle)
+    sheet.revertAll()
+    #expect(!sheet.showsSortTitleField && !sheet.showsSortNameField)
+
+    let sorted = self.sheet(
+      shown(eva, with: MetadataEdits(books: [eva.id: BookEdit(sortTitle: "Agua")])))
+    #expect(sorted.showsSortTitleField)
+  }
+
+  @Test func aRefusedCoverSaysWhyUntilAnotherIsChosen() {
+    let sheet = sheet()
+    sheet.refuseCover(.unreadableImage)
+    #expect(sheet.errorText == "Sendle can't read that image. Choose another one.")
+    #expect(!sheet.isCoverEdited)
+
+    sheet.setCover(Data([1]))
+    #expect(sheet.errorText == nil && sheet.isCoverEdited)
+  }
 }

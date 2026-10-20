@@ -10,6 +10,7 @@ final class FakeSystemActions: SystemActions {
   var closedPanel = 0
   var endedEditing = 0
   var program: URL?
+  var image: URL?
   var copied: [String] = []
 
   func open(_ url: URL) { opened.append(url) }
@@ -17,6 +18,7 @@ final class FakeSystemActions: SystemActions {
   func closePanel() { closedPanel += 1 }
   func endEditing() { endedEditing += 1 }
   func chooseProgram() async -> URL? { program }
+  func chooseImage() async -> URL? { image }
   func copy(_ text: String) { copied.append(text) }
 }
 
@@ -32,7 +34,8 @@ struct PanelHarness {
 
   /// `onSleep` runs each time setup waits between access checks.
   /// `channel` delivers every send and test email; `ejector` replaces the harness's.
-  /// `edits` apply to the library's books, and `editions` are their EPUBs' editions.
+  /// `edits` apply to the library's books, and `editions` are their EPUBs' editions. Saving a book's
+  /// details fails with `editFailure`.
   func makePanel(
     _ saved: AppSettings = AppSettings(email: .fixture),
     channel: FakeDeliveryChannel = FakeDeliveryChannel(),
@@ -41,17 +44,19 @@ struct PanelHarness {
     converter: FakeFormatConverter = FakeFormatConverter(isAvailable: false),
     edits: MetadataEdits = .none,
     editions: [BookID: Edition] = [:],
+    editFailure: MetadataEditError? = nil,
     onSleep: @escaping @Sendable () async -> Void = { try? await Task.sleep(for: .seconds(60)) }
   ) -> (PanelModel, InMemorySettingsStore) {
     let settings = InMemorySettingsStore(saved)
+    let editStore = InMemoryMetadataEditStore(edits, failure: editFailure)
     let configure = ConfigureEmail(settings: settings, secrets: MemorySecretStore())
     let channels = FakeDeliveryChannelFactory(channel: channel)
     let staging = FakeStagingArea()
     let sendTest = SendTestEmail(settings: settings, channels: channels, staging: staging)
     let libraryModel = LibraryViewModel(
       loadLibrary: LoadLibrary(
-        library: library, inspector: StubProtectionInspector(),
-        edits: InMemoryMetadataEditStore(edits)),
+        library: library, inspector: StubProtectionInspector(), edits: editStore,
+        settings: settings),
       observeDestinations: ObserveDestinations(monitor: monitor, settings: settings),
       settings: settings, history: history, converter: converter)
     let setup = SetupViewModel(
@@ -77,6 +82,7 @@ struct PanelHarness {
           retryDelay: .zero, sleep: { _ in })),
       logs: LogsViewModel(feed: log),
       kindle: makeKindleModel(reading: kindle, history: history, editions: editions),
+      editDetails: EditBookDetails(store: editStore, settings: settings),
       ejector: ejector ?? self.ejector, log: log)
     panel.attach(system)
     return (panel, settings)

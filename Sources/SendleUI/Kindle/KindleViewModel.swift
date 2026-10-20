@@ -142,6 +142,13 @@ public final class KindleViewModel {
     await match.plannedCopies(books, copies: copies, listing: listing)
   }
 
+  /// The book's own edition, from its package; nil for a book whose file can't be read without
+  /// downloading it.
+  package func edition(of book: Book) async -> Edition? {
+    guard Self.hasReadableEdition(book) else { return nil }
+    return await match.editions(of: [book])[book.id]
+  }
+
   /// Matches the library against the listing already read.
   package func rematch() async {
     guard listing != nil else { return }

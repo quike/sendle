@@ -1,3 +1,4 @@
+import AppKit
 import CoreGraphics
 import Foundation
 import Observation
@@ -44,6 +45,9 @@ public final class PanelModel {
   package var focusedChip: KindleVolume?
   /// The duplicates of a USB send, while the user decides what to do with each.
   package private(set) var duplicateReview: DuplicateReviewModel?
+  /// The edit details sheet, while it shows.
+  package private(set) var bookDetails: BookDetailsViewModel?
+  package private(set) var isSavingDetails = false
   /// The Kindle a send is checked against, while it is: read for duplicates, then its copies' ASINs
   /// planned against it. Another send would only race it.
   package private(set) var checkingKindle: KindleVolume?
@@ -58,6 +62,7 @@ public final class PanelModel {
 
   @ObservationIgnored private weak var system: (any SystemActions)?
   @ObservationIgnored private let ejector: any KindleEjector
+  @ObservationIgnored private let editDetails: EditBookDetails
   @ObservationIgnored private let log: any ActivityLog
   @ObservationIgnored private var accessWatch: Task<Void, Never>?
   /// Where the logs go back to, and whether the settings sheet was over it.
@@ -80,6 +85,7 @@ public final class PanelModel {
     queue: SendQueueViewModel,
     logs: LogsViewModel,
     kindle: KindleViewModel,
+    editDetails: EditBookDetails,
     ejector: any KindleEjector,
     log: any ActivityLog = NoActivityLog()
   ) {
@@ -90,6 +96,7 @@ public final class PanelModel {
     self.queue = queue
     self.logs = logs
     self.kindle = kindle
+    self.editDetails = editDetails
     self.ejector = ejector
     self.log = log
     library.reportProblem = { [weak self] problem in self?.show(notice: problem) }
@@ -154,7 +161,7 @@ public final class PanelModel {
 
   /// The floating cards go with the books, so a sheet over them or another screen hides them.
   private var areFloatingCardsUncovered: Bool {
-    route == .library && !isShowingSettings && duplicateReview == nil
+    route == .library && !isShowingSettings && duplicateReview == nil && bookDetails == nil
   }
 
   /// Kindle covers carry their format, as the library's do, until the format menu picks one.
@@ -466,6 +473,76 @@ public final class PanelModel {
     }
   }
 
+  // MARK: Book details
+
+  /// Store purchases and protected books can't be sent, so their details aren't edited either.
+  package func canEditDetails(_ book: Book) -> Bool {
+    !book.isStorePurchase && book.availability != .protected
+  }
+
+  /// Opens the sheet over the library's books, with the book's own year and ISBN when its file can
+  /// be read.
+  package func openDetails(_ id: BookID) async {
+    guard canOpenDetails, let book = library.books.first(where: { $0.id == id }),
+      canEditDetails(book)
+    else { return }
+    system?.endEditing()
+    let fileValues = await kindle.edition(of: book)
+    guard canOpenDetails else { return }
+    let editDetails = editDetails
+    bookDetails = BookDetailsViewModel(
+      book: book, library: library.books, fileValues: fileValues,
+      authorSort: library.authorSort, lastSend: library.latestSend(of: id), now: Date(),
+      save: { (draft: BookDetailsDraft) async throws(EditDetailsError) in
+        try await editDetails.save(draft, for: book, fileValues: fileValues)
+      })
+  }
+
+  /// Nothing is saved.
+  package func closeDetails() {
+    bookDetails = nil
+  }
+
+  /// A saved sheet closes, and the library shows the edits once it reloads.
+  package func saveDetails() async {
+    guard let details = bookDetails, details.canSave, !isSavingDetails else { return }
+    isSavingDetails = true
+    defer { isSavingDetails = false }
+    guard await details.save() else { return }
+    if bookDetails === details { bookDetails = nil }
+    await library.reload()
+  }
+
+  package func chooseCoverImage() async {
+    guard let details = bookDetails, details.canChangeCover,
+      let url = await system?.chooseImage()
+    else { return }
+    _ = await loadCover(from: url, into: details)
+  }
+
+  /// False when the file isn't an image the sheet can take.
+  package func dropCover(_ url: URL) async -> Bool {
+    guard let details = bookDetails, details.canChangeCover else { return false }
+    return await loadCover(from: url, into: details)
+  }
+
+  private var canOpenDetails: Bool {
+    isOnLibraryBooks && bookDetails == nil && duplicateReview == nil && checkingKindle == nil
+  }
+
+  /// An image is refused here when it can't be read at all; saving checks its size. Only files
+  /// are read, so a URL dropped from a browser is never fetched.
+  private func loadCover(from url: URL, into details: BookDetailsViewModel) async -> Bool {
+    let data = url.isFileURL ? await Task.detached { try? Data(contentsOf: url) }.value : nil
+    guard bookDetails === details else { return false }
+    guard let data, NSImage(data: data) != nil else {
+      details.refuseCover(.unreadableImage)
+      return false
+    }
+    details.setCover(data)
+    return true
+  }
+
   // MARK: Logs
 
   /// Opens the logs over whatever shows; `subject` scrolls to the latest story of that send.
@@ -562,12 +639,14 @@ public final class PanelModel {
 
   // MARK: Keys
 
-  /// Esc closes the innermost thing: the duplicates, the settings sheet, a finished queue or a
-  /// setup that can wait, the search, the selection, then the panel. A running queue keeps going
-  /// behind a closed panel.
+  /// Esc closes the innermost thing: the duplicates, the edit sheet, the settings sheet, a finished
+  /// queue or a setup that can wait, the search, the selection, then the panel. A running queue
+  /// keeps going behind a closed panel.
   package func escape() {
     if duplicateReview != nil {
       cancelReview()
+    } else if bookDetails != nil {
+      closeDetails()
     } else if isShowingSettings {
       isShowingSettings = false
     } else if route == .logs {
@@ -588,13 +667,22 @@ public final class PanelModel {
   }
 
   /// True when the key was used, so the shell swallows it. A held Return settles no duplicate
-  /// the user hasn't seen.
+  /// the user hasn't seen, and saves no details twice.
   public func handle(_ key: KeyInput) -> Bool {
     guard let command = key.panelCommand else { return false }
     if duplicateReview != nil {
       switch command {
       case .escape: cancelReview()
       case .confirm: if !key.isRepeat { chooseDefault() }
+      default: return false
+      }
+      return true
+    }
+    if let details = bookDetails {
+      switch command {
+      case .escape: closeDetails()
+      case .confirm:
+        if !key.isRepeat, details.canSave, !isSavingDetails { Task { await saveDetails() } }
       default: return false
       }
       return true
@@ -622,6 +710,12 @@ public final class PanelModel {
     case .refresh:
       guard isOnLibrary, side == .kindle else { return false }
       Task { await kindle.refresh() }
+    case .editDetails:
+      let selected = library.selectedBooks
+      guard canOpenDetails, selected.count == 1, let book = selected.first,
+        canEditDetails(book)
+      else { return false }
+      Task { await openDetails(book.id) }
     }
     return true
   }

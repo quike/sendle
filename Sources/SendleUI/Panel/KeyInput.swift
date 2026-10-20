@@ -94,6 +94,7 @@ package enum PanelCommand: Equatable, Sendable {
   case focusSearch
   case refresh
   case openSettings
+  case editDetails
 }
 
 extension KeyInput {
@@ -119,6 +120,7 @@ extension KeyInput {
       case "f": return .focusSearch
       case "r": return .refresh
       case ",": return .openSettings
+      case "i": return isEditingText ? nil : .editDetails
       default: return nil
       }
     }
