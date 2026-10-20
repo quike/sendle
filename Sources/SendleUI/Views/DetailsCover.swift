@@ -34,7 +34,7 @@ private struct DetailsCover: View {
   @Bindable var details: BookDetailsViewModel
 
   var body: some View {
-    let book = details.isCoverEdited ? details.book : details.book.unedited
+    let book = details.coverBook
     Group {
       if details.canChangeCover {
         Button {

@@ -344,6 +344,20 @@ struct BookDetailsViewModelTests {
     #expect(!inCloud.isPDF && !inCloud.canChangeCover)
   }
 
+  @Test func theCoverShowsTheEditedTitleWithTheChosenCover() {
+    let retitled = sheet(shown(eva, with: MetadataEdits(books: [eva.id: BookEdit(title: "Ritos")])))
+    #expect(retitled.coverBook.title == "Ritos")
+    #expect(retitled.coverBook.edits.cover == nil)
+
+    let covered = sheet(
+      shown(eva, with: MetadataEdits(books: [eva.id: BookEdit(title: "Ritos", cover: "eva.jpg")])))
+    #expect(covered.coverBook.edits.cover == folder.appending(path: "eva.jpg"))
+    covered.revertCover()
+    #expect(covered.coverBook.edits.cover == nil)
+    #expect(!covered.coverBook.edits.fields.contains(.cover))
+    #expect(covered.coverBook.title == "Ritos" && covered.coverBook.id == eva.id)
+  }
+
   @Test func choosingACoverPreviewsItAndRevertPutsTheBooksBack() async {
     let saved = SavedDrafts()
     let sheet = sheet(saved: saved)

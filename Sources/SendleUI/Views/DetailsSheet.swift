@@ -92,7 +92,7 @@ private struct DetailsActions: View {
           KeyHintLabel(title: "Save", key: "↩")
         }
         .buttonStyle(PrimaryButtonStyle())
-        .disabled(!details.canSave || panel.isSavingDetails)
+        .disabled(!panel.canSaveDetails)
         .accessibilityLabel("Save")
       }
     }

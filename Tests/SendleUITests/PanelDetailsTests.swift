@@ -120,6 +120,50 @@ struct PanelDetailsTests {
     #expect(panel.bookDetails?.book.id == a)
   }
 
+  @Test func aHeldReturnSendsNothingOnceTheSheetHasSaved() async throws {
+    let panel = await launched()
+    panel.click(a, .plain)
+    await panel.openDetails(a)
+    try #require(panel.bookDetails).title = "Typee"
+
+    #expect(panel.handle(KeyInput(.returnKey)))
+    #expect(await eventually { panel.bookDetails == nil && title(of: a, in: panel) == "Typee" })
+    #expect(!panel.handle(KeyInput(.returnKey, isRepeat: true)))
+    try await Task.sleep(for: .milliseconds(50))
+
+    #expect(panel.route == .library)
+    #expect(panel.queue.rows.isEmpty)
+    #expect(panel.library.selection.contains(a))
+  }
+
+  @Test func thePanelStaysOpenWhileTheSheetShows() async throws {
+    let panel = await launched()
+    #expect(!panel.holdsPanelOpen)
+
+    await panel.openDetails(a)
+    #expect(panel.holdsPanelOpen)
+    panel.closeDetails()
+    #expect(!panel.holdsPanelOpen)
+
+    await panel.openDetails(a)
+    try #require(panel.bookDetails).title = "Typee"
+    await panel.saveDetails()
+    #expect(!panel.holdsPanelOpen)
+  }
+
+  @Test func saveWaitsForADraftThatCanBeSavedAndForTheSaveRunning() async throws {
+    let panel = await launched()
+    #expect(!panel.canSaveDetails)
+    await panel.openDetails(a)
+    let details = try #require(panel.bookDetails)
+    #expect(panel.canSaveDetails)
+
+    details.year = "17"
+    #expect(!panel.canSaveDetails)
+    await panel.saveDetails()
+    #expect(panel.bookDetails === details)
+  }
+
   @Test func savingReloadsTheLibraryAndClosesTheSheet() async throws {
     let panel = await launched()
     await panel.openDetails(a)

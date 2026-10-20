@@ -503,9 +503,15 @@ public final class PanelModel {
     bookDetails = nil
   }
 
+  /// A click elsewhere, or another app taking the keyboard, leaves the panel open while the sheet
+  /// shows, so typed edits stay and an image can be dragged in from Finder.
+  package var holdsPanelOpen: Bool { bookDetails != nil }
+
+  package var canSaveDetails: Bool { bookDetails?.canSave == true && !isSavingDetails }
+
   /// A saved sheet closes, and the library shows the edits once it reloads.
   package func saveDetails() async {
-    guard let details = bookDetails, details.canSave, !isSavingDetails else { return }
+    guard let details = bookDetails, canSaveDetails else { return }
     isSavingDetails = true
     defer { isSavingDetails = false }
     guard await details.save() else { return }
@@ -667,7 +673,7 @@ public final class PanelModel {
   }
 
   /// True when the key was used, so the shell swallows it. A held Return settles no duplicate
-  /// the user hasn't seen, and saves no details twice.
+  /// the user hasn't seen, saves no details twice, and sends nothing after the sheet it saved.
   public func handle(_ key: KeyInput) -> Bool {
     guard let command = key.panelCommand else { return false }
     if duplicateReview != nil {
@@ -678,11 +684,11 @@ public final class PanelModel {
       }
       return true
     }
-    if let details = bookDetails {
+    if bookDetails != nil {
       switch command {
       case .escape: closeDetails()
       case .confirm:
-        if !key.isRepeat, details.canSave, !isSavingDetails { Task { await saveDetails() } }
+        if !key.isRepeat, canSaveDetails { Task { await saveDetails() } }
       default: return false
       }
       return true
@@ -691,7 +697,7 @@ public final class PanelModel {
     case .escape:
       escape()
     case .confirm:
-      return confirm()
+      return key.isRepeat ? false : confirm()
     case .openSettings:
       if !isShowingSettings { Task { await openSettings() } }
     case .move(let direction):

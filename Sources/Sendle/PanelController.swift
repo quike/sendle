@@ -84,7 +84,10 @@ final class PanelController: NSObject, NSWindowDelegate {
     outsideClickMonitor = NSEvent.addGlobalMonitorForEvents(
       matching: [.leftMouseDown, .rightMouseDown]
     ) { [weak self] _ in
-      MainActor.assumeIsolated { self?.hide() }
+      MainActor.assumeIsolated {
+        guard let self, !self.model.holdsPanelOpen else { return }
+        self.hide()
+      }
     }
     opening = Task { [model] in await model.panelDidOpen() }
   }
@@ -109,7 +112,7 @@ final class PanelController: NSObject, NSWindowDelegate {
   }
 
   func windowDidResignKey(_ notification: Notification) {
-    if !isChoosingFile { hide() }
+    if !isChoosingFile && !model.holdsPanelOpen { hide() }
   }
 
   /// Text fields keep their editing keys; everything else goes to the panel's shortcuts. A field

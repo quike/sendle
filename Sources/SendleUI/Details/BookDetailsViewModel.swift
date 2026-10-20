@@ -270,6 +270,21 @@ package final class BookDetailsViewModel {
     errorText = Self.message(for: error)
   }
 
+  /// The book as the sheet's cover draws it: its shown title, without its stored cover once that
+  /// is reverted.
+  package var coverBook: Book {
+    guard book.edits.cover != nil, !isCoverEdited else { return book }
+    var edits = book.edits
+    edits.cover = nil
+    edits.fields.remove(.cover)
+    return Book(
+      id: book.id, title: book.title, author: book.author, language: book.language,
+      format: book.format, fileURL: book.fileURL, sizeBytes: book.sizeBytes, addedAt: book.addedAt,
+      isStorePurchase: book.isStorePurchase, availability: book.availability,
+      sortTitle: book.sortTitle, sortAuthor: book.sortAuthor, original: book.original,
+      edits: edits)
+  }
+
   package func revertCover() {
     cover = .revert
     coverPreview = nil
