@@ -200,6 +200,28 @@ struct EditBookDetailsTests {
     #expect(alone.writers == renamed.writers)
   }
 
+  @Test func anUntickedRevertGivesThisBookAloneBooksAuthor() async throws {
+    let renamed = MetadataEdits(writers: [
+      evasKey: WriterEdit(name: "Eva G. Sáenz", nameChangedAt: earlier)
+    ])
+    let saved = try await save(eva, with: renamed) {
+      $0.author = ""
+      $0.changesWriter = false
+    }
+    #expect(saved.books[eva.id] == BookEdit(author: "Eva Garcia Saenz", changedAt: now))
+    #expect(saved.writers == renamed.writers)
+    #expect(shown(eva, with: saved).author == "Eva Garcia Saenz")
+
+    // With no rename to override, Books' author needs no edit.
+    let own = MetadataEdits(books: [eva.id: BookEdit(author: "E. G. Sáenz")])
+    let reverted = try await save(eva, with: own) {
+      $0.author = ""
+      $0.changesWriter = false
+    }
+    #expect(reverted.books[eva.id] == BookEdit(changedAt: now))
+    #expect(reverted.writers.isEmpty)
+  }
+
   @Test func aWriterWideRevertRemovesTheRenameAndTheBooksOwn() async throws {
     let edits = MetadataEdits(
       books: [eva.id: BookEdit(author: "E. G. Sáenz", changedAt: earlier)],

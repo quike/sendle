@@ -237,6 +237,51 @@ struct BookDetailsViewModelTests {
     #expect(saved.drafts.last?.changesWriter == true)
   }
 
+  @Test func writerCheckboxShowsOnlyWhenItHasAnEffect() {
+    // Clearing the author of an unedited book changes no other book.
+    let unedited = sheet()
+    unedited.revert(.author)
+    #expect(!unedited.showsWriterCheckbox)
+
+    // A book's own author may override a rename, which the revert can also remove.
+    let own = sheet(
+      shown(eva, with: MetadataEdits(books: [eva.id: BookEdit(author: "E. G. Sáenz")])))
+    own.revert(.author)
+    #expect(own.showsWriterCheckbox)
+
+    // Revert all reaches the writer's sort name, so it shows the checkbox, ticked.
+    let sortName = MetadataEdits(writers: [evasKey: WriterEdit(sortName: "García, Eva")])
+    let sorted = sheet(shown(eva, with: sortName))
+    sorted.revert(.author)
+    #expect(!sorted.showsWriterCheckbox)
+    sorted.changesWriter = false
+    sorted.revertAll()
+    #expect(sorted.showsWriterCheckbox && sorted.changesWriter)
+    let alone = sheet(shown(eva, with: sortName), library: [eva])
+    alone.revertAll()
+    #expect(!alone.showsWriterCheckbox)
+  }
+
+  @Test func revertAllRemovesAWritersSortNameOnlyWithTheBoxTicked() async {
+    let edits = MetadataEdits(writers: [evasKey: WriterEdit(sortName: "García, Eva")])
+    let saved = SavedDrafts()
+    let sheet = sheet(shown(eva, with: edits), saved: saved)
+    sheet.revertAll()
+    #expect(sheet.changesWriter && !sheet.isEdited(.sortName))
+    #expect(await sheet.save())
+    #expect(saved.drafts.last?.sortName == "")
+
+    sheet.changesWriter = false
+    #expect(sheet.isEdited(.sortName) && sheet.sortName == "García, Eva")
+    #expect(await sheet.save())
+    #expect(saved.drafts.last?.sortName == "García, Eva")
+
+    // The line's own ↺ removes it whatever the checkbox says.
+    sheet.revert(.sortName)
+    #expect(await sheet.save())
+    #expect(saved.drafts.last?.sortName == "")
+  }
+
   @Test func sortNameLineHiddenUnderFirstName() {
     #expect(sheet().showsSortName)
     let firstName = sheet(authorSort: .firstName)
@@ -378,6 +423,12 @@ struct BookDetailsViewModelTests {
     #expect(
       american.languages.contains { $0.tag == "en-US" && $0.name == "English (United States)" })
     #expect(american.languageWarning == nil)
+
+    // A tag spelled another way is listed once, as the book spells it, so the pop-up finds it.
+    let shouted = self.sheet(.fixture(id: "es", language: "ES"))
+    #expect(shouted.languages.count == 41)
+    #expect(shouted.languages.filter { $0.name == "Spanish" }.map { $0.tag } == ["ES"])
+    #expect(shouted.languageWarning == nil)
 
     // A tag typed through "Other…" is listed too.
     sheet.language = "eo"

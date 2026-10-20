@@ -158,10 +158,12 @@ private struct DraftChanges: Sendable {
   }
 
   /// A writer-wide rename goes under the key of the author Books has, and the book follows it.
+  /// Cleared for this book alone, the author is Books', which overrides a writer's rename.
   private func rename(to author: String, own: inout BookEdit, in edits: inout MetadataEdits) {
     own.author = nil
     guard changesWriter, let key = WriterKey(author: book.original.author) else {
-      own.author = Self.edit(author, standard: shown(edits, own: own).author)
+      let typed = author.isEmpty ? book.original.author?.trimmed ?? "" : author
+      own.author = Self.edit(typed, standard: shown(edits, own: own).author)
       return
     }
     var writer = edits.writers[key] ?? WriterEdit()

@@ -32,6 +32,8 @@ package final class BookDetailsViewModel {
   /// What the user typed into a "Sorted as" line; nil until they do.
   private var typedSortTitle: String?
   private var typedSortName: String?
+  /// Set by "Revert all", which leaves the writer's sort name to the checkbox.
+  private var revertedAll = false
   private var cover = CoverChange.keep
   private let opened: BookDetailsDraft
   private let otherBooks: Int
@@ -90,9 +92,16 @@ package final class BookDetailsViewModel {
 
   // MARK: Writer
 
-  /// A cleared author differs too, so reverting a writer's rename shows it.
+  /// Only when ticking it changes something: a new author, a revert that may also remove a
+  /// writer's rename, or "Revert all" on a book showing a writer's sort name.
   package var showsWriterCheckbox: Bool {
-    otherBooks > 0 && author.trimmed != opened.author.trimmed
+    guard otherBooks > 0 else { return false }
+    let fields = book.edits.fields
+    let typed = author.trimmed
+    let renames =
+      typed.isEmpty
+      ? !fields.isDisjoint(with: [.author, .writerName]) : typed != opened.author.trimmed
+    return renames || (sortNameFollowsCheckbox && fields.contains(.writerSortName))
   }
 
   package var writerCheckboxTitle: String {
@@ -120,18 +129,25 @@ package final class BookDetailsViewModel {
 
   // MARK: Languages
 
-  /// Amazon's list (spec §5.6) by English name, then the book's and the typed tags it lacks.
+  /// Amazon's list (spec §5.6) by English name, then the book's and the typed tags it lacks. A
+  /// tag spelled another way takes the place of its entry, so the pop-up finds it.
   package var languages: [(tag: String, name: String)] {
-    var extras: [String] = []
+    var listed = Self.amazonEntries
+    var others: [String] = []
     for tag in [book.original.language, book.language, language].compactMap({ $0?.trimmed })
-    where !tag.isEmpty && !Self.amazonLanguages.contains(tag) && !extras.contains(tag) {
-      extras.append(tag)
+    where !tag.isEmpty {
+      let folded = Self.folded(tag)
+      if let index = listed.firstIndex(where: { Self.folded($0.tag) == folded }) {
+        listed[index].tag = tag
+      } else if Self.isAmazonLanguage(tag) {
+        listed.append((tag: tag, name: Self.name(of: tag)))
+      } else if let index = others.firstIndex(where: { Self.folded($0) == folded }) {
+        others[index] = tag
+      } else {
+        others.append(tag)
+      }
     }
-    let listed = (Self.amazonLanguages + extras.filter(Self.isAmazonLanguage))
-      .map { (tag: $0, name: Self.name(of: $0)) }
-      .sorted { $0.name < $1.name }
-    let others = extras.filter { !Self.isAmazonLanguage($0) }
-    return listed + others.map { (tag: $0, name: "Other: \($0)") }
+    return listed.sorted { $0.name < $1.name } + others.map { (tag: $0, name: "Other: \($0)") }
   }
 
   package var languageWarning: String? {
@@ -216,8 +232,13 @@ package final class BookDetailsViewModel {
     coverPreview = nil
   }
 
+  /// Reverts the book's own edits; its writer's rename and sort name go only with the checkbox
+  /// ticked when saving, which starts ticked for them.
   package func revertAll() {
-    for field in Field.allCases { revert(field) }
+    for field in Field.allCases where field != .sortName { revert(field) }
+    typedSortName = nil
+    revertedAll = true
+    if book.edits.fields.contains(.writerSortName) { changesWriter = true }
     revertCover()
   }
 
@@ -239,9 +260,18 @@ package final class BookDetailsViewModel {
   private var draft: BookDetailsDraft {
     BookDetailsDraft(
       title: title, author: author, sortTitle: typedSortTitle ?? opened.sortTitle,
-      sortName: typedSortName ?? opened.sortName, year: year, isbn: isbn, language: language,
-      cover: cover, changesWriter: showsWriterCheckbox ? changesWriter : opened.changesWriter)
+      sortName: typedSortName ?? (removesWriterSortName ? "" : opened.sortName), year: year,
+      isbn: isbn, language: language, cover: cover, changesWriter: savedChangesWriter)
   }
+
+  /// A hidden checkbox keeps the draft's default.
+  private var savedChangesWriter: Bool {
+    showsWriterCheckbox ? changesWriter : opened.changesWriter
+  }
+
+  private var sortNameFollowsCheckbox: Bool { revertedAll && typedSortName == nil }
+
+  private var removesWriterSortName: Bool { sortNameFollowsCheckbox && savedChangesWriter }
 
   // MARK: Private
 
@@ -277,7 +307,7 @@ package final class BookDetailsViewModel {
 
   /// A writer's sort name keeps applying while the author stays the same writer.
   private var keepsWriterSortName: Bool {
-    book.edits.fields.contains(.writerSortName)
+    book.edits.fields.contains(.writerSortName) && !removesWriterSortName
       && WriterKey(author: shownAuthor) == WriterKey(author: opened.author)
   }
 
@@ -296,6 +326,9 @@ package final class BookDetailsViewModel {
     "fy", "gl", "de", "gu", "hi", "is", "ga", "it", "ja", "lb", "mr", "ml", "gv", "frr", "nb",
     "nn", "pl", "pt", "oc", "rm", "sco", "gd", "es", "sv", "ta", "cy",
   ]
+
+  private static let amazonEntries = amazonLanguages.map { (tag: $0, name: name(of: $0)) }
+    .sorted { $0.name < $1.name }
 
   /// Amazon's list holds primary tags, so "en-US" is on it.
   private static func isAmazonLanguage(_ tag: String) -> Bool {
