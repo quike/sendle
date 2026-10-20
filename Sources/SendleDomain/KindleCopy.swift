@@ -1,8 +1,25 @@
-/// How a USB send delivers a book the Kindle already has a copy of.
-public enum KindleCopy: Hashable, Sendable {
-  /// Keep both: copy n, numbered from 2, under its own name and ASIN.
-  case keepBoth(Int)
-  /// Replace in place: the new copy keeps the old copy's ASIN, so the Kindle keeps its reading
+/// How a USB send names a book and seeds its ASIN.
+public struct KindleCopy: Hashable, Sendable {
+  /// 1 is the book's own name; from 2, "Title - Author (n)".
+  public var name: Int
+  /// Which copy's ASIN seed it gets, from 1.
+  public var asin: Int
+  /// Replace in place: the old copy's ASIN, kept as it is, so the Kindle keeps its reading
   /// position and cover.
-  case replacing(asin: String)
+  public var keptASIN: String?
+
+  public init(name: Int, asin: Int, keptASIN: String? = nil) {
+    self.name = name
+    self.asin = asin
+    self.keptASIN = keptASIN
+  }
+
+  /// Keep both: copy n, numbered from 2, under its own name and ASIN.
+  public static func keepBoth(_ copy: Int) -> KindleCopy {
+    KindleCopy(name: copy, asin: copy)
+  }
+
+  public static func replacing(asin: String) -> KindleCopy {
+    KindleCopy(name: 1, asin: 1, keptASIN: asin)
+  }
 }

@@ -32,12 +32,15 @@ struct PanelHarness {
 
   /// `onSleep` runs each time setup waits between access checks.
   /// `channel` delivers every send and test email; `ejector` replaces the harness's.
+  /// `edits` apply to the library's books, and `editions` are their EPUBs' editions.
   func makePanel(
     _ saved: AppSettings = AppSettings(email: .fixture),
     channel: FakeDeliveryChannel = FakeDeliveryChannel(),
     ejector: FakeKindleEjector? = nil,
     kindle: FakeKindleLibrary = FakeKindleLibrary(),
     converter: FakeFormatConverter = FakeFormatConverter(isAvailable: false),
+    edits: MetadataEdits = .none,
+    editions: [BookID: Edition] = [:],
     onSleep: @escaping @Sendable () async -> Void = { try? await Task.sleep(for: .seconds(60)) }
   ) -> (PanelModel, InMemorySettingsStore) {
     let settings = InMemorySettingsStore(saved)
@@ -46,7 +49,9 @@ struct PanelHarness {
     let staging = FakeStagingArea()
     let sendTest = SendTestEmail(settings: settings, channels: channels, staging: staging)
     let libraryModel = LibraryViewModel(
-      loadLibrary: LoadLibrary(library: library, inspector: StubProtectionInspector()),
+      loadLibrary: LoadLibrary(
+        library: library, inspector: StubProtectionInspector(),
+        edits: InMemoryMetadataEditStore(edits)),
       observeDestinations: ObserveDestinations(monitor: monitor, settings: settings),
       settings: settings, history: history, converter: converter)
     let setup = SetupViewModel(
@@ -67,10 +72,11 @@ struct PanelHarness {
       covers: CoverStore(provider: FakeCoverProvider()),
       queue: SendQueueViewModel(
         sendBooks: SendBooks(
-          channels: channels, preparer: FakeEPUBPreparer(), converter: converter, staging: staging,
-          history: history,
+          channels: channels, preparer: FakeEPUBPreparer(editions: editions), converter: converter,
+          staging: staging, history: history,
           retryDelay: .zero, sleep: { _ in })),
-      logs: LogsViewModel(feed: log), kindle: makeKindleModel(reading: kindle, history: history),
+      logs: LogsViewModel(feed: log),
+      kindle: makeKindleModel(reading: kindle, history: history, editions: editions),
       ejector: ejector ?? self.ejector, log: log)
     panel.attach(system)
     return (panel, settings)
@@ -79,7 +85,8 @@ struct PanelHarness {
   /// A library of two PDFs unless `books` says otherwise, a Kindle holding `listing`, USB as the
   /// destination, and the Kindle read. `converts` lets EPUBs go over USB.
   func pluggedInPanel(
-    listing: [KindleBook], books: [Book]? = nil, converts: Bool = false
+    listing: [KindleBook], books: [Book]? = nil, converts: Bool = false,
+    edits: MetadataEdits = .none, editions: [BookID: Edition] = [:]
   ) async -> (panel: PanelModel, kindle: FakeKindleLibrary, channel: FakeDeliveryChannel) {
     library.result = .success(
       books ?? [
@@ -90,7 +97,7 @@ struct PanelHarness {
     let channel = FakeDeliveryChannel()
     let (panel, _) = makePanel(
       AppSettings(email: .fixture, activeDestination: .usb), channel: channel, kindle: kindle,
-      converter: FakeFormatConverter(isAvailable: converts))
+      converter: FakeFormatConverter(isAvailable: converts), edits: edits, editions: editions)
     monitor.update([.fixture()])
     await panel.launch()
     await panel.panelDidOpen()

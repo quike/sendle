@@ -25,6 +25,17 @@ public struct MatchKindleBooks: Sendable {
     await editionReader.editions(of: books)
   }
 
+  /// Runs `KindleCopyPlanner` with the editions of the EPUBs on this Mac.
+  public func plannedCopies(
+    _ books: [Book], copies: [BookID: KindleCopy], listing: [KindleBook]
+  ) async -> [BookID: KindleCopy] {
+    let readable = books.filter(Self.hasReadableEdition)
+    guard !readable.isEmpty else { return copies }
+    return KindleCopyPlanner(asins: asins).plan(
+      books, copies: copies, editions: await editionReader.editions(of: readable),
+      listing: listing)
+  }
+
   public func callAsFunction(
     _ books: [Book], against listing: [KindleBook], on volume: KindleVolume
   ) async -> KindleMatches {
@@ -46,11 +57,13 @@ public struct MatchKindleBooks: Sendable {
       $0.isbn != nil || ($0.source == .sendle && !$0.asinFollowsFileName)
     }
     guard couldCarryKey else { return [:] }
-    let readable = books.filter {
-      $0.format == .epub && ($0.availability == .ready || $0.availability == .protected)
-    }
+    let readable = books.filter(Self.hasReadableEdition)
     guard !readable.isEmpty else { return [:] }
     return await editionReader.editions(of: readable)
+  }
+
+  private static func hasReadableEdition(_ book: Book) -> Bool {
+    book.format == .epub && (book.availability == .ready || book.availability == .protected)
   }
 
   private func editionASINs(

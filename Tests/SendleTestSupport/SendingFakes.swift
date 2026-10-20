@@ -9,15 +9,18 @@ public final class FakeEPUBPreparer: EPUBPreparer {
   private let applied: [PackageDetail]
   private let failure: SendFailure?
   private let edition: Edition?
+  private let editions: [BookID: Edition]
 
+  /// A book in `editions` comes out with its own edition, any other with `edition`.
   public init(
     fixes: [EPUBFix] = [], applied: [PackageDetail] = [], failure: SendFailure? = nil,
-    edition: Edition? = nil
+    edition: Edition? = nil, editions: [BookID: Edition] = [:]
   ) {
     self.fixes = fixes
     self.applied = applied
     self.failure = failure
     self.edition = edition
+    self.editions = editions
   }
 
   public var preparedIDs: [BookID] { prepared.withLock { $0 } }
@@ -33,7 +36,7 @@ public final class FakeEPUBPreparer: EPUBPreparer {
     if let failure { throw failure }
     return PreparedFile(
       url: staging.appending(path: "\(book.id.rawValue).epub"), format: .epub, fixes: fixes,
-      applied: applied, edition: edition)
+      applied: applied, edition: editions[book.id] ?? edition)
   }
 }
 

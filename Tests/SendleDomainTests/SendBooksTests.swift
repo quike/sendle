@@ -289,6 +289,20 @@ struct SendBooksTests {
     #expect(harness.channel.deliveries.first?.file.asinSeed == "edition:urn:uuid:moby-dick#2")
   }
 
+  @Test func aCopyKeepsItsNameButTakesItsASINNumber() async {
+    let harness = Harness(preparer: FakeEPUBPreparer(edition: Edition(key: "urn:uuid:moby-dick")))
+    let book = Book.fixture()
+    let events = Recorder<SendEvent>()
+
+    await harness.sendBooks(
+      [book], to: .usb(.fixture()), copies: [book.id: KindleCopy(name: 1, asin: 2)]
+    ) { await events.record($0) }
+
+    #expect(harness.channel.deliveries.map(\.name) == [FileNaming.copyName(for: book, copy: 1)])
+    #expect(harness.channel.deliveries.first?.file.asinSeed == "edition:urn:uuid:moby-dick#2")
+    #expect(harness.channel.deliveries.first?.file.asin == nil)
+  }
+
   @Test func aReplaceKeepsTheASINOfTheKindlesCopy() async {
     let harness = Harness(preparer: FakeEPUBPreparer(edition: Edition(key: "urn:uuid:moby-dick")))
     let book = Book.fixture()

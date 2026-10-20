@@ -51,6 +51,26 @@ struct MatchKindleBooksTests {
     #expect(found.byBook[BookID(rawValue: "moby")]?.reason == .isbn)
   }
 
+  @Test func plansCopiesWithTheEditionsOfEPUBsOnThisMac() async {
+    let keyed = FakeEditionReader([
+      BookID(rawValue: "moby"): Edition(key: "urn:uuid:moby-dick"),
+      BookID(rawValue: "cloud"): Edition(key: "urn:uuid:moby-dick"),
+    ])
+    let match = MatchKindleBooks(
+      editions: keyed, digests: digests, kindleDigests: digests, asins: FakeASINScheme(),
+      history: history)
+    let books: [Book] = [
+      .fixture(id: "moby"), .fixture(id: "cloud", availability: .inCloudOnly),
+      .fixture(id: "pdf", format: .pdf),
+    ]
+    let taken = KindleBook.fixture(path: "x.azw3", asin: "SN:edition:urn:uuid:moby-dick")
+
+    let planned = await match.plannedCopies(books, copies: [:], listing: [taken])
+
+    #expect(keyed.requests == [[BookID(rawValue: "moby")]])
+    #expect(planned == [BookID(rawValue: "moby"): KindleCopy(name: 1, asin: 2)])
+  }
+
   @Test func hashesOnlyPDFsOfTheSameSize() async {
     let pdf = Book.fixture(
       id: "orwell", title: "1984", format: .pdf, fileURL: URL(filePath: "/Books/1984.pdf"),

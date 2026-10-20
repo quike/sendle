@@ -131,6 +131,13 @@ public final class KindleViewModel {
     }
   }
 
+  /// `copies`, with each copy moved to an ASIN that no file in `listing` and no other book has.
+  package func plannedCopies(
+    for books: [Book], copies: [BookID: KindleCopy], listing: [KindleBook]
+  ) async -> [BookID: KindleCopy] {
+    await match.plannedCopies(books, copies: copies, listing: listing)
+  }
+
   /// Matches the library against the listing already read.
   package func rematch() async {
     guard listing != nil else { return }

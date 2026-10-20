@@ -316,6 +316,7 @@ struct PanelKindleTests {
     await panel.sendSelection()
 
     panel.choose(.skip)
+    await panel.waitUntilReviewed()
     await panel.queue.waitUntilFinished()
 
     #expect(panel.duplicateReview == nil)
@@ -345,6 +346,7 @@ struct PanelKindleTests {
     await panel.quickSend(BookID(rawValue: "a"))
 
     panel.choose(.keepBoth)
+    await panel.waitUntilReviewed()
     await panel.queue.waitUntilFinished()
 
     #expect(channel.deliveries.map(\.name) == ["Moby-Dick - Herman Melville (3)"])
@@ -360,6 +362,7 @@ struct PanelKindleTests {
     panel.duplicateReview?.appliesToRest = true
 
     panel.choose(.keepBoth)
+    await panel.waitUntilReviewed()
     await panel.queue.waitUntilFinished()
 
     #expect(
@@ -372,6 +375,7 @@ struct PanelKindleTests {
     await panel.quickSend(BookID(rawValue: "a"))
 
     panel.chooseDefault()
+    await panel.waitUntilReviewed()
     await panel.queue.waitUntilFinished()
 
     #expect(channel.deliveries.map(\.name) == ["Moby-Dick - Herman Melville"])
@@ -386,10 +390,65 @@ struct PanelKindleTests {
     await panel.quickSend(BookID(rawValue: "a"))
 
     panel.chooseDefault()
+    await panel.waitUntilReviewed()
     await panel.queue.waitUntilFinished()
 
     #expect(channel.deliveries.map(\.name) == ["Moby-Dick - Herman Melville"])
     #expect(channel.deliveries.map(\.file.asin) == ["SNMOBYDICK"])
+  }
+
+  /// Moby-Dick's edition, the library's EPUB "a".
+  let mobyEdition = [BookID(rawValue: "a"): Edition(key: "urn:uuid:moby-dick")]
+
+  @Test func keepBothForAnEditedBookUsesItsNewNameWithoutANumber() async {
+    let older = KindleBook.fixture(
+      path: "Moby-Dick - Herman Melville.azw3", source: .sendle,
+      asin: "SN:edition:urn:uuid:moby-dick")
+    let (panel, _, channel) = await harness.pluggedInPanel(
+      listing: [older], books: [.fixture(id: "a")], converts: true,
+      edits: MetadataEdits(books: [BookID(rawValue: "a"): BookEdit(title: "The Whale")]),
+      editions: mobyEdition)
+    await panel.quickSend(BookID(rawValue: "a"))
+    #expect(panel.duplicateReview?.choices == [.skip, .keepBoth])
+
+    panel.choose(.keepBoth)
+    await panel.waitUntilReviewed()
+    await panel.queue.waitUntilFinished()
+
+    #expect(channel.deliveries.map(\.name) == ["The Whale - Herman Melville"])
+    #expect(channel.deliveries.map(\.file.asinSeed) == ["edition:urn:uuid:moby-dick#2"])
+  }
+
+  @Test func keepBothForAnEditedBookWhoseNameIsTakenIsNumbered() async {
+    let older = KindleBook.fixture(
+      path: "Moby-Dick - Herman Melville.pdf", source: .sendle, asin: "SNMOBYDICK",
+      asinFollowsFileName: true)
+    let namesake = KindleBook.fixture(path: "The Whale - Herman Melville.pdf", title: "Other")
+    let (panel, _, channel) = await harness.pluggedInPanel(
+      listing: [older, namesake], books: [.fixture(id: "a", format: .pdf)],
+      edits: MetadataEdits(books: [BookID(rawValue: "a"): BookEdit(title: "The Whale")]))
+    await panel.quickSend(BookID(rawValue: "a"))
+
+    panel.choose(.keepBoth)
+    await panel.waitUntilReviewed()
+    await panel.queue.waitUntilFinished()
+
+    #expect(channel.deliveries.map(\.name) == ["The Whale - Herman Melville (2)"])
+  }
+
+  @Test func aSendWithoutDuplicatesStillGetsFreeASINs() async {
+    let renamed = KindleBook.fixture(
+      path: "Leviathan - Someone Else.azw3", title: "Leviathan", authors: ["Someone Else"],
+      source: .sendle, asin: "SN:edition:urn:uuid:moby-dick")
+    let (panel, _, channel) = await harness.pluggedInPanel(
+      listing: [renamed], books: [.fixture(id: "a")], converts: true, editions: mobyEdition)
+
+    await panel.quickSend(BookID(rawValue: "a"))
+    await panel.queue.waitUntilFinished()
+
+    #expect(panel.duplicateReview == nil)
+    #expect(channel.deliveries.map(\.name) == ["Moby-Dick - Herman Melville"])
+    #expect(channel.deliveries.map(\.file.asinSeed) == ["edition:urn:uuid:moby-dick#2"])
   }
 
   @Test func aCopySendleDidNotNameOffersOnlySkipAndKeepBoth() async {
@@ -428,6 +487,7 @@ struct PanelKindleTests {
 
     await panel.quickSend(BookID(rawValue: "a"))
     #expect(panel.handle(KeyInput(.returnKey)))
+    await panel.waitUntilReviewed()
     await panel.queue.waitUntilFinished()
     #expect(channel.deliveries.map(\.name) == ["Moby-Dick - Herman Melville"])
   }
@@ -502,6 +562,7 @@ struct PanelKindleTests {
     for _ in 1...2 {
       panel.choose(panel.duplicateReview?.current.book.title == "Moby-Dick" ? .skip : .keepBoth)
     }
+    await panel.waitUntilReviewed()
     await panel.queue.waitUntilFinished()
 
     #expect(
@@ -516,6 +577,7 @@ struct PanelKindleTests {
     await panel.quickSend(BookID(rawValue: "a"))
 
     panel.chooseDefault()
+    await panel.waitUntilReviewed()
     await panel.queue.waitUntilFinished()
 
     #expect(

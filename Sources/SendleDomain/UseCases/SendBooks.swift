@@ -154,7 +154,7 @@ public struct SendBooks: Sendable {
         try await deliver(
           Self.seeded(file, for: book, to: destination, copy: copy),
           named: destination.kind == .usb
-            ? FileNaming.copyName(for: book, copy: copy?.number ?? 1)
+            ? FileNaming.copyName(for: book, copy: copy?.name ?? 1)
             : FileNaming.deliveryName(for: book, to: destination.kind),
           via: channel,
           to: destination
@@ -173,7 +173,7 @@ public struct SendBooks: Sendable {
     return PreparedFile(
       url: file.url, format: file.format, fixes: file.fixes, applied: file.applied,
       edition: file.edition,
-      asinSeed: FileNaming.asinSeed(for: book, edition: file.edition, copy: copy?.number ?? 1),
+      asinSeed: FileNaming.asinSeed(for: book, edition: file.edition, copy: copy?.asin ?? 1),
       asin: copy?.keptASIN)
   }
 
@@ -231,16 +231,6 @@ public struct SendBooks: Sendable {
 
 extension PackageDetail {
   fileprivate var logName: String { self == .isbn ? "ISBN" : rawValue }
-}
-
-extension KindleCopy {
-  fileprivate var number: Int {
-    if case .keepBoth(let number) = self { number } else { 1 }
-  }
-
-  fileprivate var keptASIN: String? {
-    if case .replacing(let asin) = self { asin } else { nil }
-  }
 }
 
 extension Destination {
