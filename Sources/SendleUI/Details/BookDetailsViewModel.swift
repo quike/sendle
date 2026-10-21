@@ -152,7 +152,7 @@ package final class BookDetailsViewModel {
       if let index = listed.firstIndex(where: { Self.folded($0.tag) == folded }) {
         listed[index].tag = tag
       } else if Self.isAmazonLanguage(tag) {
-        listed.append((tag: tag, name: Self.name(of: tag)))
+        listed.append((tag: tag, name: Formatting.languageName(tag)))
       } else if let index = others.firstIndex(where: { Self.folded($0) == folded }) {
         others[index] = tag
       } else {
@@ -220,7 +220,7 @@ package final class BookDetailsViewModel {
     case .sortName: standardSortName
     case .year: fileValues?.year ?? ""
     case .isbn: fileValues?.isbn ?? ""
-    case .language: book.original.language.map(Self.name(of:)) ?? ""
+    case .language: book.original.language.map(Formatting.languageName) ?? ""
     }
   }
 
@@ -407,17 +407,15 @@ package final class BookDetailsViewModel {
     "nn", "pl", "pt", "oc", "rm", "sco", "gd", "es", "sv", "ta", "cy",
   ]
 
-  private static let amazonEntries = amazonLanguages.map { (tag: $0, name: name(of: $0)) }
-    .sorted { $0.name < $1.name }
+  private static let amazonEntries = amazonLanguages.map {
+    (tag: $0, name: Formatting.languageName($0))
+  }
+  .sorted { $0.name < $1.name }
 
   /// Amazon's list holds primary tags, so "en-US" is on it.
   private static func isAmazonLanguage(_ tag: String) -> Bool {
     let primary = folded(tag).split(separator: "-").first.map(String.init) ?? ""
     return amazonLanguages.contains(primary)
-  }
-
-  private static func name(of tag: String) -> String {
-    Locale(identifier: "en").localizedString(forIdentifier: tag) ?? tag
   }
 
   private static func facts(

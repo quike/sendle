@@ -29,4 +29,8 @@ struct FormattingTests {
   @Test func writesADayInEnglish() {
     #expect(Formatting.day(Date(timeIntervalSince1970: 1_760_270_400), in: .gmt) == "12 Oct 2025")
   }
+
+  @Test func namesALanguageInEnglish() {
+    #expect(Formatting.languageName("es") == "Spanish")
+  }
 }

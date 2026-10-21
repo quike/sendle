@@ -29,4 +29,9 @@ package enum Formatting {
         locale: Locale(identifier: "en_US_POSIX"), timeZone: zone,
         calendar: Calendar(identifier: .gregorian)))
   }
+
+  /// "Spanish" for "es", in English whatever the Mac's locale; a tag it doesn't know stays as it is.
+  package static func languageName(_ tag: String) -> String {
+    Locale(identifier: "en").localizedString(forIdentifier: tag) ?? tag
+  }
 }
