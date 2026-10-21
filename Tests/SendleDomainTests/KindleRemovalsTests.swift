@@ -3,6 +3,7 @@ import SendleDomain
 import SendleTestSupport
 import Testing
 
+@Suite(.timeLimit(.minutes(1)))
 struct KindleRemovalsTests {
   let remover = FakeKindleBookRemover()
   let log = FakeActivityLog()
@@ -77,6 +78,64 @@ struct KindleRemovalsTests {
     #expect(await removals.pending == second)
   }
 
+  @Test func overlappingDeletesRunOneAtATime() async throws {
+    let gate = Signal()
+    remover.gate = gate
+    let first = Task {
+      try? await removals.delete(book, listedWith: [book, other], on: .fixture())
+    }
+    #expect(await eventually { remover.events == [.held(book)] })
+
+    let second = Task {
+      try? await removals.delete(other, listedWith: [book, other], on: .fixture())
+    }
+    await letOtherTasksRun()
+    #expect(remover.events == [.held(book)])
+    await gate.fire()
+
+    let firstHeld = try #require(await first.value)
+    let secondHeld = try #require(await second.value)
+    #expect(remover.events == [.held(book), .finalized(firstHeld.id), .held(other)])
+    #expect(await removals.pending == secondHeld)
+  }
+
+  @Test func aDeleteWaitsForTheFinalizeInFlight() async throws {
+    let held = try await removals.delete(book, listedWith: [book, other], on: .fixture())
+    let gate = Signal()
+    remover.gate = gate
+    let timer = Task { await removals.finalize(held) }
+    #expect(await eventually { remover.finalized == [held.id] })
+
+    let second = Task {
+      try? await removals.delete(other, listedWith: [book, other], on: .fixture())
+    }
+    await letOtherTasksRun()
+    #expect(remover.holds == [book])
+    await gate.fire()
+
+    await timer.value
+    let secondHeld = try #require(await second.value)
+    #expect(remover.events == [.held(book), .finalized(held.id), .held(other)])
+    #expect(await removals.pending == secondHeld)
+  }
+
+  @Test func aFinalizeDuringAnUndoDoesNothing() async throws {
+    let held = try await removals.delete(book, listedWith: [book], on: .fixture())
+    let gate = Signal()
+    remover.gate = gate
+    let undo = Task { try? await removals.undo(held) }
+    #expect(await eventually { remover.restored == [held.id] })
+
+    let timer = Task { await removals.finalize(held) }
+    await letOtherTasksRun()
+    await gate.fire()
+
+    #expect(await undo.value != nil)
+    await timer.value
+    #expect(remover.events == [.held(book), .restored(held.id)])
+    #expect(await removals.pending == nil)
+  }
+
   @Test func aFailedFinalizeIsLoggedAndDropped() async throws {
     remover.failFinalize(with: .deviceDisconnected)
     _ = try await removals.delete(book, listedWith: [book], on: .fixture())
@@ -124,7 +183,7 @@ struct KindleRemovalsTests {
   @Test(arguments: [
     (2, "Cleared 2 held items left from before"), (1, "Cleared 1 held item left from before"),
   ])
-  func clearingLeftoversLogsOnlyWhenThereWereSome(count: Int, line: String) async {
+  func clearingLeftoversLogsHowManyWereCleared(count: Int, line: String) async {
     let volume = KindleVolume.fixture()
     remover.leftovers = count
 
@@ -168,5 +227,10 @@ struct KindleRemovalsTests {
     ])
   func removalErrorsReadAsADetail(error: KindleRemovalError, detail: String) {
     #expect(error.detail == detail)
+  }
+
+  /// Lets tasks started a moment ago reach the actor, so a call that should wait is waiting.
+  private func letOtherTasksRun() async {
+    for _ in 0..<50 { await Task.yield() }
   }
 }

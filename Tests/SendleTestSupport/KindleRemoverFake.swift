@@ -16,6 +16,7 @@ public final class FakeKindleBookRemover: KindleBookRemover {
     var clearedVolumes: [KindleVolume] = []
     var parts: [HeldPart] = [.book]
     var leftovers = 0
+    var gate: Signal?
     var holdFailure: KindleRemovalError?
     var restoreFailure: KindleRemovalError?
     var finalizeFailure: KindleRemovalError?
@@ -57,6 +58,12 @@ public final class FakeKindleBookRemover: KindleBookRemover {
     set { state.withLock { $0.leftovers = newValue } }
   }
 
+  /// While set, a hold, restore or finalize is recorded and then waits for it to fire.
+  public var gate: Signal? {
+    get { state.withLock { $0.gate } }
+    set { state.withLock { $0.gate = newValue } }
+  }
+
   public func failHold(with error: KindleRemovalError) {
     state.withLock { $0.holdFailure = error }
   }
@@ -72,28 +79,31 @@ public final class FakeKindleBookRemover: KindleBookRemover {
   public func hold(_ book: KindleBook, listedWith listing: [KindleBook], on volume: KindleVolume)
     async throws(KindleRemovalError) -> HeldBook
   {
-    let (failure, parts) = state.withLock { state in
+    let (failure, parts, gate) = state.withLock { state in
       state.events.append(.held(book))
       state.listings.append(listing)
-      return (state.holdFailure, state.parts)
+      return (state.holdFailure, state.parts, state.gate)
     }
+    await gate?.wait()
     if let failure { throw failure }
     return HeldBook(book: book, volume: volume, parts: parts)
   }
 
   public func restore(_ held: HeldBook) async throws(KindleRemovalError) {
-    let failure = state.withLock { state in
+    let (failure, gate) = state.withLock { state in
       state.events.append(.restored(held.id))
-      return state.restoreFailure
+      return (state.restoreFailure, state.gate)
     }
+    await gate?.wait()
     if let failure { throw failure }
   }
 
   public func finalize(_ held: HeldBook) async throws(KindleRemovalError) {
-    let failure = state.withLock { state in
+    let (failure, gate) = state.withLock { state in
       state.events.append(.finalized(held.id))
-      return state.finalizeFailure
+      return (state.finalizeFailure, state.gate)
     }
+    await gate?.wait()
     if let failure { throw failure }
   }
 
