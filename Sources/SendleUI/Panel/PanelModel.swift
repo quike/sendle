@@ -512,7 +512,8 @@ public final class PanelModel {
   /// Opens the read-only sheet over the Kindle's books, linked to the library book it matches.
   package func openKindleDetails(_ id: KindleBookID) {
     guard isOnLibrary, side == .kindle, bookDetails == nil, duplicateReview == nil,
-      kindleDetails == nil, let book = kindle.listing?.books.first(where: { $0.id == id })
+      kindleDetails == nil, checkingKindle == nil,
+      let book = kindle.listing?.books.first(where: { $0.id == id })
     else { return }
     kindleDetails = KindleDetailsViewModel(book: book, library: libraryLink(for: id))
   }
