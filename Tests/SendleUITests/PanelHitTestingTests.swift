@@ -24,22 +24,10 @@ struct PanelHitTestingTests {
     panel.library.selectAll()
     #expect(panel.showsSendCard)
 
-    let margins = panel.windowMargins
-    let size = PanelView.windowSize(margins: margins, card: panel.cardSize)
-    let window = NSWindow(
-      contentRect: NSRect(origin: .zero, size: size), styleMask: .borderless, backing: .buffered,
-      defer: false)
-    let host = NSHostingView(rootView: PanelView(panel: panel))
-    host.sizingOptions = []
-    window.contentView = host
-    window.orderFrontRegardless()
+    let (window, host) = try await show(panel)
     defer { window.orderOut(nil) }
-    for _ in 0..<5 {
-      host.layoutSubtreeIfNeeded()
-      window.displayIfNeeded()
-      try await Task.sleep(for: .milliseconds(50))
-    }
 
+    let margins = panel.windowMargins
     let x = margins.leading + panel.cardSize.width / 2 - 60
     for height in stride(from: 30.0, through: 210, by: 20) {
       let hit = host.superview?.hitTest(NSPoint(x: x, y: margins.bottom + height))
@@ -47,6 +35,66 @@ struct PanelHitTestingTests {
         hit is NSScrollView || hit?.enclosingScrollView != nil,
         "\(Int(height)) pt above the card's bottom, a click reaches \(hit.map { "\(type(of: $0))" } ?? "nothing")"
       )
+    }
+  }
+
+  @Test func aClickOnAKindleBookOpensItsDetails() async throws {
+    let harness = PanelHarness()
+    let book = KindleBook.fixture(
+      path: "Moby-Dick - Herman Melville.pdf", source: .sendle, asin: "SNMOBYDICK",
+      asinFollowsFileName: true)
+    let (panel, _, _) = await harness.pluggedInPanel(listing: [book])
+    panel.showSide(.kindle)
+    let (window, _) = try await show(panel)
+    defer { window.orderOut(nil) }
+
+    try click(at: firstCoverCentre(of: panel), in: window)
+
+    #expect(await eventually { panel.kindleDetails?.item.book.id == book.id })
+  }
+
+  /// `panel` in a borderless window of its size, laid out and drawn.
+  private func show(_ panel: PanelModel) async throws -> (NSWindow, NSHostingView<PanelView>) {
+    let size = PanelView.windowSize(margins: panel.windowMargins, card: panel.cardSize)
+    let window = NSWindow(
+      contentRect: NSRect(origin: .zero, size: size), styleMask: .borderless, backing: .buffered,
+      defer: false)
+    let host = NSHostingView(rootView: PanelView(panel: panel))
+    host.sizingOptions = []
+    window.contentView = host
+    window.orderFrontRegardless()
+    for _ in 0..<5 {
+      host.layoutSubtreeIfNeeded()
+      window.displayIfNeeded()
+      try await Task.sleep(for: .milliseconds(50))
+    }
+    return (window, host)
+  }
+
+  /// The middle of the grid's first cover, in the window's coordinates, which start at its bottom.
+  private func firstCoverCentre(of panel: PanelModel) -> NSPoint {
+    let margins = panel.windowMargins
+    let padding = BooksArea.screenPadding
+    let columns = CGFloat(BookGridMetrics.columns)
+    let grid = panel.cardSize.width - 2 * (padding + BooksArea.gridInset)
+    let column = (grid - (columns - 1) * BookGridMetrics.columnSpacing) / columns
+    let top =
+      margins.top + padding + LibraryControls.height(withKindle: true) + BooksArea.controlsGap
+      + BooksArea.insets.top + BooksArea.liftRoom
+    let height = PanelView.windowSize(margins: margins, card: panel.cardSize).height
+    return NSPoint(
+      x: margins.leading + padding + BooksArea.gridInset + column / 2,
+      y: height - top - column * 3 / 4)
+  }
+
+  private func click(at point: NSPoint, in window: NSWindow) throws {
+    for type in [NSEvent.EventType.leftMouseDown, .leftMouseUp] {
+      let event = try #require(
+        NSEvent.mouseEvent(
+          with: type, location: point, modifierFlags: [],
+          timestamp: ProcessInfo.processInfo.systemUptime, windowNumber: window.windowNumber,
+          context: nil, eventNumber: 0, clickCount: 1, pressure: type == .leftMouseDown ? 1 : 0))
+      window.sendEvent(event)
     }
   }
 }

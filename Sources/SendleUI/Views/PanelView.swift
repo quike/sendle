@@ -40,7 +40,7 @@ public struct PanelView: View {
         }
         .disabled(
           panel.isShowingSettings || panel.duplicateReview != nil || panel.bookDetails != nil
-            || isShowingLogs)
+            || panel.kindleDetails != nil || isShowingLogs)
         if panel.isShowingSettings {
           SettingsSheet(panel: panel).transition(sheet)
         }
@@ -51,14 +51,19 @@ public struct PanelView: View {
           DuplicateSheet(panel: panel, review: review).transition(sheet)
         }
         if let details = panel.bookDetails {
-          DetailsDim(panel: panel).transition(.opacity)
+          DetailsDim(close: panel.closeDetails).transition(.opacity)
           DetailsSheet(panel: panel, details: details).transition(sheet)
+        }
+        if let details = panel.kindleDetails {
+          DetailsDim(close: panel.closeKindleDetails).transition(.opacity)
+          KindleDetailsSheet(panel: panel, details: details).transition(sheet)
         }
       }
       .animation(motion, value: panel.isShowingSettings)
       .animation(motion, value: isShowingLogs)
       .animation(motion, value: panel.duplicateReview != nil)
       .animation(motion, value: panel.bookDetails != nil)
+      .animation(motion, value: panel.kindleDetails != nil)
     }
     .overlayPreferenceValue(BooksAreaKey.self) { books in
       GeometryReader { proxy in

@@ -183,7 +183,7 @@ private struct LanguageField: View {
 }
 
 /// A field's name above it, as the mockup's small capitals.
-private struct DetailsLabel: View {
+struct DetailsLabel: View {
   let text: String
 
   init(_ text: String) {
@@ -266,7 +266,7 @@ private struct RevertButton: View {
 
 extension View {
   /// The glass of `GlassTextField`, a little denser, with a warm border once edited.
-  fileprivate func detailsField(isEdited: Bool) -> some View {
+  func detailsField(isEdited: Bool) -> some View {
     let shape = RoundedRectangle(cornerRadius: 10, style: .continuous)
     return padding(.leading, 10)
       .padding(.trailing, isEdited ? 4 : 10)

@@ -1,23 +1,23 @@
 import SendleDomain
 import SwiftUI
 
-/// The edit sheet's cover beside the book's format, size and last send, aligned to its bottom.
-struct DetailsCoverRow: View {
-  let panel: PanelModel
-  let details: BookDetailsViewModel
+/// A details sheet's cover beside the book's format and facts, aligned to its bottom.
+struct DetailsFactsRow<Cover: View>: View {
+  let facts: [String]
+  @ViewBuilder let cover: Cover
 
   var body: some View {
     HStack(alignment: .bottom, spacing: 14) {
-      DetailsCover(panel: panel, details: details)
+      cover
       VStack(alignment: .leading, spacing: 5) {
-        if let format = details.facts.first {
+        if let format = facts.first {
           Text(format)
             .font(.system(size: 10, weight: .bold))
             .padding(.horizontal, 6)
             .padding(.vertical, 2)
             .background(Theme.glassHigh, in: RoundedRectangle(cornerRadius: 5))
         }
-        ForEach(details.facts.dropFirst(), id: \.self) { fact in
+        ForEach(facts.dropFirst(), id: \.self) { fact in
           Text(fact).font(.system(size: 11)).foregroundStyle(Theme.muted).lineLimit(1)
         }
       }
@@ -29,7 +29,7 @@ struct DetailsCoverRow: View {
 
 /// Clicking the cover, or dropping an image on it, replaces it; its ↺ puts the book's own back. A
 /// PDF's, or a book's still in iCloud, stays as it is.
-private struct DetailsCover: View {
+struct DetailsCover: View {
   let panel: PanelModel
   @Bindable var details: BookDetailsViewModel
 

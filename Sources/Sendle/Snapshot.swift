@@ -224,6 +224,18 @@ enum Snapshot {
       await panel.library.setLayout(layout)
       await write(window, "kindle-\(layout.rawValue).png", to: folder)
     }
+    panel.openKindleDetails(
+      KindleBookID(relativePath: "Alice's Adventures in Wonderland - Lewis Carroll.azw3"))
+    await write(window, "kindle-details.png", to: folder)
+    panel.closeKindleDetails()
+    panel.openKindleDetails(
+      KindleBookID(relativePath: "Downloads/Items01/The Hobbit_B007978NPG.kfx"))
+    // Once the sheet has risen, down to its note under the last field.
+    try? await Task.sleep(for: .milliseconds(700))
+    scrollToEnd(
+      panel, at: CGPoint(x: Theme.cardWidth / 2, y: panel.cardSize.height * 0.6), in: window)
+    await write(window, "kindle-details-kfx.png", to: folder)
+    panel.closeKindleDetails()
     await panel.library.setLayout(.list)
     panel.kindle.scope = .notInLibrary
     await write(window, "kindle-not-in-library.png", to: folder)
@@ -425,6 +437,19 @@ enum Snapshot {
     else { return }
     let clip = scroll.contentView
     clip.scroll(to: NSPoint(x: clip.bounds.minX, y: clip.bounds.minY + points))
+    scroll.reflectScrolledClipView(clip)
+  }
+
+  /// Scrolls the scroll view under a point of the card, measured from its top left, to its end.
+  private static func scrollToEnd(_ panel: PanelModel, at point: CGPoint, in window: NSWindow) {
+    let margins = panel.windowMargins
+    let location = CGPoint(x: margins.leading + point.x, y: margins.top + point.y)
+    guard let view = window.contentView,
+      let scroll = view.hitTest(view.convert(location, to: nil))?.enclosingScrollView,
+      let document = scroll.documentView
+    else { return }
+    let clip = scroll.contentView
+    clip.scroll(to: NSPoint(x: clip.bounds.minX, y: document.frame.height - clip.bounds.height))
     scroll.reflectScrolledClipView(clip)
   }
 

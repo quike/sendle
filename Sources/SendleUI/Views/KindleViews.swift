@@ -1,8 +1,8 @@
 import SendleDomain
 import SwiftUI
 
-/// What the Kindle side shows under its search: the books in the layout the library uses, with
-/// nothing to select or send.
+/// What the Kindle side shows under its search: the books in the layout the library uses. There is
+/// nothing to select or send; a click shows a book's details.
 struct KindleContent: View {
   let panel: PanelModel
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -57,11 +57,11 @@ private struct KindleBooks: View {
       ) {
         switch panel.library.layout {
         case .grid:
-          KindleGrid(kindle: kindle, items: items, showsFormat: panel.showsFormatOnKindleCovers)
+          KindleGrid(panel: panel, items: items, showsFormat: panel.showsFormatOnKindleCovers)
         case .list:
-          KindleList(kindle: kindle, items: items, headers: headers)
+          KindleList(panel: panel, items: items, headers: headers)
         case .shelf:
-          KindleShelf(kindle: kindle, items: items, recent: kindle.recentItems, headers: headers)
+          KindleShelf(panel: panel, items: items, recent: kindle.recentItems, headers: headers)
         }
       }
     }
@@ -69,7 +69,7 @@ private struct KindleBooks: View {
 }
 
 struct KindleGrid: View {
-  let kindle: KindleViewModel
+  let panel: PanelModel
   let items: [KindleItemViewModel]
   let showsFormat: Bool
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -80,11 +80,11 @@ struct KindleGrid: View {
     ) {
       ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
         VStack(alignment: .leading, spacing: 0) {
-          KindleCover(kindle: kindle, item: item, size: .large, showsFormat: showsFormat)
+          KindleCover(kindle: panel.kindle, item: item, size: .large, showsFormat: showsFormat)
             .aspectRatio(2 / 3, contentMode: .fit)
           GridCaption(title: item.title, byline: item.byline)
         }
-        .kindleDescription(item)
+        .kindleInteractions(panel, item)
         .transition(Theme.entrance(index: index, reduceMotion: reduceMotion))
       }
     }
@@ -94,7 +94,7 @@ struct KindleGrid: View {
 }
 
 struct KindleList: View {
-  let kindle: KindleViewModel
+  let panel: PanelModel
   let items: [KindleItemViewModel]
   let headers: AlphabetIndex<KindleBookID>?
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -106,7 +106,7 @@ struct KindleList: View {
           if let letter = headers?.header(before: item.id) {
             LetterHeader(letter: letter)
           }
-          KindleRow(kindle: kindle, item: item)
+          KindleRow(panel: panel, item: item)
         }
         .transition(Theme.entrance(index: index, reduceMotion: reduceMotion))
       }
@@ -117,7 +117,7 @@ struct KindleList: View {
 
 /// "Recently added" covers above the full list.
 struct KindleShelf: View {
-  let kindle: KindleViewModel
+  let panel: PanelModel
   let items: [KindleItemViewModel]
   let recent: [KindleItemViewModel]
   let headers: AlphabetIndex<KindleBookID>?
@@ -128,9 +128,9 @@ struct KindleShelf: View {
       ScrollView(.horizontal) {
         LazyHStack(spacing: 10) {
           ForEach(recent) { item in
-            KindleCover(kindle: kindle, item: item, size: .large, titleSize: 8)
+            KindleCover(kindle: panel.kindle, item: item, size: .large, titleSize: 8)
               .frame(width: 62, height: 93)
-              .kindleDescription(item)
+              .kindleInteractions(panel, item)
           }
         }
         .padding(.horizontal, 6)
@@ -140,18 +140,18 @@ struct KindleShelf: View {
       .scrollOverflow([.vertical, .leading])
       .scrollIndicators(.never)
       SectionLabel("All books").padding(.top, 6).padding(.bottom, 4)
-      KindleList(kindle: kindle, items: items, headers: headers)
+      KindleList(panel: panel, items: items, headers: headers)
     }
   }
 }
 
 struct KindleRow: View {
-  let kindle: KindleViewModel
+  let panel: PanelModel
   let item: KindleItemViewModel
 
   var body: some View {
     HStack(spacing: 10) {
-      KindleCover(kindle: kindle, item: item, size: .small)
+      KindleCover(kindle: panel.kindle, item: item, size: .small)
         .frame(width: 34, height: 50)
       VStack(alignment: .leading, spacing: 1) {
         Text(item.title).font(.system(size: 12.5, weight: .semibold)).lineLimit(1)
@@ -166,7 +166,7 @@ struct KindleRow: View {
       Spacer(minLength: 6)
     }
     .padding(7)
-    .kindleDescription(item)
+    .kindleInteractions(panel, item)
   }
 }
 
@@ -207,12 +207,19 @@ struct KindleCover: View {
 }
 
 extension View {
-  /// Hover shows the details; VoiceOver reads one element per book.
-  func kindleDescription(_ item: KindleItemViewModel) -> some View {
+  /// Hover shows a summary, and a click or the context menu the details sheet. VoiceOver reads one
+  /// element per book, whose action opens the sheet.
+  func kindleInteractions(_ panel: PanelModel, _ item: KindleItemViewModel) -> some View {
     contentShape(Rectangle())
+      .onTapGesture { panel.openKindleDetails(item.id) }
       .help(item.help)
       .accessibilityElement(children: .ignore)
       .accessibilityLabel("\(item.title), \(item.byline)")
       .accessibilityValue(item.spoken)
+      .accessibilityAddTraits(.isButton)
+      .accessibilityAction { panel.openKindleDetails(item.id) }
+      .contextMenu {
+        Button("Show Details…") { panel.openKindleDetails(item.id) }
+      }
   }
 }
