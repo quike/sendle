@@ -32,8 +32,8 @@ package enum KindleCovers {
   private static func thumbnail(of book: KindleBook, onKindleAt root: URL) -> Data? {
     guard let asin = book.asin, let type = book.documentType else { return nil }
     return try? Data(
-      contentsOf: root.appending(path: "system").appending(path: "thumbnails")
-        .appending(path: "thumbnail_\(asin)_\(type)_portrait.jpg"))
+      contentsOf: root.appending(path: ThumbnailName.folder)
+        .appending(path: ThumbnailName.of(asin: asin, type: type)))
   }
 
   private static func embeddedCover(in bytes: FileBytes) -> Data? {

@@ -25,8 +25,8 @@ enum KindleThumbnail {
       let cover = metadata.cover,
       let jpeg = KindleImages.scaled(cover, maxPixel: maxPixelSize, as: .jpeg)
     else { return .noCover }
-    let folder = system.appending(path: "thumbnails", directoryHint: .isDirectory)
-    let name = "thumbnail_\(metadata.asin)_\(metadata.documentType)_portrait.jpg"
+    let folder = root.appending(path: ThumbnailName.folder, directoryHint: .isDirectory)
+    let name = ThumbnailName.of(asin: metadata.asin, type: metadata.documentType)
     let thumbnail = folder.appending(path: name)
     do {
       try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
