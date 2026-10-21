@@ -171,4 +171,49 @@ struct KindleMatcherTests {
     #expect(!FileNaming.isSendlesCopy(old, of: edited))
     #expect(FileNaming.isSendlesCopy(new, of: edited))
   }
+
+  let kindle = KindleBook.fixture(path: "Moby-Dick - Herman Melville.azw3")
+
+  func link(_ confidence: MatchConfidence, _ reason: MatchReason) -> KindleMatch {
+    KindleMatch(book: kindle, confidence: confidence, reason: reason)
+  }
+
+  @Test func aSureMatchBeatsAMaybe() {
+    let matches = KindleMatches(
+      byBook: [
+        BookID(rawValue: "b"): link(.maybe, .titleOnly),
+        BookID(rawValue: "a"): link(.sure, .sendleName),
+      ], onKindle: [kindle.id: .sure])
+    #expect(matches.libraryBook(for: kindle.id) == BookID(rawValue: "a"))
+  }
+
+  @Test func theStrongerReasonThenTheSmallerIDBreaksATie() {
+    let byReason = KindleMatches(
+      byBook: [
+        BookID(rawValue: "a"): link(.sure, .titleAndAuthor),
+        BookID(rawValue: "z"): link(.sure, .isbn),
+      ], onKindle: [kindle.id: .sure])
+    #expect(byReason.libraryBook(for: kindle.id) == BookID(rawValue: "z"))
+    let byID = KindleMatches(
+      byBook: [
+        BookID(rawValue: "z"): link(.sure, .isbn),
+        BookID(rawValue: "a"): link(.sure, .isbn),
+      ], onKindle: [kindle.id: .sure])
+    #expect(byID.libraryBook(for: kindle.id) == BookID(rawValue: "a"))
+  }
+
+  @Test func aMatchToAnotherKindleBookIsNotACandidate() {
+    let other = KindleBook.fixture(path: "Dune.azw3", title: "Dune", authors: ["Frank Herbert"])
+    let matches = KindleMatches(
+      byBook: [
+        BookID(rawValue: "a"): link(.maybe, .titleOnly),
+        BookID(rawValue: "b"): KindleMatch(book: other, confidence: .sure, reason: .editionKey),
+      ], onKindle: [kindle.id: .maybe, other.id: .sure])
+    #expect(matches.libraryBook(for: kindle.id) == BookID(rawValue: "a"))
+  }
+
+  @Test func aKindleBookNoLibraryBookPointsAtHasNoLink() {
+    let matches = KindleMatches(byBook: [:], onKindle: [kindle.id: .maybe])
+    #expect(matches.libraryBook(for: kindle.id) == nil)
+  }
 }

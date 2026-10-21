@@ -53,6 +53,18 @@ public struct KindleMatches: Hashable, Sendable {
   public static let empty = KindleMatches(byBook: [:], onKindle: [:])
 }
 
+extension KindleMatches {
+  /// The library book whose strongest match is this Kindle book, or nil when none points at it.
+  public func libraryBook(for id: KindleBookID) -> BookID? {
+    byBook.filter { $0.value.book.id == id }
+      .max { lhs, rhs in
+        // The sides of the ID swap so that the smaller ID ranks higher.
+        (lhs.value.confidence, lhs.value.reason, rhs.key.rawValue)
+          < (rhs.value.confidence, rhs.value.reason, lhs.key.rawValue)
+      }?.key
+  }
+}
+
 /// A library PDF and a Kindle file with the same bytes.
 public struct ContentPair: Hashable, Sendable {
   public let book: BookID
