@@ -46,7 +46,11 @@ public struct KindleCopyPlanner: Sendable {
         [copy.asin] + (1...limit).filter { $0 > copy.asin } + (1...limit).filter { $0 < copy.asin }
       let free = order.first(where: isFree) ?? copy.asin
       given.insert(asin(free))
-      if free != copy.asin { planned[book.id] = KindleCopy(name: copy.name, asin: free) }
+      if free != copy.asin {
+        var renumbered = copy
+        renumbered.asin = free
+        planned[book.id] = renumbered
+      }
     }
     return planned
   }

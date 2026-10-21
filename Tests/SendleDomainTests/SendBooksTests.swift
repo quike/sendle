@@ -13,6 +13,7 @@ struct SendBooksTests {
     let staging: FakeStagingArea
     let history: InMemorySendHistoryStore
     let settings: InMemorySettingsStore?
+    let remover = FakeKindleBookRemover()
     let sleeps = Recorder<Duration>()
     let now = Date(timeIntervalSince1970: 1_800_000_000)
     let log = FakeActivityLog()
@@ -41,17 +42,25 @@ struct SendBooksTests {
       return SendBooks(
         channels: channels, preparer: preparer, converter: converter, staging: staging,
         history: history, settings: settings, now: { now }, retryDelay: .seconds(2),
-        sleep: { await sleeps.record($0) }, log: log)
+        sleep: { await sleeps.record($0) }, remover: remover, log: log)
     }
 
-    func send(_ books: [Book], to destination: Destination) async -> [SendEvent] {
+    func send(
+      _ books: [Book], to destination: Destination, copies: [BookID: KindleCopy] = [:],
+      listing: [KindleBook] = []
+    ) async -> [SendEvent] {
       let events = Recorder<SendEvent>()
-      await sendBooks(books, to: destination) { await events.record($0) }
+      await sendBooks(books, to: destination, copies: copies, listing: listing) {
+        await events.record($0)
+      }
       return await events.values
     }
   }
 
   let email = Destination.email(.fixture)
+  let usb = Destination.usb(.fixture())
+  let calibre = KindleBook.fixture(
+    path: "Melville, Herman/Moby-Dick - Herman Melville.pdf", source: .calibre)
 
   @Test func emailsAnEPUBAfterPreparingIt() async {
     let harness = Harness(preparer: FakeEPUBPreparer(fixes: [.addedLanguage]))
@@ -351,6 +360,80 @@ struct SendBooksTests {
     _ = await harness.send([.fixture()], to: email)
 
     #expect(harness.channel.deliveries.map(\.file.asinSeed) == [nil, nil])
+  }
+
+  // MARK: Replace
+
+  @Test func replacesTheOtherCopyOnceTheNewOneIsOnTheKindle() async {
+    let harness = Harness()
+    let book = Book.fixture(id: "a", format: .pdf)
+
+    let events = await harness.send(
+      [book], to: usb, copies: [book.id: KindleCopy(name: 1, asin: 1, removes: calibre)],
+      listing: [calibre])
+
+    #expect(harness.channel.deliveries.map(\.name) == ["Moby-Dick - Herman Melville"])
+    #expect(harness.remover.holds == [calibre])
+    #expect(harness.remover.finalized.count == 1)
+    #expect(harness.remover.listings == [[calibre]])
+    #expect(events.last == .sent(book.id, fixes: []))
+    #expect(
+      harness.log.summary.suffix(2) == [
+        "info USB Removed the earlier copy documents/Melville, Herman/Moby-Dick - Herman Melville.pdf",
+        "info USB On the Kindle",
+      ])
+  }
+
+  @Test func aFailedRemovalKeepsTheSend() async {
+    let harness = Harness()
+    harness.remover.failHold(with: .failed("busy"))
+    let book = Book.fixture(id: "a", format: .pdf)
+
+    let events = await harness.send(
+      [book], to: usb, copies: [book.id: KindleCopy(name: 1, asin: 1, removes: calibre)],
+      listing: [calibre])
+
+    #expect(events.last == .sent(book.id, fixes: []))
+    #expect(await harness.history.records().map(\.outcome) == [.sent])
+    #expect(
+      harness.log.summary.contains(
+        "warning USB Couldn't remove the earlier copy "
+          + "documents/Melville, Herman/Moby-Dick - Herman Melville.pdf: busy"))
+  }
+
+  @Test func neverRemovesAfterAFailedCopy() async {
+    let harness = Harness(channel: FakeDeliveryChannel(.fail(.diskFull)))
+    let book = Book.fixture(id: "a", format: .pdf)
+
+    let events = await harness.send(
+      [book], to: usb, copies: [book.id: KindleCopy(name: 1, asin: 1, removes: calibre)],
+      listing: [calibre])
+
+    #expect(events.last == .failed(book.id, .diskFull))
+    #expect(harness.remover.holds.isEmpty)
+  }
+
+  @Test func neverRemovesTheCopyItJustWrote() async {
+    let harness = Harness()
+    let book = Book.fixture(id: "a", format: .pdf)
+    let written = KindleBook.fixture(path: "MOBY-DICK - Herman Melville.PDF")
+
+    _ = await harness.send(
+      [book], to: usb, copies: [book.id: KindleCopy(name: 1, asin: 1, removes: written)],
+      listing: [written])
+
+    #expect(harness.remover.holds.isEmpty)
+  }
+
+  @Test func emailSendsRemoveNothing() async {
+    let harness = Harness()
+    let book = Book.fixture(id: "a", format: .pdf)
+
+    _ = await harness.send(
+      [book], to: email, copies: [book.id: KindleCopy(name: 1, asin: 1, removes: calibre)],
+      listing: [calibre])
+
+    #expect(harness.remover.holds.isEmpty)
   }
 
   @Test func reportsABlockedBookWithoutStartingWork() async {

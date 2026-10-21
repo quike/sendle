@@ -7,11 +7,15 @@ public struct KindleCopy: Hashable, Sendable {
   /// Replace in place: the old copy's ASIN, kept as it is, so the Kindle keeps its reading
   /// position and cover.
   public var keptASIN: String?
+  /// The Kindle's copy of this book that goes once the new one is delivered, when it isn't
+  /// overwritten.
+  public var removes: KindleBook?
 
-  public init(name: Int, asin: Int, keptASIN: String? = nil) {
+  public init(name: Int, asin: Int, keptASIN: String? = nil, removes: KindleBook? = nil) {
     self.name = name
     self.asin = asin
     self.keptASIN = keptASIN
+    self.removes = removes
   }
 
   /// Keep both: copy n, numbered from 2, under its own name and ASIN.

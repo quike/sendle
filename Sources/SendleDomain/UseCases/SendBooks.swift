@@ -20,6 +20,7 @@ public struct SendBooks: Sendable {
   private let now: @Sendable () -> Date
   private let retryDelay: Duration
   private let sleep: Sleep
+  private let remover: (any KindleBookRemover)?
   private let log: any ActivityLog
 
   public init(
@@ -32,6 +33,7 @@ public struct SendBooks: Sendable {
     now: @escaping @Sendable () -> Date = { Date() },
     retryDelay: Duration = .seconds(2),
     sleep: @escaping Sleep = { try? await Task.sleep(for: $0) },
+    remover: (any KindleBookRemover)? = nil,
     log: any ActivityLog = NoActivityLog()
   ) {
     self.channels = channels
@@ -43,16 +45,19 @@ public struct SendBooks: Sendable {
     self.now = now
     self.retryDelay = retryDelay
     self.sleep = sleep
+    self.remover = remover
     self.log = log
   }
 
   /// Reports every step through `onEvent`, in order. Cancel the calling task to stop;
   /// books not yet sent are reported as `.cancelled`. Over USB, a book in `copies` goes out as
-  /// that copy. The author sort setting is read once, when the send starts.
+  /// that copy, and once it is on the Kindle the copy it `removes`, as `listing` shows it, is
+  /// removed. The author sort setting is read once, when the send starts.
   public func callAsFunction(
     _ books: [Book],
     to destination: Destination,
     copies: [BookID: KindleCopy] = [:],
+    listing: [KindleBook] = [],
     onEvent: @Sendable (SendEvent) async -> Void
   ) async {
     let authorSort = await settings?.load().authorSort ?? AppSettings.defaults.authorSort
@@ -63,7 +68,8 @@ public struct SendBooks: Sendable {
       }
       await onEvent(
         await send(
-          book, to: destination, copy: copies[book.id], authorSort: authorSort, onEvent: onEvent))
+          book, to: destination, copy: copies[book.id], listing: listing, authorSort: authorSort,
+          onEvent: onEvent))
     }
   }
 
@@ -71,6 +77,7 @@ public struct SendBooks: Sendable {
     _ book: Book,
     to destination: Destination,
     copy: KindleCopy?,
+    listing: [KindleBook],
     authorSort: AuthorSort,
     onEvent: @Sendable (SendEvent) async -> Void
   ) async -> SendEvent {
@@ -93,6 +100,7 @@ public struct SendBooks: Sendable {
       let file = try await run(
         steps, for: book, to: destination, copy: copy, authorSort: authorSort, in: directory,
         onEvent: onEvent)
+      await removeReplaced(copy, for: book, delivered: file, to: destination, listing: listing)
       await record(book, to: destination, .sent)
       log.info(area, destination.kind == .usb ? "On the Kindle" : "Sent")
       return .sent(book.id, fixes: file.fixes)
@@ -195,6 +203,24 @@ public struct SendBooks: Sendable {
       await sleep(retryDelay)
       if Task.isCancelled { throw .cancelled }
       try await channel.deliver(file, named: name, progress: progress)
+    }
+  }
+
+  private func removeReplaced(
+    _ copy: KindleCopy?, for book: Book, delivered file: PreparedFile, to destination: Destination,
+    listing: [KindleBook]
+  ) async {
+    guard case .usb(let volume) = destination, let copy, let old = copy.removes, let remover
+    else { return }
+    let name = FileNaming.copyName(for: book, copy: copy.name)
+    guard old.id.relativePath.lowercased() != "\(name).\(file.format.fileExtension)".lowercased()
+    else { return }
+    let path = "documents/\(old.id.relativePath)"
+    do throws(KindleRemovalError) {
+      try await remover.removeForGood(old, listedWith: listing, on: volume)
+      log.info(.usb, "Removed the earlier copy \(path)")
+    } catch {
+      log.warning(.usb, "Couldn't remove the earlier copy \(path): \(error.detail)")
     }
   }
 

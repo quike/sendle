@@ -66,6 +66,16 @@ struct KindleCopyPlannerTests {
     #expect(planned == copies)
   }
 
+  @Test func aReplacementKeepsTheCopyItRemoves() {
+    let old = KindleBook.fixture(path: "Melville, Herman/Moby-Dick - Herman Melville.pdf")
+
+    let planned = planner.plan(
+      [moby], copies: [moby.id: KindleCopy(name: 1, asin: 1, removes: old)],
+      editions: [moby.id: edition], listing: [onKindle(copy: 1)])
+
+    #expect(planned == [moby.id: KindleCopy(name: 1, asin: 2, removes: old)])
+  }
+
   @Test func aCopyOverwritingAFileKeepsThatFilesASIN() {
     let own = KindleBook.fixture(
       path: "moby-dick - herman melville.AZW3", source: .sendle, asin: onKindle(copy: 1).asin)
