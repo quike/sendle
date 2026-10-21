@@ -47,6 +47,8 @@ public final class PanelModel {
   package private(set) var duplicateReview: DuplicateReviewModel?
   /// The edit details sheet, while it shows.
   package private(set) var bookDetails: BookDetailsViewModel?
+  /// The read-only details of a book on the Kindle, while the sheet shows.
+  package private(set) var kindleDetails: KindleDetailsViewModel?
   package private(set) var isSavingDetails = false
   /// The Kindle a send is checked against, while it is: read for duplicates, then its copies' ASINs
   /// planned against it. Another send would only race it.
@@ -162,6 +164,7 @@ public final class PanelModel {
   /// The floating cards go with the books, so a sheet over them or another screen hides them.
   private var areFloatingCardsUncovered: Bool {
     route == .library && !isShowingSettings && duplicateReview == nil && bookDetails == nil
+      && kindleDetails == nil
   }
 
   /// Kindle covers carry their format, as the library's do, until the format menu picks one.
@@ -257,7 +260,10 @@ public final class PanelModel {
   private func followKindle() {
     let volume = library.kindleVolume
     let books = library.books
-    if volume == nil { side = .library }
+    if volume == nil {
+      side = .library
+      kindleDetails = nil
+    }
     if let pending = pendingSend, library.activeDestination != pending.destination {
       stopSend(to: pending.destination)
     }
@@ -503,6 +509,36 @@ public final class PanelModel {
     bookDetails = nil
   }
 
+  /// Opens the read-only sheet over the Kindle's books, linked to the library book it matches.
+  package func openKindleDetails(_ id: KindleBookID) {
+    guard isOnLibrary, side == .kindle, bookDetails == nil, duplicateReview == nil,
+      kindleDetails == nil, let book = kindle.listing?.books.first(where: { $0.id == id })
+    else { return }
+    kindleDetails = KindleDetailsViewModel(book: book, library: libraryLink(for: id))
+  }
+
+  package func closeKindleDetails() {
+    kindleDetails = nil
+  }
+
+  /// Closes the sheet and opens the matching library book's edit sheet, where it is scrolled to.
+  package func editInLibrary() async {
+    guard let link = kindleDetails?.library, link.canEdit else { return }
+    closeKindleDetails()
+    showSide(.library)
+    library.letterJump.top = link.id
+    await openDetails(link.id)
+  }
+
+  private func libraryLink(for id: KindleBookID) -> KindleDetailsViewModel.LibraryLink? {
+    guard let matches = kindle.matches, let bookID = matches.libraryBook(for: id),
+      let book = library.books.first(where: { $0.id == bookID })
+    else { return nil }
+    return KindleDetailsViewModel.LibraryLink(
+      id: bookID, title: book.title, isSure: matches.byBook[bookID]?.confidence == .sure,
+      canEdit: canEditDetails(book))
+  }
+
   /// A click elsewhere, or another app taking the keyboard, leaves the panel open while the sheet
   /// shows, so typed edits stay and an image can be dragged in from Finder.
   package var holdsPanelOpen: Bool { bookDetails != nil }
@@ -646,14 +682,16 @@ public final class PanelModel {
 
   // MARK: Keys
 
-  /// Esc closes the innermost thing: the duplicates, the edit sheet, the settings sheet, a finished
-  /// queue or a setup that can wait, the search, the selection, then the panel. A running queue
-  /// keeps going behind a closed panel.
+  /// Esc closes the innermost thing: the duplicates, the edit sheet, the Kindle book's sheet, the
+  /// settings sheet, a finished queue or a setup that can wait, the search, the selection, then the
+  /// panel. A running queue keeps going behind a closed panel.
   package func escape() {
     if duplicateReview != nil {
       cancelReview()
     } else if bookDetails != nil {
       closeDetails()
+    } else if kindleDetails != nil {
+      closeKindleDetails()
     } else if isShowingSettings {
       isShowingSettings = false
     } else if route == .logs {
@@ -690,6 +728,13 @@ public final class PanelModel {
       case .escape: closeDetails()
       case .confirm:
         if !key.isRepeat, canSaveDetails { Task { await saveDetails() } }
+      default: return false
+      }
+      return true
+    }
+    if kindleDetails != nil {
+      switch command {
+      case .escape, .confirm: closeKindleDetails()
       default: return false
       }
       return true
