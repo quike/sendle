@@ -109,6 +109,11 @@ public struct KindleBook: Identifiable, Hashable, Sendable, Codable {
     KindleFileName.stem(of: fileName)
   }
 
+  /// True for what the Kindle fetched itself, in its own downloads folder.
+  public var isKindleDownload: Bool {
+    id.relativePath.hasPrefix("Downloads/Items01/")
+  }
+
   public func url(on volume: KindleVolume) -> URL {
     volume.mountURL.appending(path: "documents").appending(path: id.relativePath)
   }

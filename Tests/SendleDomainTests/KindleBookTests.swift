@@ -71,6 +71,13 @@ struct KindleBookTests {
         == "/Volumes/Kindle/documents/Abreu, Andrea/Panza de burro - Andrea Abreu.AZW3")
   }
 
+  @Test func onlyTheKindlesOwnDownloadsAreDownloads() {
+    #expect(
+      KindleBook.fixture(path: "Downloads/Items01/The Hobbit_B007978NPG.kfx").isKindleDownload)
+    #expect(!KindleBook.fixture(path: "Downloads/The Hobbit.azw3").isKindleDownload)
+    #expect(!KindleBook.fixture(path: "The Hobbit.azw3").isKindleDownload)
+  }
+
   @Test func withSourceChangesOnlyTheSource() {
     let book = KindleBook.fixture(
       asin: "SN5T2DYX77", documentType: "EBOK", isbn: "9780306406157", publisher: "Penguin",
