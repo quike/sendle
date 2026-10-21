@@ -255,7 +255,9 @@ struct SendQueueViewModelTests {
     await queue.waitUntilFinished()
 
     #expect(remover.holds == [old])
-    #expect(remover.listings == [[old]])
+    #expect(
+      remover.listings.map { $0.map(\.id.relativePath) }
+        == [[old.id.relativePath, "Meditations - Herman Melville.pdf"]])
   }
 
   @Test func retryLeavesAnUnconfirmedBookAlone() async {

@@ -10,8 +10,8 @@ public struct KindleCopyPlanner: Sendable {
   /// Each copy of a book with an edition key keeps its ASIN number while no other file in `listing`
   /// and no earlier book in `books` has that ASIN. The file the copy overwrites doesn't count, so
   /// it keeps its ASIN. Otherwise the copy moves to the first free number above its own, up to
-  /// `FileNaming.editionCopyLimit`, then below it; its name stays. A copy with no free number, a
-  /// replacement and a book without a key are left as they are.
+  /// `FileNaming.editionCopyLimit`, then below it; its name stays. A copy with no free number, an
+  /// in-place replacement and a book without a key are left as they are.
   public func plan(
     _ books: [Book], copies: [BookID: KindleCopy], editions: [BookID: Edition],
     listing: [KindleBook]

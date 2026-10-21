@@ -21,6 +21,7 @@ public struct SendBooks: Sendable {
   private let retryDelay: Duration
   private let sleep: Sleep
   private let remover: (any KindleBookRemover)?
+  private let asins: (any ASINScheme)?
   private let log: any ActivityLog
 
   public init(
@@ -34,6 +35,7 @@ public struct SendBooks: Sendable {
     retryDelay: Duration = .seconds(2),
     sleep: @escaping Sleep = { try? await Task.sleep(for: $0) },
     remover: (any KindleBookRemover)? = nil,
+    asins: (any ASINScheme)? = nil,
     log: any ActivityLog = NoActivityLog()
   ) {
     self.channels = channels
@@ -46,6 +48,7 @@ public struct SendBooks: Sendable {
     self.retryDelay = retryDelay
     self.sleep = sleep
     self.remover = remover
+    self.asins = asins
     self.log = log
   }
 
@@ -159,8 +162,9 @@ public struct SendBooks: Sendable {
           edition: file.edition)
       case .deliver:
         let channel = try await channels.channel(for: destination)
+        file = Self.seeded(file, for: book, to: destination, copy: copy)
         try await deliver(
-          Self.seeded(file, for: book, to: destination, copy: copy),
+          file,
           named: destination.kind == .usb
             ? FileNaming.copyName(for: book, copy: copy?.name ?? 1)
             : FileNaming.deliveryName(for: book, to: destination.kind),
@@ -206,6 +210,7 @@ public struct SendBooks: Sendable {
     }
   }
 
+  /// The new copy joins `listing`, so the old copy's removal leaves the cover they may share.
   private func removeReplaced(
     _ copy: KindleCopy?, for book: Book, delivered file: PreparedFile, to destination: Destination,
     listing: [KindleBook]
@@ -213,11 +218,15 @@ public struct SendBooks: Sendable {
     guard case .usb(let volume) = destination, let copy, let old = copy.removes, let remover
     else { return }
     let name = FileNaming.copyName(for: book, copy: copy.name)
-    guard old.id.relativePath.lowercased() != "\(name).\(file.format.fileExtension)".lowercased()
-    else { return }
+    let delivered = KindleBookID(relativePath: "\(name).\(file.format.fileExtension)")
+    guard old.id.relativePath.lowercased() != delivered.relativePath.lowercased() else { return }
+    let newCopy = KindleBook(
+      id: delivered, title: book.title, authors: book.author.map { [$0] } ?? [], source: .sendle,
+      asin: file.asin ?? file.asinSeed.flatMap { asins?.asin(forSeed: $0) },
+      documentType: file.format == .azw3 ? "EBOK" : nil, byteCount: 0, modified: now())
     let path = "documents/\(old.id.relativePath)"
     do throws(KindleRemovalError) {
-      try await remover.removeForGood(old, listedWith: listing, on: volume)
+      try await remover.removeForGood(old, listedWith: listing + [newCopy], on: volume)
       log.info(.usb, "Removed the earlier copy \(path)")
     } catch {
       log.warning(.usb, "Couldn't remove the earlier copy \(path): \(error.detail)")

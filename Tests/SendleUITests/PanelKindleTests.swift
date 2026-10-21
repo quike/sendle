@@ -544,6 +544,22 @@ struct PanelKindleTests {
         "Sendle's name for Moby-Dick is taken, so it goes as Moby-Dick - Herman Melville (2)"))
   }
 
+  @Test func aReplacementMayTakeTheNameOfTheCopyItRemoves() async {
+    let remover = FakeKindleBookRemover()
+    let (panel, _, channel) = await harness.pluggedInPanel(
+      listing: [sendlesPDF], books: [.fixture(id: "a")], converts: true, remover: remover)
+    await panel.quickSend(BookID(rawValue: "a"))
+    #expect(panel.duplicateReview?.current.replace == .removesOther)
+
+    panel.choose(.replace)
+    await panel.waitUntilReviewed()
+    await panel.queue.waitUntilFinished()
+
+    #expect(channel.deliveries.map(\.name) == ["Moby-Dick - Herman Melville"])
+    #expect(remover.holds == [sendlesPDF])
+    #expect(!harness.log.messages(in: .usb).contains { $0.contains("is taken") })
+  }
+
   @Test func closingTheSheetSendsNothing() async {
     let (panel, _, channel) = await harness.pluggedInPanel(listing: [sendlesPDF])
     panel.library.selectAll()

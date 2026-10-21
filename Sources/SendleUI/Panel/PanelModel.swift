@@ -453,11 +453,12 @@ public final class PanelModel {
   }
 
   /// Drops the skips, names each Keep both copy past the names the Kindle already uses, keeps the
-  /// ASIN of each copy replaced in place, names the others' replacements and sends.
+  /// ASIN of each copy replaced in place, names the others' replacements and sends. A replacement
+  /// may take the name of the copy it removes.
   private func finishReview(_ review: DuplicateReviewModel, of pending: PendingSend) async {
-    var taken = Set(
-      pending.listing.books.filter { !$0.id.relativePath.contains("/") }
-        .map { $0.stem.lowercased() })
+    let topLevel = pending.listing.books.filter { !$0.id.relativePath.contains("/") }
+    let onKindle = Set(topLevel.map { $0.stem.lowercased() })
+    var given: Set<String> = []
     let kindleName = pending.destination.volume?.name ?? "the Kindle"
     var copies: [BookID: KindleCopy] = [:]
     var books: [Book] = []
@@ -467,9 +468,9 @@ public final class PanelModel {
         log.info(.usb, "Skipped \(book.title): \(kindleName) already has it")
         continue
       case .keepBoth?:
-        let copy = Self.keepBothCopy(of: book, taken: taken)
+        let copy = Self.keepBothCopy(of: book, taken: onKindle.union(given))
         let name = FileNaming.copyName(for: book, copy: copy)
-        taken.insert(name.lowercased())
+        given.insert(name.lowercased())
         if copy > 1 { copies[book.id] = .keepBoth(copy) }
         log.info(.usb, "Keeping both: \(book.title) goes as \(name)")
       case .replace?:
@@ -480,9 +481,10 @@ public final class PanelModel {
         case .inPlace:
           if let asin = old.asin { copies[book.id] = .replacing(asin: asin) }
         case .removesOther:
-          let copy = Self.replacementCopy(of: book, taken: taken)
+          let others = topLevel.filter { $0.id != old.id }.map { $0.stem.lowercased() }
+          let copy = Self.replacementCopy(of: book, taken: given.union(others))
           let name = FileNaming.copyName(for: book, copy: copy)
-          taken.insert(name.lowercased())
+          given.insert(name.lowercased())
           copies[book.id] = KindleCopy(name: copy, asin: copy, removes: old)
           if copy > 1 {
             log.info(.usb, "Sendle's name for \(book.title) is taken, so it goes as \(name)")

@@ -74,7 +74,8 @@ struct Composition {
       queue: SendQueueViewModel(
         sendBooks: SendBooks(
           channels: channels, preparer: KindleEPUBPreparer(log: log), converter: converter,
-          staging: staging, history: history, settings: settings, remover: remover, log: log)),
+          staging: staging, history: history, settings: settings, remover: remover,
+          asins: SendleASINScheme(), log: log)),
       logs: LogsViewModel(feed: log), kindle: kindle,
       editDetails: EditBookDetails(store: edits, settings: settings),
       ejector: VolumeEjector(log: log),

@@ -42,7 +42,7 @@ struct SendBooksTests {
       return SendBooks(
         channels: channels, preparer: preparer, converter: converter, staging: staging,
         history: history, settings: settings, now: { now }, retryDelay: .seconds(2),
-        sleep: { await sleeps.record($0) }, remover: remover, log: log)
+        sleep: { await sleeps.record($0) }, remover: remover, asins: FakeASINScheme(), log: log)
     }
 
     func send(
@@ -375,13 +375,35 @@ struct SendBooksTests {
     #expect(harness.channel.deliveries.map(\.name) == ["Moby-Dick - Herman Melville"])
     #expect(harness.remover.holds == [calibre])
     #expect(harness.remover.finalized.count == 1)
-    #expect(harness.remover.listings == [[calibre]])
+    #expect(
+      harness.remover.listings.map { $0.map(\.id.relativePath) }
+        == [[calibre.id.relativePath, "Moby-Dick - Herman Melville.pdf"]])
     #expect(events.last == .sent(book.id, fixes: []))
     #expect(
       harness.log.summary.suffix(2) == [
         "info USB Removed the earlier copy documents/Melville, Herman/Moby-Dick - Herman Melville.pdf",
         "info USB On the Kindle",
       ])
+  }
+
+  @Test func theRemovalKnowsTheNewCopysASINSoItKeepsItsCover() async throws {
+    let harness = Harness(preparer: FakeEPUBPreparer(edition: Edition(key: "urn:uuid:moby-dick")))
+    let book = Book.fixture(id: "a")
+    let asin = FakeASINScheme().asin(forSeed: "edition:urn:uuid:moby-dick")
+    let old = KindleBook.fixture(
+      path: "Elsewhere/Moby-Dick - Herman Melville.azw3", source: .sendle, asin: asin,
+      documentType: "EBOK")
+
+    _ = await harness.send(
+      [book], to: usb, copies: [book.id: KindleCopy(name: 1, asin: 1, removes: old)],
+      listing: [old])
+
+    let listing = try #require(harness.remover.listings.first)
+    #expect(listing.first == old)
+    let delivered = try #require(listing.last)
+    #expect(delivered.id.relativePath == "Moby-Dick - Herman Melville.azw3")
+    #expect(delivered.asin == asin)
+    #expect(delivered.documentType == "EBOK")
   }
 
   @Test func aFailedRemovalKeepsTheSend() async {
