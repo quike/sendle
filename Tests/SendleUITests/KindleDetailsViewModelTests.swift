@@ -93,4 +93,15 @@ import Testing
       model(.fixture(), library: maybe).libraryLine == #"Maybe in your library as "Moby-Dick""#)
     #expect(model(.fixture()).libraryLine == nil)
   }
+
+  @Test func theDeleteQuestionSaysWhatGoes() {
+    let sideloaded = model(.fixture(path: "Alice.azw3", title: "Alice"))
+    let download = model(
+      .fixture(path: "Downloads/Items01/The Hobbit_B007978NPG.kfx", title: "The Hobbit"))
+
+    #expect(sideloaded.deleteQuestion == #"Delete "Alice" from this Kindle?"#)
+    #expect(sideloaded.deleteDetail == "Its reading position, bookmarks and highlights go too.")
+    #expect(
+      download.deleteDetail == "Only the download goes; the book stays in your Amazon library.")
+  }
 }

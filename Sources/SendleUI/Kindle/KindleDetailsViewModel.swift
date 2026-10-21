@@ -37,6 +37,15 @@ package struct KindleDetailsViewModel: Hashable, Sendable {
     library.map { "\($0.isSure ? "In your library" : "Maybe in your library") as \"\($0.title)\"" }
   }
 
+  package var deleteQuestion: String { "Delete \"\(title)\" from this Kindle?" }
+
+  /// What else goes with the book.
+  package var deleteDetail: String {
+    item.book.isKindleDownload
+      ? "Only the download goes; the book stays in your Amazon library."
+      : "Its reading position, bookmarks and highlights go too."
+  }
+
   package init(book: KindleBook, library: LibraryLink?, zone: TimeZone = .current) {
     let item = KindleItemViewModel(book: book, inLibrary: nil)
     self.item = item

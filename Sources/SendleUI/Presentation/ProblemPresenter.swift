@@ -105,6 +105,13 @@ public enum ProblemPresenter {
         + "Send again.")
   }
 
+  package static func undoFailed(title: String, _ error: KindleRemovalError) -> Problem {
+    let detail = error.detail
+    return Problem(
+      "Couldn't put \"\(title)\" back",
+      message: detail.prefix(1).uppercased() + detail.dropFirst() + ".")
+  }
+
   package static func ejectWhileCopying(_ volume: KindleVolume) -> Problem {
     Problem(
       "\(volume.name) is still being copied to", message: "Eject it when the copy is done.",

@@ -35,8 +35,9 @@ struct PanelHarness {
   /// `onSleep` runs each time setup waits between access checks.
   /// `channel` delivers every send and test email; `ejector` replaces the harness's.
   /// `edits` apply to the library's books, and `editions` are their EPUBs' editions. Saving a book's
-  /// details fails with `editFailure`. `remover` removes the copy a Replace leaves behind, and
-  /// turns Replace on for copies Sendle did not name.
+  /// details fails with `editFailure`. `remover` removes the copy a Replace leaves behind, turns
+  /// Replace on for copies Sendle did not name, and deletes from the Kindle sheet, whose Undo waits
+  /// on `removalSleep`.
   func makePanel(
     _ saved: AppSettings = AppSettings(email: .fixture),
     channel: FakeDeliveryChannel = FakeDeliveryChannel(),
@@ -47,6 +48,9 @@ struct PanelHarness {
     editions: [BookID: Edition] = [:],
     editFailure: MetadataEditError? = nil,
     remover: FakeKindleBookRemover? = nil,
+    removalSleep: @escaping @Sendable (Duration) async -> Void = { _ in
+      try? await Task.sleep(for: .seconds(60))
+    },
     onSleep: @escaping @Sendable () async -> Void = { try? await Task.sleep(for: .seconds(60)) }
   ) -> (PanelModel, InMemorySettingsStore) {
     let settings = InMemorySettingsStore(saved)
@@ -87,7 +91,11 @@ struct PanelHarness {
         reading: kindle, history: history, editions: editions,
         canReplaceOtherCopies: remover != nil),
       editDetails: EditBookDetails(store: editStore, settings: settings),
-      ejector: ejector ?? self.ejector, log: log)
+      ejector: ejector ?? self.ejector,
+      removal: remover.map {
+        KindleRemovalModel(removals: KindleRemovals(remover: $0, log: log), sleep: removalSleep)
+      },
+      log: log)
     panel.attach(system)
     return (panel, settings)
   }
@@ -97,7 +105,10 @@ struct PanelHarness {
   func pluggedInPanel(
     listing: [KindleBook], books: [Book]? = nil, converts: Bool = false,
     edits: MetadataEdits = .none, editions: [BookID: Edition] = [:],
-    remover: FakeKindleBookRemover? = nil
+    ejector: FakeKindleEjector? = nil, remover: FakeKindleBookRemover? = nil,
+    removalSleep: @escaping @Sendable (Duration) async -> Void = { _ in
+      try? await Task.sleep(for: .seconds(60))
+    }
   ) async -> (panel: PanelModel, kindle: FakeKindleLibrary, channel: FakeDeliveryChannel) {
     library.result = .success(
       books ?? [
@@ -107,9 +118,9 @@ struct PanelHarness {
     let kindle = FakeKindleLibrary(.success(.fixture(listing)))
     let channel = FakeDeliveryChannel()
     let (panel, _) = makePanel(
-      AppSettings(email: .fixture, activeDestination: .usb), channel: channel, kindle: kindle,
-      converter: FakeFormatConverter(isAvailable: converts), edits: edits, editions: editions,
-      remover: remover)
+      AppSettings(email: .fixture, activeDestination: .usb), channel: channel, ejector: ejector,
+      kindle: kindle, converter: FakeFormatConverter(isAvailable: converts), edits: edits,
+      editions: editions, remover: remover, removalSleep: removalSleep)
     monitor.update([.fixture()])
     await panel.launch()
     await panel.panelDidOpen()

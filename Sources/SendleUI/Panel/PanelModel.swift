@@ -32,6 +32,8 @@ public final class PanelModel {
   package let queue: SendQueueViewModel
   package let logs: LogsViewModel
   package let kindle: KindleViewModel
+  /// Delete in the Kindle sheet, with its Undo; nil leaves the sheet without it.
+  package let removal: KindleRemovalModel?
   package let pointer = PointerModel()
   package private(set) var route = PanelRoute.library
   package private(set) var side = LibrarySide.library
@@ -89,6 +91,7 @@ public final class PanelModel {
     kindle: KindleViewModel,
     editDetails: EditBookDetails,
     ejector: any KindleEjector,
+    removal: KindleRemovalModel? = nil,
     log: any ActivityLog = NoActivityLog()
   ) {
     self.library = library
@@ -100,12 +103,14 @@ public final class PanelModel {
     self.kindle = kindle
     self.editDetails = editDetails
     self.ejector = ejector
+    self.removal = removal
     self.log = log
     library.reportProblem = { [weak self] problem in self?.show(notice: problem) }
     library.onKindleInputsChange = { [weak self] in self?.followKindle() }
     library.onSortChange = { [weak kindle] in kindle?.sort = $0 }
     library.onAuthorSortChange = { [weak kindle] in kindle?.authorSort = $0 }
     kindle.onMatchesChange = { [weak self] in self?.matchesChanged($0) }
+    removal?.onFinal = { [weak kindle] in await kindle?.refresh() }
     settings.onChange = { [weak library] in await library?.refreshSettings() }
     queue.onFinish = { [weak self] in await self?.refreshAfterSend() }
     queue.isKindleConnected = { [weak library] in library?.isKindlePluggedIn ?? false }
@@ -226,6 +231,15 @@ public final class PanelModel {
     self.notice = notice
   }
 
+  /// A delete from the Kindle that Undo could still take back, or that is still being made.
+  public var hasPendingKindleDelete: Bool {
+    removal.map { $0.toast != nil || $0.stage == .deleting } ?? false
+  }
+
+  public func prepareToQuit() async {
+    await removal?.finalizeNow()
+  }
+
   // MARK: Setup
 
   package func showSetup(at step: SetupStep) {
@@ -255,13 +269,21 @@ public final class PanelModel {
     library.click(id, kind)
   }
 
-  /// A Kindle that goes takes its side with it, and a destination that changes takes the review
-  /// of a send to it.
+  /// A Kindle that goes takes its side and its delete's Undo with it, and a destination that
+  /// changes takes the review of a send to it.
   private func followKindle() {
     let volume = library.kindleVolume
     let books = library.books
     if volume == nil { side = .library }
-    if volume != kindle.volume { kindleDetails = nil }
+    if volume != kindle.volume {
+      closeKindleDetails()
+      if let removal {
+        Task {
+          await removal.finalizeNow()
+          if let volume { await removal.clearLeftovers(on: volume) }
+        }
+      }
+    }
     if let pending = pendingSend, library.activeDestination != pending.destination {
       stopSend(to: pending.destination)
     }
@@ -313,9 +335,9 @@ public final class PanelModel {
     await send([item.book])
   }
 
-  /// A USB send first reads the Kindle it goes to and asks about each book it already has.
-  /// Without duplicates, or when the Kindle can't be read, it goes as it always did. A destination
-  /// that changes during the check stops the send.
+  /// A USB send first makes a delete Undo could still take back final, then reads the Kindle it
+  /// goes to and asks about each book it already has. Without duplicates, or when the Kindle can't
+  /// be read, it goes as it always did. A destination that changes during the check stops the send.
   private func send(_ books: [Book]) async {
     guard let destination = library.activeDestination, !books.isEmpty, !queue.isRunning,
       duplicateReview == nil, checkingKindle == nil
@@ -325,6 +347,7 @@ public final class PanelModel {
     system?.endEditing()
     checkingKindle = volume
     defer { checkingKindle = nil }
+    await removal?.finalizeNow()
     let check = await kindle.duplicates(of: books, on: volume)
     guard library.activeDestination == destination, check != .interrupted else {
       return stopSend(to: destination)
@@ -548,6 +571,55 @@ public final class PanelModel {
 
   package func closeKindleDetails() {
     kindleDetails = nil
+    removal?.reset()
+  }
+
+  /// Delete… waits while the Kindle is copied to, checked for duplicates or ejected.
+  package var canDeleteKindleBook: Bool {
+    guard removal != nil, kindleDetails != nil, let volume = kindle.volume else { return false }
+    return !isCopying(to: volume) && checkingKindle == nil && ejecting == nil
+  }
+
+  package func askToDeleteKindleBook() {
+    if canDeleteKindleBook { removal?.ask() }
+  }
+
+  package func cancelKindleDelete() {
+    removal?.cancel()
+  }
+
+  /// Deletes the sheet's book as the Kindle was last read, so a retry after a change takes the
+  /// book read again. The sheet closes before the Kindle is read again, unless the book changed; a
+  /// sheet closed meanwhile keeps no failure, and another book's sheet stays open.
+  package func deleteKindleBook() async {
+    guard let removal, removal.stage == .confirming, canDeleteKindleBook,
+      let shown = kindleDetails?.item.book, let volume = kindle.volume,
+      let listing = kindle.listing?.books
+    else { return }
+    let book = listing.first { $0.id == shown.id } ?? shown
+    let error = await removal.delete(book, listedWith: listing, on: volume)
+    let isShown = kindleDetails?.item.book.id == book.id
+    if !isShown { removal.reset() }
+    switch error {
+    case nil:
+      if isShown { closeKindleDetails() }
+      await kindle.refresh()
+    case .changedSinceListed?:
+      await kindle.refresh()
+    case .deviceDisconnected?:
+      if isShown { closeKindleDetails() }
+    case .occupied?, .failed?:
+      break
+    }
+  }
+
+  package func undoKindleDelete() async {
+    guard let removal, let held = removal.toast else { return }
+    if let error = await removal.undo() {
+      show(notice: ProblemPresenter.undoFailed(title: held.book.title, error))
+    } else {
+      await kindle.refresh()
+    }
   }
 
   /// Closes the sheet and opens the matching library book's edit sheet, where it is scrolled to,
@@ -677,6 +749,7 @@ public final class PanelModel {
     guard ejecting == nil else { return }
     ejecting = volume
     defer { ejecting = nil }
+    await removal?.finalizeNow()
     do throws(EjectError) {
       try await ejector.eject(volume)
     } catch {
@@ -717,16 +790,16 @@ public final class PanelModel {
 
   // MARK: Keys
 
-  /// Esc closes the innermost thing: the duplicates, the edit sheet, the Kindle book's sheet, the
-  /// settings sheet, a finished queue or a setup that can wait, the search, the selection, then the
-  /// panel. A running queue keeps going behind a closed panel.
+  /// Esc closes the innermost thing: the duplicates, the edit sheet, the Kindle book's question or
+  /// its sheet, the settings sheet, a finished queue or a setup that can wait, the search, the
+  /// selection, then the panel. A running queue keeps going behind a closed panel.
   package func escape() {
     if duplicateReview != nil {
       cancelReview()
     } else if bookDetails != nil {
       closeDetails()
     } else if kindleDetails != nil {
-      closeKindleDetails()
+      if removal?.stage == .confirming { cancelKindleDelete() } else { closeKindleDetails() }
     } else if isShowingSettings {
       isShowingSettings = false
     } else if route == .logs {
@@ -747,7 +820,8 @@ public final class PanelModel {
   }
 
   /// True when the key was used, so the shell swallows it. A held Return settles no duplicate
-  /// the user hasn't seen, saves no details twice, and sends nothing after the sheet it saved.
+  /// the user hasn't seen, saves no details twice, deletes nothing it didn't ask about, and sends
+  /// nothing after the sheet it saved.
   public func handle(_ key: KeyInput) -> Bool {
     guard let command = key.panelCommand else { return false }
     if duplicateReview != nil {
@@ -769,7 +843,10 @@ public final class PanelModel {
     }
     if kindleDetails != nil {
       switch command {
-      case .escape, .confirm: closeKindleDetails()
+      case .escape: escape()
+      case .confirm where removal?.stage == .confirming:
+        if !key.isRepeat { Task { await deleteKindleBook() } }
+      case .confirm: closeKindleDetails()
       default: return false
       }
       return true
@@ -803,6 +880,9 @@ public final class PanelModel {
         canEditDetails(book)
       else { return false }
       Task { await openDetails(book.id) }
+    case .undo:
+      guard !key.isRepeat, removal?.toast != nil else { return false }
+      Task { await undoKindleDelete() }
     }
     return true
   }

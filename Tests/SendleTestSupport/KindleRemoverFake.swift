@@ -64,7 +64,8 @@ public final class FakeKindleBookRemover: KindleBookRemover {
     set { state.withLock { $0.gate = newValue } }
   }
 
-  public func failHold(with error: KindleRemovalError) {
+  /// Nil makes holds succeed again.
+  public func failHold(with error: KindleRemovalError?) {
     state.withLock { $0.holdFailure = error }
   }
 

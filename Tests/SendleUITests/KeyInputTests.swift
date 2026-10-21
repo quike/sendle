@@ -44,6 +44,12 @@ struct KeyInputTests {
     #expect(KeyInput(.character("i")).panelCommand == nil)
   }
 
+  @Test func commandZUndoesUnlessATextFieldEdits() {
+    #expect(KeyInput(.character("z"), command: true).panelCommand == .undo)
+    #expect(KeyInput(.character("z"), command: true, isEditingText: true).panelCommand == nil)
+    #expect(KeyInput(.character("z")).panelCommand == nil)
+  }
+
   @Test(
     arguments: [
       (UInt16(53), "\u{1b}", NSEvent.ModifierFlags(), KeyInput(.escape)),
