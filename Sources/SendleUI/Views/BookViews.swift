@@ -300,7 +300,7 @@ struct BookCover: View {
       let marks = item?.marks ?? []
       if isEdited || !marks.isEmpty {
         HStack(spacing: 2) {
-          if isEdited { CoverMark(symbol: "pencil", color: Theme.warm) }
+          if isEdited { EditedMark() }
           ForEach(marks, id: \.self) { BookMarkView(mark: $0) }
         }
         .padding(5)
@@ -385,17 +385,58 @@ struct CoverSpine: View {
   }
 }
 
+/// A mark's symbol, stretched into the even-sided box nearest its own shape, so it sits on whole
+/// pixels in the middle of a 16 pt mark at 1x as at 2x.
+package struct MarkGlyph: View {
+  let symbol: String
+  var side: CGFloat = 8
+
+  package var body: some View {
+    let size = Self.size(of: symbol, within: side)
+    Image(systemName: symbol)
+      .resizable()
+      .fontWeight(.heavy)
+      .frame(width: size.width, height: size.height)
+  }
+
+  private static var sizes: [String: CGSize] = [:]
+
+  package static func size(of symbol: String, within side: CGFloat) -> CGSize {
+    let key = "\(symbol)@\(side)"
+    if let size = sizes[key] { return size }
+    let natural =
+      NSImage(systemSymbolName: symbol, accessibilityDescription: nil)?.size
+      ?? CGSize(width: side, height: side)
+    let scale = side / max(natural.width, natural.height)
+    func even(_ length: CGFloat) -> CGFloat { max(2, (length * scale / 2).rounded() * 2) }
+    let size = CGSize(width: even(natural.width), height: even(natural.height))
+    sizes[key] = size
+    return size
+  }
+}
+
 struct CoverMark: View {
   let symbol: String
   let color: Color
 
   var body: some View {
-    Image(systemName: symbol)
-      .font(.system(size: 8, weight: .heavy))
+    MarkGlyph(symbol: symbol)
       .foregroundStyle(Theme.background)
       .frame(width: 16, height: 16)
       .background(color, in: Circle())
       .overlay(Circle().strokeBorder(Theme.background, lineWidth: 2))
+  }
+}
+
+/// A rounded square, so its pencil doesn't read as a "no entry" sign the way it does in a circle.
+struct EditedMark: View {
+  var body: some View {
+    let shape = RoundedRectangle(cornerRadius: 5, style: .continuous)
+    MarkGlyph(symbol: "pencil.line", side: 10)
+      .foregroundStyle(Theme.background)
+      .frame(width: 16, height: 16)
+      .background(Theme.warm, in: shape)
+      .overlay(shape.strokeBorder(Theme.background, lineWidth: 2))
   }
 }
 
@@ -406,8 +447,7 @@ private struct BookMarkView: View {
   var body: some View {
     Group {
       if mark == .maybeOnKindle {
-        Image(systemName: mark.symbol)
-          .font(.system(size: 8, weight: .heavy))
+        MarkGlyph(symbol: mark.symbol)
           .foregroundStyle(mark.color)
           .frame(width: 16, height: 16)
           .background(Theme.background, in: Circle())

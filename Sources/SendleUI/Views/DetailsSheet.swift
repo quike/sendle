@@ -44,7 +44,7 @@ struct DetailsSheet: View {
         .padding([.horizontal, .bottom], 14)
     }
     .overlay(alignment: .topTrailing) {
-      CoverMark(symbol: "pencil", color: Theme.warm)
+      EditedMark()
         .padding(.top, 10)
         .padding(.trailing, 14)
         .accessibilityHidden(true)
