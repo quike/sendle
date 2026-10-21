@@ -53,34 +53,37 @@ private struct ReadOnlyField: View {
   }
 }
 
-/// Where the book is in the library, then Edit in Library when it can be edited there, and Done.
+/// Where the book is in the library, above Edit in Library when it can be edited there and Done.
 private struct KindleDetailsActions: View {
   let panel: PanelModel
   let details: KindleDetailsViewModel
 
   var body: some View {
-    HStack(spacing: 8) {
+    VStack(alignment: .leading, spacing: 6) {
       if let line = details.libraryLine {
         Text(line)
           .font(.system(size: 11))
           .foregroundStyle(Theme.muted)
-          .lineLimit(1)
+          .lineLimit(2)
+          .fixedSize(horizontal: false, vertical: true)
           .help(line)
       }
-      Spacer(minLength: 0)
-      if details.library?.canEdit == true {
-        Button("Edit in Library") {
-          Task { await panel.editInLibrary() }
+      HStack(spacing: 8) {
+        Spacer(minLength: 0)
+        if details.library?.canEdit == true {
+          Button("Edit in Library") {
+            Task { await panel.editInLibrary() }
+          }
+          .buttonStyle(SecondaryButtonStyle())
         }
-        .buttonStyle(SecondaryButtonStyle())
+        Button {
+          panel.closeKindleDetails()
+        } label: {
+          KeyHintLabel(title: "Done", key: "esc")
+        }
+        .buttonStyle(PrimaryButtonStyle())
+        .accessibilityLabel("Done")
       }
-      Button {
-        panel.closeKindleDetails()
-      } label: {
-        KeyHintLabel(title: "Done", key: "esc")
-      }
-      .buttonStyle(PrimaryButtonStyle())
-      .accessibilityLabel("Done")
     }
     .padding(.top, 8)
   }
