@@ -168,6 +168,30 @@ struct PanelKindleDeleteTests {
     #expect(remover.restored == [])
   }
 
+  @Test func theToastSaysWhenItsTimeRunsOut() async throws {
+    let (panel, _) = await panelWithSheet()
+    let window = KindleRemovals.undoWindow / .seconds(1)
+    let before = Date()
+    _ = try #require(await delete(on: panel))
+    let after = Date()
+
+    let ends = try #require(panel.removal?.toastEnds)
+
+    #expect(ends >= before.addingTimeInterval(window))
+    #expect(ends <= after.addingTimeInterval(window))
+    await panel.undoKindleDelete()
+    #expect(panel.removal?.toastEnds == nil)
+  }
+
+  @Test func theToastsBookOpensNoSheet() async throws {
+    let (panel, _) = await panelWithSheet()
+    let held = try #require(await delete(on: panel))
+
+    panel.openKindleDetails(held.book.id)
+
+    #expect(panel.kindleDetails == nil)
+  }
+
   @Test func commandZUndoesOnlyWhereTheToastShows() async throws {
     let (panel, _) = await panelWithSheet()
     let held = try #require(await delete(on: panel))
@@ -204,6 +228,24 @@ struct PanelKindleDeleteTests {
     #expect(panel.kindleDetails == nil)
   }
 
+  @Test func aSecondDeleteDropsTheToastBeforeItsDeleteIsFinal() async throws {
+    let (panel, _) = await panelWithSheet(on: [mobyDick, typee])
+    let first = try #require(await delete(on: panel))
+    panel.openKindleDetails(typee.id)
+    let gate = Signal()
+    remover.gate = gate
+    panel.askToDeleteKindleBook()
+
+    let deleting = Task { await panel.deleteKindleBook() }
+
+    #expect(await eventually { remover.finalized == [first.id] })
+    #expect(panel.removal?.toast == nil)
+    #expect(panel.hasPendingKindleDelete)
+    await gate.fire()
+    await deleting.value
+    #expect(panel.removal?.toast?.book == typee)
+  }
+
   @Test func ejectingMakesItFinalFirst() async throws {
     let gate = Signal()
     let ejector = FakeKindleEjector(gate: gate)
@@ -217,6 +259,24 @@ struct PanelKindleDeleteTests {
     #expect(panel.removal?.toast == nil)
     await gate.fire()
     await ejecting.value
+  }
+
+  @Test func ejectingDropsTheToastBeforeItsDeleteIsFinal() async throws {
+    let (panel, _) = await panelWithSheet()
+    let held = try #require(await delete(on: panel))
+    let gate = Signal()
+    remover.gate = gate
+
+    let ejecting = Task { await panel.eject(.fixture()) }
+
+    #expect(await eventually { remover.finalized == [held.id] })
+    #expect(panel.removal?.toast == nil)
+    #expect(panel.hasPendingKindleDelete)
+    #expect(!panel.handle(KeyInput(.character("z"), command: true)))
+    await gate.fire()
+    await ejecting.value
+    #expect(!panel.hasPendingKindleDelete)
+    #expect(remover.restored == [])
   }
 
   @Test func sendingToTheKindleMakesItFinalFirst() async throws {
@@ -332,6 +392,19 @@ struct PanelKindleDeleteTests {
     #expect(panel.removal?.stage == .idle)
     await gate.fire()
     await ejecting.value
+  }
+
+  @Test func deleteWaitsForAKindleThatCanBeRead() async {
+    let (panel, kindle) = await panelWithSheet()
+    kindle.result = .failure(.unreadable("I/O error"))
+
+    await panel.kindle.refresh()
+
+    #expect(panel.kindle.listing == nil)
+    #expect(panel.kindleDetails != nil)
+    #expect(!panel.canDeleteKindleBook)
+    panel.askToDeleteKindleBook()
+    #expect(panel.removal?.stage == .idle)
   }
 
   @Test func deleteWaitsWhileTheKindleIsChecked() async {

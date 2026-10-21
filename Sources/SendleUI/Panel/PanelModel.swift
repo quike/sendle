@@ -293,10 +293,14 @@ public final class PanelModel {
     Task { await kindle.follow(volume, books: books) }
   }
 
-  /// The sheet over the Kindle's books gets the library book the new matches link it to.
+  /// The sheet over the Kindle's books gets the library book the new matches link it to, or
+  /// closes once the Kindle no longer lists its book.
   private func matchesChanged(_ matches: KindleMatches?) {
     library.showKindleMatches(matches)
     guard let book = kindleDetails?.item.book else { return }
+    if let listing = kindle.listing, !listing.books.contains(where: { $0.id == book.id }) {
+      return closeKindleDetails()
+    }
     kindleDetails = KindleDetailsViewModel(book: book, library: libraryLink(for: book.id))
   }
 
@@ -562,10 +566,11 @@ public final class PanelModel {
     bookDetails = nil
   }
 
-  /// Opens the read-only sheet over the Kindle's books, linked to the library book it matches.
+  /// Opens the read-only sheet over the Kindle's books, linked to the library book it matches. A
+  /// book just deleted stays listed until the Kindle is read again, and opens nothing.
   package func openKindleDetails(_ id: KindleBookID) {
     guard isOnLibrary, side == .kindle, bookDetails == nil, duplicateReview == nil,
-      kindleDetails == nil, checkingKindle == nil,
+      kindleDetails == nil, checkingKindle == nil, removal?.holds(id) != true,
       let book = kindle.listing?.books.first(where: { $0.id == id })
     else { return }
     system?.endEditing()
@@ -577,9 +582,11 @@ public final class PanelModel {
     removal?.reset()
   }
 
-  /// Delete… waits while the Kindle is copied to, checked for duplicates or ejected.
+  /// Delete… waits while the Kindle is copied to, checked for duplicates or ejected, and until it
+  /// is read.
   package var canDeleteKindleBook: Bool {
-    guard removal != nil, kindleDetails != nil, let volume = kindle.volume else { return false }
+    guard removal != nil, kindleDetails != nil, kindle.listing != nil, let volume = kindle.volume
+    else { return false }
     return !isCopying(to: volume) && checkingKindle == nil && ejecting == nil
   }
 

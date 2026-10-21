@@ -12,7 +12,11 @@ public final class KindleRemovalModel {
   /// Why the last delete didn't happen, shown under the sheet's fields.
   package private(set) var failure: String?
   /// The delete Undo can take back, while its toast shows.
-  package private(set) var toast: HeldBook?
+  package private(set) var toast: HeldBook? {
+    didSet { if toast == nil { toastEnds = nil } }
+  }
+  /// When the toast's time runs out.
+  package private(set) var toastEnds: Date?
   /// The toast's delete, from when its time runs out until it is final.
   private var finalizing: HeldBook?
   /// Told when the toast's time runs out and its delete becomes final.
@@ -33,6 +37,11 @@ public final class KindleRemovalModel {
 
   /// A delete Undo could still take back, one under way, or one still becoming final.
   package var isPending: Bool { toast != nil || stage == .deleting || finalizing != nil }
+
+  /// True for the toast's book and one still becoming final, which the Kindle may still list.
+  package func holds(_ id: KindleBookID) -> Bool {
+    toast?.book.id == id || finalizing?.book.id == id
+  }
 
   package func ask() {
     guard stage == .idle else { return }
@@ -57,13 +66,16 @@ public final class KindleRemovalModel {
     stage = .deleting
     failure = nil
     stopTimer()
-    defer { stage = .idle }
+    let previous = endToast()
+    defer {
+      stage = .idle
+      if let previous, finalizing == previous { finalizing = nil }
+    }
     do throws(KindleRemovalError) {
       let held = try await removals.delete(book, listedWith: listing, on: volume)
       showToast(for: held)
       return nil
     } catch {
-      toast = nil
       failure = Self.failure(error, deleting: book)
       return error
     }
@@ -87,8 +99,9 @@ public final class KindleRemovalModel {
   /// Its callers read the Kindle themselves or are letting it go, so `onFinal` isn't told.
   package func finalizeNow() async {
     stopTimer()
+    let held = endToast()
     await removals.finalizePending()
-    toast = nil
+    if let held, finalizing == held { finalizing = nil }
   }
 
   package func clearLeftovers(on volume: KindleVolume) async {
@@ -96,6 +109,7 @@ public final class KindleRemovalModel {
   }
 
   private func showToast(for held: HeldBook) {
+    toastEnds = Date.now.addingTimeInterval(KindleRemovals.undoWindow / .seconds(1))
     toast = held
     timer = Task { [weak self, sleep] in
       await sleep(KindleRemovals.undoWindow)
@@ -104,15 +118,21 @@ public final class KindleRemovalModel {
     }
   }
 
-  /// The toast goes first, so an Undo can't be offered for a delete becoming final.
   private func toastEnded(_ held: HeldBook) async {
     guard toast == held else { return }
-    toast = nil
-    finalizing = held
+    endToast()
     await removals.finalize(held)
     if finalizing == held { finalizing = nil }
     guard !Task.isCancelled else { return }
     await onFinal?()
+  }
+
+  /// The toast goes before its delete becomes final, so Undo is never offered for it meanwhile.
+  @discardableResult private func endToast() -> HeldBook? {
+    guard let held = toast else { return nil }
+    toast = nil
+    finalizing = held
+    return held
   }
 
   private func stopTimer() {

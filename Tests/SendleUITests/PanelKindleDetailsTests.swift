@@ -162,6 +162,19 @@ struct PanelKindleDetailsTests {
     #expect(panel.side == .kindle)
   }
 
+  @Test func aBookThatLeftTheKindleClosesItsSheet() async {
+    let typee = KindleBook.fixture(path: "Typee - Nobody.azw3", title: "Typee", authors: ["Nobody"])
+    let (panel, kindle, _) = await harness.pluggedInPanel(listing: [sendlesPDF, typee])
+    panel.showSide(.kindle)
+    panel.openKindleDetails(typee.id)
+    #expect(panel.kindleDetails != nil)
+    kindle.result = .success(.fixture([sendlesPDF]))
+
+    await panel.kindle.refresh()
+
+    #expect(panel.kindleDetails == nil)
+  }
+
   @Test func openingTheSheetTakesTheKeyboardFromTheSearchField() async {
     let panel = await panelOnKindle()
     let before = harness.system.endedEditing

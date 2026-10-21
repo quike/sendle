@@ -120,7 +120,7 @@ struct LibraryScreen: View {
     .animation(reduceMotion ? nil : Theme.press, value: panel.showsSendBar)
     .overlay(alignment: .bottom) {
       if let held = panel.undoToast {
-        UndoToast(panel: panel, held: held)
+        UndoToast(panel: panel, held: held, ends: panel.removal?.toastEnds)
           .padding(14)
           .id(held.id)
           .transition(reduceMotion ? .opacity : .move(edge: .bottom).combined(with: .opacity))
@@ -796,6 +796,8 @@ struct SendBarContent: View {
 struct UndoToast: View {
   let panel: PanelModel
   let held: HeldBook
+  /// Given, not read from the model, so a fading toast's bar doesn't fill up again.
+  let ends: Date?
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
   var body: some View {
@@ -819,7 +821,7 @@ struct UndoToast: View {
     .background(Theme.live.opacity(0.1), in: shape)
     .background(Theme.floating, in: shape)
     .overlay(alignment: .bottom) {
-      TimeLeftBar(isMoving: !reduceMotion)
+      TimeLeftBar(ends: ends, isMoving: !reduceMotion)
         .padding(.horizontal, 12)
         .padding(.bottom, 2)
     }
@@ -836,20 +838,25 @@ struct UndoToast: View {
   }
 }
 
-/// Shrinks over the Undo window from the moment it shows; with Reduce Motion it stays full.
+/// The share of the Undo window left until `ends`; with Reduce Motion it stays full.
 private struct TimeLeftBar: View {
+  let ends: Date?
   let isMoving: Bool
 
   var body: some View {
-    Capsule()
-      .fill(Theme.link.opacity(0.8))
-      .frame(height: 2)
-      .phaseAnimator(isMoving ? [1.0, 0] : [1.0]) { bar, left in
-        bar.scaleEffect(x: left, anchor: .leading)
-      } animation: { left in
-        left == 0 ? .linear(duration: KindleRemovals.undoWindow / .seconds(1)) : nil
-      }
-      .accessibilityHidden(true)
+    TimelineView(.animation(paused: !isMoving)) { context in
+      Capsule()
+        .fill(Theme.link.opacity(0.8))
+        .frame(height: 2)
+        .scaleEffect(x: isMoving ? left(at: context.date) : 1, anchor: .leading)
+    }
+    .accessibilityHidden(true)
+  }
+
+  private func left(at date: Date) -> CGFloat {
+    guard let ends else { return 1 }
+    let share = ends.timeIntervalSince(date) / (KindleRemovals.undoWindow / .seconds(1))
+    return CGFloat(min(max(share, 0), 1))
   }
 }
 
