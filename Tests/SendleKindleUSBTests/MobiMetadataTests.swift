@@ -27,6 +27,15 @@ struct MobiMetadataTests {
     #expect(found.coverRecord.map { Data(moby[$0]) } == cover)
   }
 
+  @Test func readsTheLanguageAndThePublishingDate() {
+    let data = MOBIBuilder.book(exth: [
+      (503, "El jardín"), (524, "es"), (106, "2020-04-23T00:00:00+00:00"),
+    ])
+    let metadata = MobiMetadata(DataBytes(data))
+    #expect(metadata?.language == "es")
+    #expect(metadata?.published == "2020-04-23T00:00:00+00:00")
+  }
+
   @Test func fallsBackToTheFullNameAndThe504ASIN() throws {
     let found = try #require(
       MobiMetadata(DataBytes(MOBIBuilder.book(fullName: "Dracula", exth: [(504, "B088BBLMGS")]))))

@@ -10,6 +10,9 @@ package struct MobiMetadata: Hashable, Sendable {
   /// As the book wrote it, so not yet normalised.
   package let isbn: String?
   package let publisher: String?
+  package let language: String?
+  /// The publishing date as the book wrote it, so not yet a year.
+  package let published: String?
   package let isEncrypted: Bool
   package let coverRecord: Range<Int>?
 
@@ -36,6 +39,8 @@ package struct MobiMetadata: Hashable, Sendable {
     documentType = text(501)
     isbn = text(104)
     publisher = text(101)
+    language = text(524)
+    published = text(106)
     isEncrypted = (layout.record0.uint16(at: 12) ?? 0) != 0
     coverRecord = layout.cover
   }

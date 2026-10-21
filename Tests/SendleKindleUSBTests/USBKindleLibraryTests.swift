@@ -102,6 +102,31 @@ struct USBKindleLibraryTests {
     #expect(moby?.asin == "SN5T2DYX77")
   }
 
+  @Test(
+    arguments: [
+      ("2020-04-23T00:00:00+00:00", "2020"), ("1865", "1865"), ("April 2020", nil), ("20", nil),
+      ("", nil),
+    ] as [(String, String?)])
+  func aPublishingDateGivesAYearOnlyWhenItStartsWithOne(
+    published: String, year: String?
+  ) async throws {
+    try tree.write(
+      "Book - Writer.azw3",
+      MOBIBuilder.book(exth: [(503, "Book"), (100, "Writer"), (106, published)]))
+    let listing = try await library().listing(of: tree.volume, progress: { _, _ in })
+    #expect(listing.books.first?.year == year)
+  }
+
+  @Test func aBookShowsItsLanguage() async throws {
+    try tree.write("Libro.azw3", MOBIBuilder.book(exth: [(503, "Book"), (524, "es")]))
+    try tree.write("orwell.pdf", makePDF(title: "Nineteen Eighty-Four", author: nil))
+    let books = try await library().listing(of: tree.volume, progress: { _, _ in }).books
+    let byFormat = Dictionary(uniqueKeysWithValues: books.map { ($0.format, $0) })
+    #expect(byFormat["azw3"]?.language == "es")
+    #expect(byFormat["pdf"]?.language == nil)
+    #expect(byFormat["pdf"]?.year == nil)
+  }
+
   @Test func reportsProgressBookByBook() async throws {
     for name in ["a.txt", "b.txt", "c.txt"] { try tree.write(name, "x") }
     let steps = Recorder<[Int]>()

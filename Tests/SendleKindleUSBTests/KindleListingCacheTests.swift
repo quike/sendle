@@ -134,12 +134,27 @@ struct KindleListingCacheTests {
   @Test func aCacheOfAnotherVersionIsIgnored() throws {
     try FileManager.default.createDirectory(
       at: tree.cache.appending(path: "kindles"), withIntermediateDirectories: true)
-    try Data(#"{"version": 2, "books": []}"#.utf8).write(to: tree.cacheFile("TEST-UUID"))
+    try Data(#"{"version": 3, "books": []}"#.utf8).write(to: tree.cacheFile("TEST-UUID"))
     let book = KindleBook.fixture(path: "a.txt")
     let cache = KindleListingCache(directory: tree.cache)
     #expect(cache.load(device: "TEST-UUID").isEmpty)
     cache.save([book], device: "TEST-UUID")
     #expect(cache.load(device: "TEST-UUID") == ["a.txt": book])
+  }
+
+  @Test func anOlderListingIsReadAgainButItsDigestsStay() throws {
+    let directory = tree.cache.appending(path: "kindles")
+    let digests = directory.appending(path: "digests")
+    try FileManager.default.createDirectory(at: digests, withIntermediateDirectories: true)
+    let books = try JSONEncoder().encode([KindleBook.fixture(path: "a.azw3")])
+    try (Data(#"{"version":1,"books":"#.utf8) + books + Data("}".utf8))
+      .write(to: tree.cacheFile("TEST-UUID"))
+    try Data(
+      #"{"version":1,"digests":{"a.azw3":{"byteCount":1,"modified":0,"sha256":"x"}}}"#.utf8
+    ).write(to: digests.appending(path: "TEST-UUID.json"))
+    let cache = KindleListingCache(directory: tree.cache)
+    #expect(cache.load(device: "TEST-UUID").isEmpty)
+    #expect(cache.loadDigests(device: "TEST-UUID")["a.azw3"] != nil)
   }
 
   @Test func aDeviceNameCannotEscapeTheCacheFolder() {

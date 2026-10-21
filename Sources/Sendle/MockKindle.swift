@@ -13,7 +13,9 @@ enum MockKindle {
   }
 
   private enum Contents {
-    case azw3(title: String, author: String, asin: String, thumbnail: Bool)
+    case azw3(
+      title: String, author: String, asin: String, thumbnail: Bool,
+      extra: [(UInt32, String)] = [])
     case other(String)
     case pdf(title: String)
   }
@@ -45,7 +47,7 @@ enum MockKindle {
       contents: .azw3(
         title: "Alice's Adventures in Wonderland", author: "Lewis Carroll",
         asin: AZW3Metadata.asin(for: "Alice's Adventures in Wonderland - Lewis Carroll"),
-        thumbnail: true)),
+        thumbnail: true, extra: [(524, "en"), (106, "1865")])),
     Book(
       path: "Dracula - Bram Stoker.azw3", date: "2026-10-15T18:05:00Z",
       contents: .azw3(
@@ -79,11 +81,11 @@ enum MockKindle {
 
   private static func write(_ contents: Contents, to url: URL, thumbnails: URL) throws {
     switch contents {
-    case .azw3(let title, let author, let asin, let thumbnail):
+    case .azw3(let title, let author, let asin, let thumbnail, let extra):
       let cover = cover(title: title)
       try MOBIBuilder.book(
         fullName: url.deletingPathExtension().lastPathComponent,
-        exth: [(100, author), (113, asin), (501, "EBOK"), (503, title)], cover: cover
+        exth: [(100, author), (113, asin), (501, "EBOK"), (503, title)] + extra, cover: cover
       ).write(to: url)
       if thumbnail, let cover {
         try cover.write(to: thumbnails.appending(path: "thumbnail_\(asin)_EBOK_portrait.jpg"))

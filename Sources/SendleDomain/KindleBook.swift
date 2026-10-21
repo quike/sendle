@@ -46,6 +46,8 @@ public struct KindleBook: Identifiable, Hashable, Sendable, Codable {
   public let documentType: String?
   public let isbn: String?
   public let publisher: String?
+  public let language: String?
+  public let year: String?
   /// True when the ASIN is the one Sendle derives from the file name, not an edition key.
   public let asinFollowsFileName: Bool
   public let isProtected: Bool
@@ -61,6 +63,8 @@ public struct KindleBook: Identifiable, Hashable, Sendable, Codable {
     documentType: String? = nil,
     isbn: String? = nil,
     publisher: String? = nil,
+    language: String? = nil,
+    year: String? = nil,
     asinFollowsFileName: Bool = false,
     isProtected: Bool = false,
     byteCount: Int64,
@@ -74,6 +78,8 @@ public struct KindleBook: Identifiable, Hashable, Sendable, Codable {
     self.documentType = documentType
     self.isbn = isbn
     self.publisher = publisher
+    self.language = language
+    self.year = year
     self.asinFollowsFileName = asinFollowsFileName
     self.isProtected = isProtected
     self.byteCount = byteCount
@@ -83,7 +89,7 @@ public struct KindleBook: Identifiable, Hashable, Sendable, Codable {
   public func withSource(_ source: KindleBookSource) -> KindleBook {
     KindleBook(
       id: id, title: title, authors: authors, source: source, asin: asin,
-      documentType: documentType, isbn: isbn, publisher: publisher,
+      documentType: documentType, isbn: isbn, publisher: publisher, language: language, year: year,
       asinFollowsFileName: asinFollowsFileName, isProtected: isProtected, byteCount: byteCount,
       modified: modified)
   }

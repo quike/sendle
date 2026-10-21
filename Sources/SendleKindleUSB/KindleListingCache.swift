@@ -3,7 +3,8 @@ import SendleDomain
 
 /// What an earlier listing of a Kindle found, so a later one reads only the books that changed.
 package struct KindleListingCache: Sendable {
-  private static let version = 1
+  private static let listingVersion = 2
+  private static let digestsVersion = 1
 
   private struct Stored: Codable {
     let version: Int
@@ -42,7 +43,7 @@ package struct KindleListingCache: Sendable {
   package func load(device: String) -> [String: KindleBook] {
     guard let data = try? Data(contentsOf: file(for: device)),
       let stored = try? JSONDecoder().decode(Stored.self, from: data),
-      stored.version == Self.version
+      stored.version == Self.listingVersion
     else { return [:] }
     return Dictionary(stored.books.map { ($0.id.relativePath, $0) }) { first, _ in first }
   }
@@ -51,7 +52,7 @@ package struct KindleListingCache: Sendable {
   package func save(_ books: [KindleBook], device: String) {
     do {
       try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-      let data = try JSONEncoder().encode(Stored(version: Self.version, books: books))
+      let data = try JSONEncoder().encode(Stored(version: Self.listingVersion, books: books))
       try data.write(to: file(for: device), options: .atomic)
     } catch {}
   }
@@ -60,7 +61,7 @@ package struct KindleListingCache: Sendable {
   package func loadDigests(device: String) -> [String: Digest] {
     guard let data = try? Data(contentsOf: digestFile(for: device)),
       let stored = try? JSONDecoder().decode(StoredDigests.self, from: data),
-      stored.version == Self.version
+      stored.version == Self.digestsVersion
     else { return [:] }
     return stored.digests
   }
@@ -70,7 +71,8 @@ package struct KindleListingCache: Sendable {
     do {
       try FileManager.default.createDirectory(
         at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
-      let data = try JSONEncoder().encode(StoredDigests(version: Self.version, digests: digests))
+      let data = try JSONEncoder().encode(
+        StoredDigests(version: Self.digestsVersion, digests: digests))
       try data.write(to: file, options: .atomic)
     } catch {}
   }

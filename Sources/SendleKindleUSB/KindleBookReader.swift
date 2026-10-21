@@ -44,6 +44,8 @@ package enum KindleBookReader {
       documentType: details.documentType,
       isbn: details.isbn,
       publisher: details.publisher,
+      language: details.language,
+      year: details.year,
       asinFollowsFileName: asinFollowsFileName,
       isProtected: details.isProtected,
       byteCount: size,
@@ -58,6 +60,8 @@ package enum KindleBookReader {
     var documentType: String?
     var isbn: String?
     var publisher: String?
+    var language: String?
+    var year: String?
     var isProtected = false
     var readHeaders = true
   }
@@ -75,8 +79,17 @@ package enum KindleBookReader {
     result.documentType = metadata.documentType
     result.isbn = metadata.isbn
     result.publisher = metadata.publisher
+    result.language = metadata.language
+    result.year = year(metadata.published)
     result.isProtected = metadata.isEncrypted
     return result
+  }
+
+  private static func year(_ published: String?) -> String? {
+    guard let year = published?.prefix(4), year.count == 4,
+      year.allSatisfy({ $0.isASCII && $0.isNumber })
+    else { return nil }
+    return String(year)
   }
 
   private static func pdfDetails(of file: URL, filling details: Details) -> Details {
