@@ -304,9 +304,13 @@ public actor USBKindleBookRemover: KindleBookRemover {
     switch USBDeliveryChannel.failure(errno: code, volumeIsMounted: mounted) {
     case .deviceDisconnected: return .deviceDisconnected
     case .diskFull: return .failed("the Kindle is full")
-    case .copyFailed(let reason): return .failed(reason)
-    default: return .failed(reason(code))
+    case .copyFailed(let reason): return .failed(lowercasingFirst(reason))
+    default: return .failed(lowercasingFirst(reason(code)))
     }
+  }
+
+  private static func lowercasingFirst(_ text: String) -> String {
+    text.prefix(1).lowercased() + text.dropFirst()
   }
 
   private static func reason(_ code: Int32) -> String {

@@ -188,7 +188,7 @@ struct USBKindleBookRemoverTests {
     chmod(thumbnails, 0o555)
     defer { chmod(thumbnails, 0o755) }
 
-    await #expect(throws: KindleRemovalError.failed("Permission denied")) {
+    await #expect(throws: KindleRemovalError.failed("permission denied")) {
       try await USBKindleBookRemover().hold(
         book("\(alice).azw3", in: books), listedWith: books, on: tree.volume)
     }
@@ -230,7 +230,7 @@ struct USBKindleBookRemoverTests {
     chmod(tree.documents.path, 0o555)
     defer { chmod(tree.documents.path, 0o755) }
 
-    await #expect(throws: KindleRemovalError.failed("Permission denied")) {
+    await #expect(throws: KindleRemovalError.failed("permission denied")) {
       try await remover.restore(held)
     }
     #expect(names("\(holding)/\(held.id.uuidString)").count == 5)
@@ -261,6 +261,50 @@ struct USBKindleBookRemoverTests {
 
     try await remover.restore(held)
     #expect(try contents(alicesFiles) == before)
+  }
+
+  @Test func aLinkedHoldingFolderIsNeitherClearedNorUsed() async throws {
+    try writeAliceAndMoby()
+    let books = try await listing()
+    let documents = names("documents")
+    let target = try makeTemporaryDirectory()
+    try Data("keep".utf8).write(to: target.appending(path: "keep.txt"))
+    let link = tree.root.appending(path: holding)
+    try FileManager.default.createSymbolicLink(at: link, withDestinationURL: target)
+    let remover = USBKindleBookRemover()
+
+    #expect(await remover.clearLeftovers(on: tree.volume) == 0)
+    await #expect(throws: KindleRemovalError.failed("\(holding) isn't a folder")) {
+      try await remover.hold(
+        book("\(alice).azw3", in: books), listedWith: books, on: tree.volume)
+    }
+
+    #expect(try FileManager.default.destinationOfSymbolicLink(atPath: link.path) == target.path)
+    #expect(try FileManager.default.contentsOfDirectory(atPath: target.path) == ["keep.txt"])
+    #expect(try Data(contentsOf: target.appending(path: "keep.txt")) == Data("keep".utf8))
+    #expect(names("documents") == documents)
+  }
+
+  @Test func finalizeNeverRemovesThroughALinkedHoldingFolder() async throws {
+    try writeAliceAndMoby()
+    let books = try await listing()
+    let remover = USBKindleBookRemover()
+    let held = try await remover.hold(
+      book("\(alice).azw3", in: books), listedWith: books, on: tree.volume)
+    let target = try makeTemporaryDirectory()
+    let decoy = target.appending(path: "\(held.id.uuidString)/keep.txt")
+    try FileManager.default.createDirectory(
+      at: decoy.deletingLastPathComponent(), withIntermediateDirectories: true)
+    try Data("keep".utf8).write(to: decoy)
+    let link = tree.root.appending(path: holding)
+    try FileManager.default.moveItem(at: link, to: tree.root.appending(path: "aside"))
+    try FileManager.default.createSymbolicLink(at: link, withDestinationURL: target)
+
+    await #expect(throws: KindleRemovalError.failed("\(holding) isn't a folder")) {
+      try await remover.finalize(held)
+    }
+
+    #expect(try Data(contentsOf: decoy) == Data("keep".utf8))
   }
 
   @Test func aGoneKindleIsDisconnected() async throws {
