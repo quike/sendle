@@ -3,6 +3,30 @@ import Foundation
 public enum ISBN {
   /// The ISBN-13 digits for a valid ISBN-10 or ISBN-13 in any common spelling, or nil.
   public static func normalised(_ text: String) -> String? {
+    let characters = characters(of: text)
+    switch characters.count {
+    case 10: return thirteen(fromTen: characters)
+    case 13: return isValidThirteen(characters) ? characters : nil
+    default: return nil
+    }
+  }
+
+  /// Ten digits, the last of which may be an X, or thirteen, in any common spelling, whether or
+  /// not the check digit matches.
+  public static func hasISBNDigits(_ text: String) -> Bool {
+    let characters = Array(characters(of: text))
+    let isDigit = { (character: Character) in character.isASCII && character.isNumber }
+    switch characters.count {
+    case 10:
+      return characters.dropLast().allSatisfy(isDigit)
+        && (isDigit(characters[9]) || characters[9] == "x")
+    case 13: return characters.allSatisfy(isDigit)
+    default: return false
+    }
+  }
+
+  /// Lowercased, without its prefix, hyphens and spaces.
+  private static func characters(of text: String) -> String {
     var rest = text.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
     for prefix in ["urn:isbn:", "isbn-13:", "isbn-10:", "isbn:", "isbn"]
     where rest.hasPrefix(prefix) {
@@ -10,12 +34,7 @@ public enum ISBN {
       break
     }
     let hyphens: Set<Character> = ["-", "\u{2010}", "\u{2011}"]
-    let characters = rest.filter { !$0.isWhitespace && !hyphens.contains($0) }
-    switch characters.count {
-    case 10: return thirteen(fromTen: characters)
-    case 13: return isValidThirteen(characters) ? characters : nil
-    default: return nil
-    }
+    return rest.filter { !$0.isWhitespace && !hyphens.contains($0) }
   }
 
   private static func thirteen(fromTen text: String) -> String? {

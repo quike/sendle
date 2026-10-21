@@ -137,13 +137,12 @@ public actor JSONMetadataEditStore: MetadataEditStore {
 }
 
 private enum CoverImage {
-  static let maxBytes = 20_000_000
   static let maxPixels = 2560
   static let quality = 0.9
 
   /// The image re-encoded as a JPEG, and the first 12 hex digits of its SHA-256.
   static func jpeg(from data: Data) throws(MetadataEditError) -> (data: Data, digest: String) {
-    guard data.count <= maxBytes else { throw .imageTooLarge }
+    guard data.count <= CoverChange.maxImageBytes else { throw .imageTooLarge }
     guard let source = CGImageSourceCreateWithData(data as CFData, nil),
       let image = scaled(source),
       let jpeg = encode(image)

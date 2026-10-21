@@ -149,6 +149,15 @@ struct DuplicateReviewModelTests {
     #expect(rows["Size"]?.differs == false)
   }
 
+  @Test func aKindleAuthorInSortFormReadsAsAName() {
+    let kindle = KindleBook.fixture(authors: ["Melville, Herman", "Ann Smith & Bob Jones"])
+    let model = DuplicateReviewModel(cases: [duplicate("a", .maybe, kindle: kindle)], zone: .gmt)
+
+    let author = model.rows.first { $0.label == "Author" }
+    #expect(author?.kindle == "Herman Melville, Ann Smith & Bob Jones")
+    #expect(author?.differs == false)
+  }
+
   @Test func showsADashWhereAValueIsMissing() {
     let kindle = KindleBook.fixture(authors: [])
     let model = DuplicateReviewModel(

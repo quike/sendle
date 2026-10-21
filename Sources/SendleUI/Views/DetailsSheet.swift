@@ -13,8 +13,8 @@ struct DetailsDim: View {
   }
 }
 
-/// A book's details, in a sheet that rises over the bottom of the library (spec §3.2). Its
-/// fields scroll on a card too short for them all.
+/// A book's details, in a sheet that rises over the bottom of the library. Its fields scroll on a
+/// card too short for them all.
 struct DetailsSheet: View {
   /// How much of the card's height the sheet covers.
   static let share: CGFloat = 0.7

@@ -68,12 +68,20 @@ private struct EditionFields: View {
               .accessibilityLabel("Valid ISBN")
           }
         }
-        if details.isbnStatus == .invalid {
-          FieldNote(text: "Check digit doesn't match", color: Theme.warm)
+        if let warning = isbnWarning {
+          FieldNote(text: warning, color: Theme.warm)
             .padding(.top, 4)
             .padding(.horizontal, 2)
         }
       }
+    }
+  }
+
+  private var isbnWarning: String? {
+    switch details.isbnStatus {
+    case .empty, .valid: nil
+    case .wrongCheckDigit: "Check digit doesn't match"
+    case .notAnISBN: "Not a valid ISBN"
     }
   }
 }

@@ -536,17 +536,18 @@ public final class PanelModel {
     isOnLibraryBooks && bookDetails == nil && duplicateReview == nil && checkingKindle == nil
   }
 
-  /// An image is refused here when it can't be read at all; saving checks its size. Only files
-  /// are read, so a URL dropped from a browser is never fetched.
+  /// An image saving would refuse is refused here, so the sheet says why at once.
   private func loadCover(from url: URL, into details: BookDetailsViewModel) async -> Bool {
-    let data = url.isFileURL ? await Task.detached { try? Data(contentsOf: url) }.value : nil
+    let file = await Task.detached { CoverImageFile.read(url) }.value
     guard bookDetails === details else { return false }
-    guard let data, NSImage(data: data) != nil else {
-      details.refuseCover(.unreadableImage)
+    switch file {
+    case .success(let file):
+      details.setCover(file.data, preview: file.preview)
+      return true
+    case .failure(let error):
+      details.refuseCover(error)
       return false
     }
-    details.setCover(data)
-    return true
   }
 
   // MARK: Logs

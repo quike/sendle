@@ -25,6 +25,9 @@ public enum CoverChange: Hashable, Sendable {
   case keep
   case replace(Data)
   case revert
+
+  /// The largest image a replacement may be, before it is scaled.
+  public static let maxImageBytes = 20_000_000
 }
 
 public enum MetadataEditError: Error, Hashable, Sendable {

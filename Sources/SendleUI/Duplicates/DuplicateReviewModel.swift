@@ -144,7 +144,7 @@ package final class DuplicateReviewModel {
         differs: NameKey.title(book.title) != NameKey.title(kindle.title)),
       ComparisonRow(
         label: "Author", library: Self.text(book.author),
-        kindle: Self.text(kindle.authors.joined(separator: ", ")),
+        kindle: Self.text(kindle.authors.map(SortNames.displayForm).joined(separator: ", ")),
         differs: Self.authorsDiffer(book.author, kindle.authors)),
       ComparisonRow(
         label: "Publisher", library: Self.text(edition?.publisher),

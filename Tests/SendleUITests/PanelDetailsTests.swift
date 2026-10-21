@@ -238,6 +238,50 @@ struct PanelDetailsTests {
     #expect(details.errorText == nil)
   }
 
+  @Test func aDroppedFileIsCheckedAsSavingWouldCheckIt() async throws {
+    let folder = try makeTemporaryDirectory()
+    defer { try? FileManager.default.removeItem(at: folder) }
+    // AppKit draws an SVG, but saving can't read one.
+    let svg = folder.appending(path: "cover.svg")
+    try Data(
+      #"<svg xmlns="http://www.w3.org/2000/svg" width="2" height="3"><rect width="2" height="3"/></svg>"#
+        .utf8
+    ).write(to: svg)
+    let header: [UInt8] = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]
+    let huge = folder.appending(path: "huge.png")
+    try Data(header + [UInt8](repeating: 0, count: 20_000_001 - header.count)).write(to: huge)
+    let panel = await launched()
+    await panel.openDetails(a)
+    let details = try #require(panel.bookDetails)
+
+    #expect(await panel.dropCover(svg) == false)
+    #expect(details.errorText == "Sendle can't read that image. Choose another one.")
+    #expect(await panel.dropCover(huge) == false)
+    #expect(details.errorText == "That image is over 20 MB. Choose a smaller one.")
+    harness.system.image = huge
+    let cover = folder.appending(path: "cover.png")
+    try png().write(to: cover)
+    #expect(await panel.dropCover(cover))
+    await panel.chooseCoverImage()
+    #expect(details.errorText == "That image is over 20 MB. Choose a smaller one.")
+    #expect(details.coverPreview != nil && details.isCoverEdited)
+  }
+
+  @Test func theSheetDrawsASmallCopyOfALargeCover() async throws {
+    let folder = try makeTemporaryDirectory()
+    defer { try? FileManager.default.removeItem(at: folder) }
+    let cover = folder.appending(path: "cover.png")
+    try png(width: 1000, height: 1500).write(to: cover)
+    let panel = await launched()
+    await panel.openDetails(a)
+    let details = try #require(panel.bookDetails)
+
+    #expect(await panel.dropCover(cover))
+
+    let preview = try #require(details.coverPreview.flatMap { NSBitmapImageRep(data: $0) })
+    #expect(preview.pixelsHigh <= 400 && preview.pixelsWide < preview.pixelsHigh)
+  }
+
   @Test func choosingAnImageMakesItTheCover() async throws {
     let folder = try makeTemporaryDirectory()
     defer { try? FileManager.default.removeItem(at: folder) }
@@ -252,7 +296,9 @@ struct PanelDetailsTests {
 
     harness.system.image = cover
     await panel.chooseCoverImage()
-    #expect(details.coverPreview == (try Data(contentsOf: cover)))
+    let preview = try #require(details.coverPreview.flatMap { NSBitmapImageRep(data: $0) })
+    #expect(preview.pixelsWide == 2 && preview.pixelsHigh == 3)
+    #expect(details.isCoverEdited)
   }
 
   @Test func aPDFsCoverStaysItsFirstPage() async throws {
@@ -272,16 +318,20 @@ struct PanelDetailsTests {
     #expect(details.coverPreview == nil)
   }
 
-  private func png() throws -> Data {
+  private func png(width: Int = 2, height: Int = 3) throws -> Data {
     struct Failure: Error {}
-    let image = NSImage(size: NSSize(width: 2, height: 3), flipped: false) { rect in
-      NSColor.systemOrange.setFill()
-      rect.fill()
-      return true
-    }
-    guard let tiff = image.tiffRepresentation, let bitmap = NSBitmapImageRep(data: tiff),
-      let data = bitmap.representation(using: .png, properties: [:])
+    guard
+      let bitmap = NSBitmapImageRep(
+        bitmapDataPlanes: nil, pixelsWide: width, pixelsHigh: height, bitsPerSample: 8,
+        samplesPerPixel: 4, hasAlpha: true, isPlanar: false, colorSpaceName: .deviceRGB,
+        bytesPerRow: 0, bitsPerPixel: 0)
     else { throw Failure() }
+    NSGraphicsContext.saveGraphicsState()
+    NSGraphicsContext.current = NSGraphicsContext(bitmapImageRep: bitmap)
+    NSColor.systemOrange.setFill()
+    NSRect(x: 0, y: 0, width: width, height: height).fill()
+    NSGraphicsContext.restoreGraphicsState()
+    guard let data = bitmap.representation(using: .png, properties: [:]) else { throw Failure() }
     return data
   }
 }

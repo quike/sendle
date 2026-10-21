@@ -3,7 +3,7 @@ import Observation
 import SendleDomain
 
 /// The edit details sheet: its fields as the user changes them, what each goes back to, and
-/// saving them (spec §3.2).
+/// saving them.
 @Observable @MainActor
 package final class BookDetailsViewModel {
   package enum Field: Hashable, Sendable, CaseIterable {
@@ -11,7 +11,7 @@ package final class BookDetailsViewModel {
   }
 
   package enum ISBNStatus: Equatable, Sendable {
-    case empty, valid, invalid
+    case empty, valid, wrongCheckDigit, notAnISBN
   }
 
   package let book: Book
@@ -101,16 +101,18 @@ package final class BookDetailsViewModel {
 
   // MARK: Writer
 
-  /// Only when ticking it changes something: a new author, a revert that may also remove a
-  /// writer's rename, or "Revert all" on a book showing a writer's sort name.
+  /// Only when ticking it changes something: a new author, a revert that may also remove the
+  /// writer's rename the book shows or overrides, or "Revert all" on a book showing a writer's
+  /// sort name.
   package var showsWriterCheckbox: Bool {
     guard otherBooks > 0 else { return false }
-    let fields = book.edits.fields
+    let edits = book.edits
     let typed = author.trimmed
     let renames =
       typed.isEmpty
-      ? !fields.isDisjoint(with: [.author, .writerName]) : typed != opened.author.trimmed
-    return renames || (sortNameFollowsCheckbox && fields.contains(.writerSortName))
+      ? edits.fields.contains(.writerName) || edits.overridesWriterRename
+      : typed != opened.author.trimmed
+    return renames || (sortNameFollowsCheckbox && edits.fields.contains(.writerSortName))
   }
 
   package var writerCheckboxTitle: String {
@@ -127,7 +129,8 @@ package final class BookDetailsViewModel {
 
   package var isbnStatus: ISBNStatus {
     if isbn.trimmed.isEmpty { return .empty }
-    return ISBN.normalised(isbn) == nil ? .invalid : .valid
+    if ISBN.normalised(isbn) != nil { return .valid }
+    return ISBN.hasISBNDigits(isbn) ? .wrongCheckDigit : .notAnISBN
   }
 
   package var canSave: Bool {
@@ -138,8 +141,8 @@ package final class BookDetailsViewModel {
 
   // MARK: Languages
 
-  /// Amazon's list (spec §5.6) by English name, then the book's and the typed tags it lacks. A
-  /// tag spelled another way takes the place of its entry, so the pop-up finds it.
+  /// The languages Amazon converts, by English name, then the book's and the typed tags it lacks.
+  /// A tag spelled another way takes the place of its entry, so the pop-up finds it.
   package var languages: [(tag: String, name: String)] {
     var listed = Self.amazonEntries
     var others: [String] = []
@@ -223,6 +226,9 @@ package final class BookDetailsViewModel {
 
   package func revertHelp(_ field: Field) -> String {
     let value = placeholder(field)
+    if [.sortTitle, .sortName].contains(field), !goesBackToBooks(field) {
+      return "Back to the derived name: \(value)"
+    }
     return switch field {
     case .year: value.isEmpty ? "Back to the book's own year" : "Back to the book's: \(value)"
     case .isbn: value.isEmpty ? "Back to the book's own ISBN" : "Back to the book's: \(value)"
@@ -258,10 +264,11 @@ package final class BookDetailsViewModel {
     }
   }
 
-  package func setCover(_ data: Data) {
+  /// `preview` is a smaller copy for the sheet to draw.
+  package func setCover(_ data: Data, preview: Data? = nil) {
     guard canChangeCover else { return }
     cover = .replace(data)
-    coverPreview = data
+    coverPreview = preview ?? data
     errorText = nil
   }
 
@@ -366,6 +373,16 @@ package final class BookDetailsViewModel {
     guard authorSort == .surname else { return author }
     return author == book.original.author?.trimmed ?? ""
       ? book.original.sortAuthor ?? author : SortNames.author(author)
+  }
+
+  /// Whether a sort line goes back to Books' own sort value, or to its title or author when it has
+  /// none, rather than to one derived from what the sheet shows.
+  private func goesBackToBooks(_ field: Field) -> Bool {
+    let books =
+      field == .sortTitle
+      ? book.original.sortTitle ?? book.original.title
+      : book.original.sortAuthor ?? book.original.author ?? ""
+    return placeholder(field) == books.trimmed
   }
 
   /// A writer's sort name keeps applying while the author stays the same writer.

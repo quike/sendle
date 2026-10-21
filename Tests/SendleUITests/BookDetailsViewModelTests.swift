@@ -135,7 +135,7 @@ struct BookDetailsViewModelTests {
     let edited = self.sheet(shown(eva, with: edits), fileValues: fileValues, saved: saved)
     #expect(Field.allCases.filter(edited.isEdited) == [.title, .sortTitle, .isbn, .language])
     for field in [Field.title, .language, .isbn, .sortTitle] { edited.revert(field) }
-    #expect(edited.revertHelp(.sortTitle) == "Back to Books: ritos del agua, Los")
+    #expect(edited.revertHelp(.sortTitle) == "Back to the derived name: ritos del agua, Los")
     #expect(await edited.save())
     #expect(
       saved.drafts == [
@@ -195,6 +195,22 @@ struct BookDetailsViewModelTests {
     #expect(!moby.showsSortTitle)
   }
 
+  @Test func aSortLinesRevertSaysWhetherItGoesBackToBooksOrToADerivedName() {
+    let sheet = sheet()
+    #expect(sheet.revertHelp(.sortName) == "Back to Books: Saenz, Eva Garcia")
+    #expect(sheet.revertHelp(.sortTitle) == "Back to the derived name: ritos del agua, Los")
+    sheet.author = "Eva García Sáenz"
+    #expect(sheet.revertHelp(.sortName) == "Back to the derived name: Sáenz, Eva García")
+
+    let moby = self.sheet(.fixture(sortTitle: "Moby Dick", sortAuthor: nil))
+    #expect(moby.revertHelp(.sortTitle) == "Back to Books: Moby Dick")
+    // Without a sort name of Books' own, the line goes back to Books' author.
+    #expect(moby.revertHelp(.sortName) == "Back to Books: Herman Melville")
+    moby.title = "Whale"
+    #expect(moby.revertHelp(.sortTitle) == "Back to the derived name: Whale")
+    #expect(self.sheet(.fixture(author: nil)).revertHelp(.sortName) == "Back to Books: no author")
+  }
+
   @Test func writerCheckboxAppearsOnlyWhenTheAuthorChangesAndOtherBooksExist() async {
     let saved = SavedDrafts()
     let sheet = sheet(saved: saved)
@@ -248,11 +264,16 @@ struct BookDetailsViewModelTests {
     unedited.revert(.author)
     #expect(!unedited.showsWriterCheckbox)
 
-    // A book's own author may override a rename, which the revert can also remove.
-    let own = sheet(
-      shown(eva, with: MetadataEdits(books: [eva.id: BookEdit(author: "E. G. Sáenz")])))
+    // A book's own author shows it only while it overrides a rename the revert can also remove.
+    let ownEdit = MetadataEdits(books: [eva.id: BookEdit(author: "E. G. Sáenz")])
+    let own = sheet(shown(eva, with: ownEdit))
     own.revert(.author)
-    #expect(own.showsWriterCheckbox)
+    #expect(!own.showsWriterCheckbox)
+    var overriding = ownEdit
+    overriding.writers[evasKey] = WriterEdit(name: "Eva G. Sáenz")
+    let overrides = sheet(shown(eva, with: overriding))
+    overrides.revert(.author)
+    #expect(overrides.showsWriterCheckbox)
 
     // Revert all reaches the writer's sort name, so it shows the checkbox, ticked.
     let sortName = MetadataEdits(writers: [evasKey: WriterEdit(sortName: "García, Eva")])
@@ -310,11 +331,17 @@ struct BookDetailsViewModelTests {
     sheet.isbn = valid
     #expect(sheet.isbnStatus == .valid)
     sheet.isbn = String(valid.dropLast()) + String(((valid.last?.wholeNumberValue ?? 0) + 1) % 10)
-    #expect(sheet.isbnStatus == .invalid)
+    #expect(sheet.isbnStatus == .wrongCheckDigit)
+    sheet.isbn = "0-306-40615-3"
+    #expect(sheet.isbnStatus == .wrongCheckDigit)
+    sheet.isbn = "isbn 0-306-40615-X"
+    #expect(sheet.isbnStatus == .wrongCheckDigit)
     sheet.isbn = ""
     #expect(sheet.isbnStatus == .empty)
-    sheet.isbn = "123"
-    #expect(sheet.isbnStatus == .invalid)
+    for text in ["123", "978-84-08-1722", "978-84-08-17227-11", "abcdefghij", "X-306-40615-2"] {
+      sheet.isbn = text
+      #expect(sheet.isbnStatus == .notAnISBN)
+    }
   }
 
   @Test func cannotSaveWithoutATitleOrWithABadYear() async {
