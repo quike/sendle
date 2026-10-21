@@ -121,8 +121,9 @@ struct OPFEditionReaderTests {
         == [moby.id: Edition(key: "urn:uuid:moby-dick", year: "1851")])
   }
 
+  /// Unzips into this test's own folder, where parallel tests leave nothing.
   private func reader() -> OPFEditionReader {
-    OPFEditionReader(cacheFile: cacheFile)
+    OPFEditionReader(cacheFile: cacheFile, scratchFolder: folder)
   }
 
   private func epub(
@@ -144,7 +145,7 @@ struct OPFEditionReaderTests {
 
   /// What a read leaves in the temporary folder.
   private func temporaryFiles() throws -> [String] {
-    try FileManager.default.contentsOfDirectory(atPath: NSTemporaryDirectory())
+    try FileManager.default.contentsOfDirectory(atPath: folder.path(percentEncoded: false))
       .filter { $0.hasPrefix("SendleEditions-") }
   }
 

@@ -16,10 +16,17 @@ public actor OPFEditionReader: EditionReader {
   }
 
   private let cacheFile: URL
+  /// Where a zipped book's package is unzipped for a moment.
+  private let scratchFolder: URL
   private var cache: Cache?
 
   public init(cacheFile: URL) {
+    self.init(cacheFile: cacheFile, scratchFolder: FileManager.default.temporaryDirectory)
+  }
+
+  package init(cacheFile: URL, scratchFolder: URL) {
     self.cacheFile = cacheFile
+    self.scratchFolder = scratchFolder
   }
 
   public func editions(of books: [Book]) async -> [BookID: Edition] {
@@ -34,7 +41,7 @@ public actor OPFEditionReader: EditionReader {
         found[book.id] = entry.edition
         continue
       }
-      guard let edition = Self.edition(of: book) else { continue }
+      guard let edition = Self.edition(of: book, unzippingIn: scratchFolder) else { continue }
       cache.entries[path] = Entry(modified: modified, edition: edition)
       found[book.id] = edition
       changed = true
@@ -46,7 +53,7 @@ public actor OPFEditionReader: EditionReader {
 
   /// Nil when the book's package can't be read, so that is never remembered as an edition
   /// without a key.
-  private static func edition(of book: Book) -> Edition? {
+  private static func edition(of book: Book, unzippingIn scratchFolder: URL) -> Edition? {
     var isDirectory: ObjCBool = false
     guard
       FileManager.default.fileExists(
@@ -58,8 +65,8 @@ public actor OPFEditionReader: EditionReader {
     // The whole book is unzipped only when its package can't be picked out by name.
     let extractors: [any ArchiveExtractor] = [PackageExtractor(), DittoExtractor()]
     for extractor in extractors {
-      let folder = FileManager.default.temporaryDirectory
-        .appending(path: "SendleEditions-\(UUID().uuidString)", directoryHint: .isDirectory)
+      let folder = scratchFolder.appending(
+        path: "SendleEditions-\(UUID().uuidString)", directoryHint: .isDirectory)
       defer { try? FileManager.default.removeItem(at: folder) }
       if (try? extractor.extract(book.fileURL, into: folder)) != nil,
         let package = OPFReader.package(inEPUBAt: folder)
