@@ -7,17 +7,20 @@ struct CardBackground: View {
 
   var body: some View {
     let shape = RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-    ZStack(alignment: .top) {
-      Theme.background
-      RadialGradient(
-        colors: [Theme.accent.opacity(0.22), .clear], center: .top, startRadius: 0,
-        endRadius: 230
-      )
-      .frame(height: 230)
-      .offset(y: -100)
-    }
-    .clipShape(shape)
-    .overlay(shape.strokeBorder(Color.white.opacity(0.08)))
+    // The glow is taller than a floating card, so it must neither size the card nor take the
+    // clicks meant for the books beside it.
+    Theme.background
+      .overlay(alignment: .top) {
+        RadialGradient(
+          colors: [Theme.accent.opacity(0.22), .clear], center: .top, startRadius: 0,
+          endRadius: 230
+        )
+        .frame(height: 230)
+        .offset(y: -100)
+        .allowsHitTesting(false)
+      }
+      .clipShape(shape)
+      .overlay(shape.strokeBorder(Color.white.opacity(0.08)))
   }
 }
 
