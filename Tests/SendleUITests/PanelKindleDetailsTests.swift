@@ -105,10 +105,12 @@ struct PanelKindleDetailsTests {
     let panel = await panelOnKindle()
 
     panel.openKindleDetails(sendlesPDF.id)
+    #expect(panel.kindleDetails != nil)
     #expect(panel.handle(KeyInput(.escape)))
     #expect(panel.kindleDetails == nil)
 
     panel.openKindleDetails(sendlesPDF.id)
+    #expect(panel.kindleDetails != nil)
     #expect(panel.handle(KeyInput(.returnKey)))
     #expect(panel.kindleDetails == nil)
   }
@@ -139,10 +141,60 @@ struct PanelKindleDetailsTests {
   @Test func unpluggingTheKindleClosesTheSheet() async {
     let panel = await panelOnKindle()
     panel.openKindleDetails(sendlesPDF.id)
+    #expect(panel.kindleDetails != nil)
 
     harness.monitor.update([])
 
     #expect(await eventually { panel.kindleDetails == nil && panel.side == .library })
+  }
+
+  @Test func anotherKindleTakingOverClosesTheSheet() async {
+    let oasis = KindleVolume.fixture(name: "Kindle Oasis")
+    let panel = await panelOnKindle()
+    harness.monitor.update([.fixture(), oasis])
+    panel.openKindleDetails(sendlesPDF.id)
+    #expect(panel.kindleDetails != nil)
+
+    harness.monitor.update([oasis])
+
+    #expect(await eventually { panel.kindle.volume == oasis })
+    #expect(panel.kindleDetails == nil)
+    #expect(panel.side == .kindle)
+  }
+
+  @Test func openingTheSheetTakesTheKeyboardFromTheSearchField() async {
+    let panel = await panelOnKindle()
+    let before = harness.system.endedEditing
+
+    panel.openKindleDetails(sendlesPDF.id)
+
+    #expect(harness.system.endedEditing > before)
+  }
+
+  @Test func theSheetGainsItsLibraryBookWhenTheMatchLandsAfterItOpened() async {
+    let kindle = FakeKindleLibrary(.success(.fixture([sendlesPDF])))
+    let reading = Signal()
+    kindle.gate = reading
+    let (panel, _) = harness.makePanel(
+      AppSettings(email: .fixture, activeDestination: .usb), kindle: kindle)
+    harness.monitor.update([.fixture()])
+    await panel.launch()
+    await panel.panelDidOpen()
+    #expect(await eventually { panel.kindle.state == .reading(done: 0, total: 0) })
+    let matching = Signal()
+    await harness.history.hold(matching)
+    await reading.fire()
+    #expect(await eventually { panel.kindle.listing != nil })
+    #expect(panel.kindle.matches == nil)
+    panel.showSide(.kindle)
+
+    panel.openKindleDetails(sendlesPDF.id)
+    #expect(panel.kindleDetails?.item.book.id == sendlesPDF.id)
+    #expect(panel.kindleDetails?.library == nil)
+    await matching.fire()
+
+    #expect(await eventually { panel.kindleDetails?.library?.id == a })
+    #expect(panel.kindleDetails?.item.book.id == sendlesPDF.id)
   }
 
   @Test func editInLibraryOpensTheLibraryBooksEditor() async {
@@ -155,5 +207,30 @@ struct PanelKindleDetailsTests {
     #expect(panel.kindleDetails == nil)
     #expect(await eventually { panel.bookDetails?.book.id == a })
     #expect(panel.library.letterJump.top == a)
+  }
+
+  private func editInLibrary(afterHidingItWith hide: (LibraryViewModel) -> Void) async {
+    let panel = await panelOnKindle()
+    hide(panel.library)
+    #expect(!panel.library.items.contains { $0.id == a })
+    panel.openKindleDetails(sendlesPDF.id)
+
+    await panel.editInLibrary()
+
+    #expect(panel.library.items.contains { $0.id == a })
+    #expect(panel.library.letterJump.top == a)
+    #expect(panel.bookDetails?.book.id == a)
+  }
+
+  @Test func editInLibraryShowsABookTheScopeHides() async {
+    await editInLibrary(afterHidingItWith: { $0.filter = .notOnKindle })
+  }
+
+  @Test func editInLibraryShowsABookTheSearchHides() async {
+    await editInLibrary(afterHidingItWith: { $0.query = "Dracula" })
+  }
+
+  @Test func editInLibraryShowsABookTheFormatHides() async {
+    await editInLibrary(afterHidingItWith: { $0.format = .epub })
   }
 }

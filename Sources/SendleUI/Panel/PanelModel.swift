@@ -105,7 +105,7 @@ public final class PanelModel {
     library.onKindleInputsChange = { [weak self] in self?.followKindle() }
     library.onSortChange = { [weak kindle] in kindle?.sort = $0 }
     library.onAuthorSortChange = { [weak kindle] in kindle?.authorSort = $0 }
-    kindle.onMatchesChange = { [weak library] in library?.showKindleMatches($0) }
+    kindle.onMatchesChange = { [weak self] in self?.matchesChanged($0) }
     settings.onChange = { [weak library] in await library?.refreshSettings() }
     queue.onFinish = { [weak self] in await self?.refreshAfterSend() }
     queue.isKindleConnected = { [weak library] in library?.isKindlePluggedIn ?? false }
@@ -260,14 +260,19 @@ public final class PanelModel {
   private func followKindle() {
     let volume = library.kindleVolume
     let books = library.books
-    if volume == nil {
-      side = .library
-      kindleDetails = nil
-    }
+    if volume == nil { side = .library }
+    if volume != kindle.volume { kindleDetails = nil }
     if let pending = pendingSend, library.activeDestination != pending.destination {
       stopSend(to: pending.destination)
     }
     Task { await kindle.follow(volume, books: books) }
+  }
+
+  /// The sheet over the Kindle's books gets the library book the new matches link it to.
+  private func matchesChanged(_ matches: KindleMatches?) {
+    library.showKindleMatches(matches)
+    guard let book = kindleDetails?.item.book else { return }
+    kindleDetails = KindleDetailsViewModel(book: book, library: libraryLink(for: book.id))
   }
 
   /// A USB send changed the Kindle, so it is read again before the history shows the send, or a
@@ -515,6 +520,7 @@ public final class PanelModel {
       kindleDetails == nil, checkingKindle == nil,
       let book = kindle.listing?.books.first(where: { $0.id == id })
     else { return }
+    system?.endEditing()
     kindleDetails = KindleDetailsViewModel(book: book, library: libraryLink(for: id))
   }
 
@@ -522,11 +528,17 @@ public final class PanelModel {
     kindleDetails = nil
   }
 
-  /// Closes the sheet and opens the matching library book's edit sheet, where it is scrolled to.
+  /// Closes the sheet and opens the matching library book's edit sheet, where it is scrolled to,
+  /// from the whole library when the search or filters hide it.
   package func editInLibrary() async {
     guard let link = kindleDetails?.library, link.canEdit else { return }
     closeKindleDetails()
     showSide(.library)
+    if !library.items.contains(where: { $0.id == link.id }) {
+      library.query = ""
+      library.filter = .all
+      library.format = nil
+    }
     library.letterJump.top = link.id
     await openDetails(link.id)
   }

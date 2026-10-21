@@ -57,13 +57,20 @@ public actor MemorySecretStore: SecretStore {
 public actor InMemorySendHistoryStore: SendHistoryStore {
   private var stored: [SendRecord] = []
   private let failure: StorageError?
+  private var gate: Signal?
 
   public init(failure: StorageError? = nil) {
     self.failure = failure
   }
 
-  public func records() -> [SendRecord] {
-    stored
+  /// While set, reading the records waits for it to fire.
+  public func hold(_ gate: Signal?) {
+    self.gate = gate
+  }
+
+  public func records() async -> [SendRecord] {
+    if let gate { await gate.wait() }
+    return stored
   }
 
   public func append(_ record: SendRecord) throws(StorageError) {
