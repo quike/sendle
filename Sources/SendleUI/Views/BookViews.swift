@@ -407,10 +407,21 @@ package struct MarkGlyph: View {
     let natural =
       NSImage(systemSymbolName: symbol, accessibilityDescription: nil)?.size
       ?? CGSize(width: side, height: side)
+    let size = size(natural: natural, within: side)
+    sizes[key] = size
+    return size
+  }
+
+  /// A tall or wide symbol stays so even when its shorter side would round up to the longer.
+  package static func size(natural: CGSize, within side: CGFloat) -> CGSize {
     let scale = side / max(natural.width, natural.height)
     func even(_ length: CGFloat) -> CGFloat { max(2, (length * scale / 2).rounded() * 2) }
-    let size = CGSize(width: even(natural.width), height: even(natural.height))
-    sizes[key] = size
+    var size = CGSize(width: even(natural.width), height: even(natural.height))
+    if natural.width < natural.height, size.width >= size.height {
+      size.width = max(2, size.height - 2)
+    } else if natural.height < natural.width, size.height >= size.width {
+      size.height = max(2, size.width - 2)
+    }
     return size
   }
 }

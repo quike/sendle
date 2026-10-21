@@ -22,6 +22,16 @@ struct MarkGlyphTests {
     #expect(wide.width > wide.height)
   }
 
+  @Test(arguments: [
+    (CGSize(width: 15, height: 17), CGSize(width: 6, height: 8)),
+    (CGSize(width: 17, height: 15), CGSize(width: 8, height: 6)),
+    (CGSize(width: 15, height: 15), CGSize(width: 8, height: 8)),
+    (CGSize(width: 11, height: 15), CGSize(width: 6, height: 8)),
+  ])
+  func aSymbolNearlySquareStaysTallOrWide(natural: CGSize, box: CGSize) {
+    #expect(MarkGlyph.size(natural: natural, within: 8) == box)
+  }
+
   @Test func anUnknownSymbolFillsTheBox() {
     #expect(MarkGlyph.size(of: "no.such.symbol", within: 10) == CGSize(width: 10, height: 10))
   }
