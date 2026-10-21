@@ -7,7 +7,8 @@ import SendleUI
 func makeKindleModel(
   reading library: any KindleLibrary = FakeKindleLibrary(),
   history: any SendHistoryStore = InMemorySendHistoryStore(),
-  editions: [BookID: Edition] = [:]
+  editions: [BookID: Edition] = [:],
+  canReplaceOtherCopies: Bool = false
 ) -> KindleViewModel {
   KindleViewModel(
     library: library,
@@ -15,5 +16,6 @@ func makeKindleModel(
       editions: FakeEditionReader(editions), digests: FakeFileDigester(),
       kindleDigests: FakeFileDigester(),
       asins: FakeASINScheme(),
-      history: history))
+      history: history),
+    canReplaceOtherCopies: canReplaceOtherCopies)
 }

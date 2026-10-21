@@ -397,6 +397,26 @@ struct KindleViewModelTests {
       await model.duplicates(of: [moby], on: .fixture()) == .unreadable(.unreadable("I/O error")))
   }
 
+  @Test(arguments: [(true, ReplaceKind.removesOther), (false, .unavailable)])
+  func aCopySendleDidNotNameCanBeReplacedWhenRemovingIsOn(
+    removing: Bool, expected: ReplaceKind
+  ) async {
+    let calibre = KindleBook.fixture(
+      path: "Herman Melville/Moby-Dick (7)/Moby-Dick - Herman Melville.azw3", source: .calibre,
+      asin: "0f8c2a54-1d5e-4a39-9b64-3f7a1c2d8e90")
+    kindle.result = .success(.fixture([calibre]))
+    let model = makeKindleModel(reading: kindle, canReplaceOtherCopies: removing)
+    await model.follow(.fixture(), books: [moby])
+
+    guard case .checked(let cases, _) = await model.duplicates(of: [moby], on: .fixture()) else {
+      Issue.record("the Kindle wasn't checked")
+      return
+    }
+
+    #expect(cases.map(\.match.book) == [calibre])
+    #expect(cases.map(\.replace) == [expected])
+  }
+
   func duplicate(of copy: KindleBook) -> DuplicateCase {
     DuplicateCase(
       book: moby, edition: nil,

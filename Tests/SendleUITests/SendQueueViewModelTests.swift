@@ -22,7 +22,8 @@ struct SendQueueViewModelTests {
 
   func makeQueue(
     _ channel: FakeDeliveryChannel = FakeDeliveryChannel(),
-    fixes: [EPUBFix] = []
+    fixes: [EPUBFix] = [],
+    remover: FakeKindleBookRemover? = nil
   ) -> SendQueueViewModel {
     let activity = activity
     return SendQueueViewModel(
@@ -30,7 +31,7 @@ struct SendQueueViewModelTests {
         channels: FakeDeliveryChannelFactory(channel: channel),
         preparer: FakeEPUBPreparer(fixes: fixes),
         converter: FakeFormatConverter(isAvailable: false), staging: FakeStagingArea(),
-        history: history, retryDelay: .zero, sleep: { _ in }),
+        history: history, retryDelay: .zero, sleep: { _ in }, remover: remover),
       keepAwake: {
         activity.begun += 1
         return { activity.ended += 1 }
@@ -234,6 +235,27 @@ struct SendQueueViewModelTests {
     #expect(
       channel.deliveries.map(\.name)
         == Array(repeating: "Meditations - Herman Melville (2)", count: 2))
+  }
+
+  @Test func retryKeepsWhatAReplacementRemoves() async {
+    let old = KindleBook.fixture(
+      path: "Herman Melville/Meditations (3)/Meditations.pdf", title: "Meditations",
+      source: .calibre)
+    let remover = FakeKindleBookRemover()
+    let queue = makeQueue(
+      FakeDeliveryChannel(.fail(.rejected("550 No")), .succeed), remover: remover)
+    queue.send(
+      [meditations], to: kindle,
+      copies: [meditations.id: KindleCopy(name: 1, asin: 1, removes: old)],
+      listing: [old])
+    await queue.waitUntilFinished()
+    #expect(remover.holds.isEmpty)
+
+    queue.retryFailed()
+    await queue.waitUntilFinished()
+
+    #expect(remover.holds == [old])
+    #expect(remover.listings == [[old]])
   }
 
   @Test func retryLeavesAnUnconfirmedBookAlone() async {

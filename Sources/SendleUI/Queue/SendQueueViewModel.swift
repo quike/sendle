@@ -22,6 +22,7 @@ public final class SendQueueViewModel {
   @ObservationIgnored package var isKindleConnected: @MainActor () -> Bool = { false }
 
   @ObservationIgnored private var copies: [BookID: KindleCopy] = [:]
+  @ObservationIgnored private var listing: [KindleBook] = []
   @ObservationIgnored private var run: Task<Void, Never>?
   @ObservationIgnored private var endActivity: (@MainActor () -> Void)?
   private let sendBooks: SendBooks
@@ -80,12 +81,14 @@ public final class SendQueueViewModel {
   // MARK: Actions
 
   /// Starts a run and replaces the queue. Ignored while a run is in progress. A book in `copies`
-  /// goes over USB as that copy.
+  /// goes over USB as that copy, and the copy it removes is found in `listing`.
   package func send(
-    _ books: [Book], to destination: Destination, copies: [BookID: KindleCopy] = [:]
+    _ books: [Book], to destination: Destination, copies: [BookID: KindleCopy] = [:],
+    listing: [KindleBook] = []
   ) {
     guard !isRunning, !books.isEmpty else { return }
     self.copies = copies
+    self.listing = listing
     rows = books.map { QueueRow(book: $0, destination: destination.kind) }
     self.destination = destination
     summary = nil
@@ -95,7 +98,8 @@ public final class SendQueueViewModel {
     let sendBooks = sendBooks
     let copies = copies
     run = Task { [weak self] in
-      await sendBooks(books, to: destination, copies: copies) { [weak self] event in
+      await sendBooks(books, to: destination, copies: copies, listing: listing) {
+        [weak self] event in
         await self?.handle(event)
       }
       await self?.finish()
@@ -110,7 +114,7 @@ public final class SendQueueViewModel {
   /// An unconfirmed book may already be with Amazon, so a retry never resends it.
   package func retryFailed() {
     guard !isRunning, let destination else { return }
-    send(retryable.map(\.book), to: destination, copies: copies)
+    send(retryable.map(\.book), to: destination, copies: copies, listing: listing)
   }
 
   package func dismiss() {

@@ -35,7 +35,8 @@ struct PanelHarness {
   /// `onSleep` runs each time setup waits between access checks.
   /// `channel` delivers every send and test email; `ejector` replaces the harness's.
   /// `edits` apply to the library's books, and `editions` are their EPUBs' editions. Saving a book's
-  /// details fails with `editFailure`.
+  /// details fails with `editFailure`. `remover` removes the copy a Replace leaves behind, and
+  /// turns Replace on for copies Sendle did not name.
   func makePanel(
     _ saved: AppSettings = AppSettings(email: .fixture),
     channel: FakeDeliveryChannel = FakeDeliveryChannel(),
@@ -45,6 +46,7 @@ struct PanelHarness {
     edits: MetadataEdits = .none,
     editions: [BookID: Edition] = [:],
     editFailure: MetadataEditError? = nil,
+    remover: FakeKindleBookRemover? = nil,
     onSleep: @escaping @Sendable () async -> Void = { try? await Task.sleep(for: .seconds(60)) }
   ) -> (PanelModel, InMemorySettingsStore) {
     let settings = InMemorySettingsStore(saved)
@@ -79,9 +81,11 @@ struct PanelHarness {
         sendBooks: SendBooks(
           channels: channels, preparer: FakeEPUBPreparer(editions: editions), converter: converter,
           staging: staging, history: history,
-          retryDelay: .zero, sleep: { _ in })),
+          retryDelay: .zero, sleep: { _ in }, remover: remover)),
       logs: LogsViewModel(feed: log),
-      kindle: makeKindleModel(reading: kindle, history: history, editions: editions),
+      kindle: makeKindleModel(
+        reading: kindle, history: history, editions: editions,
+        canReplaceOtherCopies: remover != nil),
       editDetails: EditBookDetails(store: editStore, settings: settings),
       ejector: ejector ?? self.ejector, log: log)
     panel.attach(system)
@@ -92,7 +96,8 @@ struct PanelHarness {
   /// destination, and the Kindle read. `converts` lets EPUBs go over USB.
   func pluggedInPanel(
     listing: [KindleBook], books: [Book]? = nil, converts: Bool = false,
-    edits: MetadataEdits = .none, editions: [BookID: Edition] = [:]
+    edits: MetadataEdits = .none, editions: [BookID: Edition] = [:],
+    remover: FakeKindleBookRemover? = nil
   ) async -> (panel: PanelModel, kindle: FakeKindleLibrary, channel: FakeDeliveryChannel) {
     library.result = .success(
       books ?? [
@@ -103,7 +108,8 @@ struct PanelHarness {
     let channel = FakeDeliveryChannel()
     let (panel, _) = makePanel(
       AppSettings(email: .fixture, activeDestination: .usb), channel: channel, kindle: kindle,
-      converter: FakeFormatConverter(isAvailable: converts), edits: edits, editions: editions)
+      converter: FakeFormatConverter(isAvailable: converts), edits: edits, editions: editions,
+      remover: remover)
     monitor.update([.fixture()])
     await panel.launch()
     await panel.panelDidOpen()

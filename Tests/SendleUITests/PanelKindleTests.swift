@@ -486,6 +486,64 @@ struct PanelKindleTests {
     #expect(panel.queue.isEmpty)
   }
 
+  /// Calibre's copy of Moby-Dick, in a folder of its own.
+  let calibreCopy = KindleBook.fixture(
+    path: "Herman Melville/Moby-Dick (7)/Moby-Dick - Herman Melville.pdf", source: .calibre,
+    asin: "0f8c2a54-1d5e-4a39-9b64-3f7a1c2d8e90")
+
+  @Test func replacingACalibreCopySendsItUnderSendlesNameThenRemovesIt() async {
+    let remover = FakeKindleBookRemover()
+    let (panel, _, channel) = await harness.pluggedInPanel(
+      listing: [calibreCopy], remover: remover)
+    await panel.quickSend(BookID(rawValue: "a"))
+    #expect(panel.duplicateReview?.current.replace == .removesOther)
+
+    panel.choose(.replace)
+    await panel.waitUntilReviewed()
+    await panel.queue.waitUntilFinished()
+
+    #expect(channel.deliveries.map(\.name) == ["Moby-Dick - Herman Melville"])
+    #expect(remover.holds == [calibreCopy])
+    #expect(
+      harness.log.messages(in: .usb).first
+        == "Replacing documents/\(calibreCopy.id.relativePath) on Kindle")
+  }
+
+  @Test func aReplacementNeverTakesTheOldCopysASIN() async {
+    let calibre = KindleBook.fixture(
+      path: "Herman Melville/Moby-Dick (7)/Moby-Dick - Herman Melville.azw3", source: .calibre,
+      asin: "0f8c2a54-1d5e-4a39-9b64-3f7a1c2d8e90")
+    let (panel, _, channel) = await harness.pluggedInPanel(
+      listing: [calibre], books: [.fixture(id: "a")], converts: true,
+      remover: FakeKindleBookRemover())
+    await panel.quickSend(BookID(rawValue: "a"))
+
+    panel.choose(.replace)
+    await panel.waitUntilReviewed()
+    await panel.queue.waitUntilFinished()
+
+    #expect(channel.deliveries.map(\.file.asin) == [nil])
+  }
+
+  @Test func aReplacementWhoseNameIsTakenGoesUnderTheNextFreeOne() async {
+    let remover = FakeKindleBookRemover()
+    let taken = KindleBook.fixture(
+      path: "Moby-Dick - Herman Melville.azw3", title: "Other", authors: ["Someone Else"])
+    let (panel, _, channel) = await harness.pluggedInPanel(
+      listing: [calibreCopy, taken], remover: remover)
+    await panel.quickSend(BookID(rawValue: "a"))
+
+    panel.choose(.replace)
+    await panel.waitUntilReviewed()
+    await panel.queue.waitUntilFinished()
+
+    #expect(channel.deliveries.map(\.name) == ["Moby-Dick - Herman Melville (2)"])
+    #expect(remover.holds == [calibreCopy])
+    #expect(
+      harness.log.messages(in: .usb).contains(
+        "Sendle's name for Moby-Dick is taken, so it goes as Moby-Dick - Herman Melville (2)"))
+  }
+
   @Test func closingTheSheetSendsNothing() async {
     let (panel, _, channel) = await harness.pluggedInPanel(listing: [sendlesPDF])
     panel.library.selectAll()

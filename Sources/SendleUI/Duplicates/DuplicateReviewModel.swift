@@ -120,7 +120,7 @@ package final class DuplicateReviewModel {
     case .inPlace:
       "Replace keeps your reading position: the new copy goes under the same file name."
     case .removesOther:
-      current.match.book.source == .amazon
+      current.match.book.isKindleDownload
         ? "Replace removes only the download; the book stays in your Amazon library."
         : "Replace removes this copy with its reading position, bookmarks and highlights."
     case .unavailable:

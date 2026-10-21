@@ -540,6 +540,15 @@ struct PanelModelTests {
     #expect(panel.library.preferredDestination == .usb)
   }
 
+  @Test func aReplacementTakesSendlesNameWhenItIsFree() {
+    let moby = Book.fixture(id: "a")
+    let name = "moby-dick - herman melville"
+
+    #expect(PanelModel.replacementCopy(of: moby, taken: []) == 1)
+    #expect(PanelModel.replacementCopy(of: moby, taken: [name]) == 2)
+    #expect(PanelModel.replacementCopy(of: moby, taken: [name, "\(name) (2)"]) == 3)
+  }
+
   // MARK: Logs
 
   @Test func theLogsButtonFollowsTheSetting() async {

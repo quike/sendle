@@ -365,10 +365,11 @@ public final class PanelModel {
   }
 
   private func start(
-    _ books: [Book], to destination: Destination, copies: [BookID: KindleCopy] = [:]
+    _ books: [Book], to destination: Destination, copies: [BookID: KindleCopy] = [:],
+    listing: [KindleBook] = []
   ) {
     system?.endEditing()
-    queue.send(books, to: destination, copies: copies)
+    queue.send(books, to: destination, copies: copies, listing: listing)
     _ = library.clearSelection()
     route = .queue
   }
@@ -381,7 +382,7 @@ public final class PanelModel {
   ) async {
     let planned = await kindle.plannedCopies(for: books, copies: copies, listing: listing)
     guard library.activeDestination == destination else { return stopSend(to: destination) }
-    start(books, to: destination, copies: planned)
+    start(books, to: destination, copies: planned, listing: listing)
   }
 
   package func choose(_ choice: DuplicateChoice) {
@@ -422,7 +423,7 @@ public final class PanelModel {
   }
 
   /// Drops the skips, names each Keep both copy past the names the Kindle already uses, keeps the
-  /// ASIN of each copy replaced, and sends.
+  /// ASIN of each copy replaced in place, names the others' replacements and sends.
   private func finishReview(_ review: DuplicateReviewModel, of pending: PendingSend) async {
     var taken = Set(
       pending.listing.books.filter { !$0.id.relativePath.contains("/") }
@@ -442,9 +443,23 @@ public final class PanelModel {
         if copy > 1 { copies[book.id] = .keepBoth(copy) }
         log.info(.usb, "Keeping both: \(book.title) goes as \(name)")
       case .replace?:
-        guard let old = review.cases.first(where: { $0.id == book.id })?.match.book else { break }
-        if let asin = old.asin { copies[book.id] = .replacing(asin: asin) }
+        guard let found = review.cases.first(where: { $0.id == book.id }) else { break }
+        let old = found.match.book
         log.info(.usb, "Replacing documents/\(old.id.relativePath) on \(kindleName)")
+        switch found.replace {
+        case .inPlace:
+          if let asin = old.asin { copies[book.id] = .replacing(asin: asin) }
+        case .removesOther:
+          let copy = Self.replacementCopy(of: book, taken: taken)
+          let name = FileNaming.copyName(for: book, copy: copy)
+          taken.insert(name.lowercased())
+          copies[book.id] = KindleCopy(name: copy, asin: copy, removes: old)
+          if copy > 1 {
+            log.info(.usb, "Sendle's name for \(book.title) is taken, so it goes as \(name)")
+          }
+        case .unavailable:
+          break
+        }
       case nil:
         break
       }
@@ -453,6 +468,13 @@ public final class PanelModel {
     guard !books.isEmpty else { return }
     await planAndStart(
       books, to: pending.destination, copies: copies, against: pending.listing.books)
+  }
+
+  /// Sendle's own name for the book when the Kindle has no file under it, otherwise the next free
+  /// copy. `taken` holds lowercased stems.
+  package static func replacementCopy(of book: Book, taken: Set<String>) -> Int {
+    taken.contains(FileNaming.copyName(for: book, copy: 1).lowercased())
+      ? FileNaming.nextFreeCopy(for: book, taken: taken) : 1
   }
 
   /// An edited title or author gives the book a new name, which it takes while the Kindle has no

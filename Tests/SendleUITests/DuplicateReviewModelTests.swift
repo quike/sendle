@@ -211,13 +211,18 @@ struct DuplicateReviewModelTests {
         == "Replace keeps your reading position: the new copy goes under the same file name.")
   }
 
-  @Test func theNoteSaysWhatRemovingAnotherCopyLoses() {
+  @Test func anotherCopyOffersReplaceWithWhatItCosts() {
+    let model = DuplicateReviewModel(cases: [duplicate("a", .sure, .removesOther)])
+    #expect(model.choices == [.skip, .keepBoth, .replace])
+    #expect(model.defaultChoice == .replace)
     #expect(
-      DuplicateReviewModel(cases: [duplicate("a", .sure, .removesOther)]).note
-        == "Replace removes this copy with its reading position, bookmarks and highlights.")
+      model.note == "Replace removes this copy with its reading position, bookmarks and highlights."
+    )
+
+    let download = KindleBook.fixture(
+      path: "Downloads/Items01/x_B0123456789_EBOK.kfx", source: .email)
     #expect(
-      DuplicateReviewModel(
-        cases: [duplicate("a", .sure, .removesOther, kindle: .fixture(source: .amazon))]
-      ).note == "Replace removes only the download; the book stays in your Amazon library.")
+      DuplicateReviewModel(cases: [duplicate("a", .sure, .removesOther, kindle: download)]).note
+        == "Replace removes only the download; the book stays in your Amazon library.")
   }
 }

@@ -66,10 +66,15 @@ public final class KindleViewModel {
 
   private let library: any KindleLibrary
   private let match: MatchKindleBooks
+  private let canReplaceOtherCopies: Bool
 
-  public init(library: any KindleLibrary, match: MatchKindleBooks) {
+  /// With `canReplaceOtherCopies`, Replace also offers to remove a copy Sendle didn't name.
+  public init(
+    library: any KindleLibrary, match: MatchKindleBooks, canReplaceOtherCopies: Bool = false
+  ) {
     self.library = library
     self.match = match
+    self.canReplaceOtherCopies = canReplaceOtherCopies
     covers = KindleCoverStore(library: library)
   }
 
@@ -181,9 +186,13 @@ public final class KindleViewModel {
     return found.map { entry in
       DuplicateCase(
         book: entry.book, edition: editions[entry.book.id], match: entry.match,
-        replace: FileNaming.isSendlesCopy(entry.match.book, of: entry.book)
-          ? .inPlace : .unavailable)
+        replace: replaceKind(of: entry.book, matching: entry.match.book))
     }
+  }
+
+  private func replaceKind(of book: Book, matching copy: KindleBook) -> ReplaceKind {
+    if FileNaming.isSendlesCopy(copy, of: book) { return .inPlace }
+    return canReplaceOtherCopies ? .removesOther : .unavailable
   }
 
   private func listChanged(_ changed: Bool) {
