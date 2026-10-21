@@ -92,6 +92,40 @@ struct DiskImageCheck {
     }
   }
 
+  @Test func holdsUndoesAndFinalizesOnFAT() async throws {
+    let image = try DiskImage()
+    defer { image.remove() }
+    let mountPoint = try image.attach()
+    let volume = KindleVolume(id: mountPoint.path, name: "SENDLETEST", mountURL: mountPoint)
+    let documents = mountPoint.appending(path: "documents")
+    let folder = documents.appending(path: "A")
+    try FileManager.default.createDirectory(
+      at: folder.appending(path: "x.sdr"), withIntermediateDirectories: true)
+    let pdf = makePDF(title: "X", author: nil)
+    try pdf.write(to: folder.appending(path: "x.pdf"))
+    try Data("position".utf8).write(to: folder.appending(path: "x.sdr/x.pdt"))
+    let books = try await USBKindleLibrary(cacheDirectory: makeTemporaryDirectory())
+      .listing(of: volume, progress: { _, _ in }).books
+    let book = try #require(books.first)
+    let remover = USBKindleBookRemover()
+    // macOS gave the folders and files made here "._" twins, which move with them.
+    let before = names(in: folder)
+
+    let held = try await remover.hold(book, listedWith: books, on: volume)
+    #expect(names(in: documents).filter { !$0.hasPrefix("._") } == ["A"])
+    #expect(names(in: folder) == [])
+    #expect(held.parts == [.book, .sidecar])
+
+    try await remover.restore(held)
+    #expect(names(in: folder) == before)
+    #expect(try Data(contentsOf: folder.appending(path: "x.pdf")) == pdf)
+    #expect(try Data(contentsOf: folder.appending(path: "x.sdr/x.pdt")) == Data("position".utf8))
+
+    try await remover.finalize(remover.hold(book, listedWith: books, on: volume))
+    #expect(!names(in: mountPoint).contains { $0.hasSuffix(USBKindleBookRemover.holdingFolder) })
+    #expect(names(in: documents) == [])
+  }
+
   @Test func ejectingAKindleInUseSaysSo() async throws {
     let image = try DiskImage()
     defer { image.remove() }

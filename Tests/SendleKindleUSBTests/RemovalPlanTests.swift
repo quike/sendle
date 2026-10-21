@@ -99,6 +99,45 @@ struct RemovalPlanTests {
         == ["documents/Downloads/Items01/Series"])
   }
 
+  @Test func knowsTheKindlesOwnFoldersInAnyCase() {
+    #expect(plan(.fixture(path: "downloads/Items01/x.kfx"))?.emptyFolders == [])
+    #expect(
+      plan(.fixture(path: "DOWNLOADS/items01/Series/x.kfx"))?.emptyFolders
+        == ["documents/DOWNLOADS/items01/Series"])
+  }
+
+  @Test func readsTheSiblingNamesWithoutRegardToCase() {
+    let pdf = KindleBook.fixture(path: "Dracula.pdf")
+    let shared = plan(pdf, siblings: ["Dracula.pdf", "DRACULA.AZW3"])
+    #expect(shared?.parts.contains(.sidecar("documents/Dracula.sdr")) == false)
+  }
+
+  @Test(arguments: ["", "../../x", "B0/X", "..", "B0\u{0}X"])
+  func noThumbnailForAnASINOrTypeThatIsntAName(value: String) {
+    let asin = KindleBook.fixture(path: "a.azw3", asin: value, documentType: "EBOK")
+    let type = KindleBook.fixture(path: "b.azw3", asin: "SN5T2DYX77", documentType: value)
+    #expect(coverParts(plan(asin)) == [])
+    #expect(coverParts(plan(type)) == [])
+  }
+
+  @Test func takesTheCoverFromTheListedCopyOfTheBook() {
+    let listed = KindleBook.fixture(path: "a.azw3", asin: "SNLISTED01", documentType: "EBOK")
+    let stale = KindleBook.fixture(path: "a.azw3", asin: "SNSTALE001", documentType: "PDOC")
+    #expect(
+      coverParts(plan(stale, listing: [listed]))
+        == [
+          .thumbnail("system/thumbnails/thumbnail_SNLISTED01_EBOK_portrait.jpg"),
+          .thumbnailAppleDouble("system/thumbnails/._thumbnail_SNLISTED01_EBOK_portrait.jpg"),
+        ])
+  }
+
+  /// FAT matches file names without regard to case, so both books show the one thumbnail.
+  @Test func keepsAThumbnailAnotherBookUsesInAnotherCase() {
+    let a = KindleBook.fixture(path: "a.azw3", asin: uuid, documentType: "EBOK")
+    let b = KindleBook.fixture(path: "b.azw3", asin: uuid.uppercased(), documentType: "ebok")
+    #expect(coverParts(plan(a, listing: [a, b])) == [])
+  }
+
   @Test(arguments: [
     "../system/x.azw3", "/x.azw3", "A/../../x.azw3", "", "Downloads/Items01", "A/./x.azw3",
     "A//x.azw3", "README", "A/",
