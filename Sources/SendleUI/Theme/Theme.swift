@@ -14,6 +14,10 @@ package enum Theme {
   package static let warm = Color(hex: 0xffb46b)
   package static let live = Color(hex: 0x4ade80)
   package static let danger = Color(hex: 0xff5c5c)
+  /// A destructive button's text, on `danger` at 16 %.
+  package static let dangerText = Color(hex: 0xff8a8a)
+  /// Under white text, the button that confirms a delete.
+  package static let dangerSolid = Color(hex: 0xd63a3a)
   package static let brandStart = Color(hex: 0x7c5cff)
   /// Links and the light blue of active text, such as "Open Amazon's settings ↗".
   package static let link = Color(hex: 0x9cc2ff)

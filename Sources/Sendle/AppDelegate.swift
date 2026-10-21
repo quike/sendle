@@ -14,12 +14,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     let snapshotFolder = ProcessInfo.processInfo.environment[Snapshot.environmentKey]
     if snapshotFolder != nil { Snapshot.requireDataDirectory() }
     let kindles = snapshotFolder.map { _ in SnapshotKindles(mockRoot: Snapshot.writeMockKindle()) }
-    let kindleLibrary = snapshotFolder.map { _ in
-      SnapshotKindleLibrary(cacheDirectory: DataDirectory.url())
+    let remover = snapshotFolder.map { _ in SnapshotKindleRemover() }
+    let kindleLibrary = remover.map {
+      SnapshotKindleLibrary(cacheDirectory: DataDirectory.url(), remover: $0)
     }
     let composition = Composition(
       loginItem: MainAppLoginItem(), channels: snapshotFolder.map { _ in SnapshotChannels() },
-      kindles: kindles, kindleLibrary: kindleLibrary)
+      kindles: kindles, kindleLibrary: kindleLibrary, remover: remover)
     self.composition = composition
     if let folder = snapshotFolder, let kindles, let kindleLibrary {
       Task {
@@ -37,17 +38,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     Task { await composition.launch() }
   }
 
-  /// Quitting in the middle of a run asks first: the books not sent yet would be lost.
+  /// Quitting in the middle of a run asks first: the books not sent yet would be lost. A delete
+  /// from the Kindle that Undo could still take back becomes final before Sendle quits.
   func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
-    guard let warning = composition?.panel.queue.quitWarning else { return .terminateNow }
-    panel?.hide()
-    NSApp.activate()
-    let alert = NSAlert()
-    alert.messageText = warning.title
-    alert.informativeText = warning.message ?? ""
-    alert.addButton(withTitle: "Keep sending")
-    alert.addButton(withTitle: "Quit")
-    return alert.runModal() == .alertSecondButtonReturn ? .terminateNow : .terminateCancel
+    guard let model = composition?.panel else { return .terminateNow }
+    if let warning = model.queue.quitWarning {
+      panel?.hide()
+      NSApp.activate()
+      let alert = NSAlert()
+      alert.messageText = warning.title
+      alert.informativeText = warning.message ?? ""
+      alert.addButton(withTitle: "Keep sending")
+      alert.addButton(withTitle: "Quit")
+      guard alert.runModal() == .alertSecondButtonReturn else { return .terminateCancel }
+    }
+    guard model.hasPendingKindleDelete else { return .terminateNow }
+    Task {
+      await model.prepareToQuit()
+      NSApp.reply(toApplicationShouldTerminate: true)
+    }
+    return .terminateLater
   }
 
   // MARK: Status item

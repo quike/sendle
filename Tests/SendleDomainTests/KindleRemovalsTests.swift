@@ -222,7 +222,7 @@ struct KindleRemovalsTests {
     arguments: [
       (KindleRemovalError.changedSinceListed, "it changed on the Kindle since Sendle read it"),
       (.deviceDisconnected, "the Kindle was unplugged"),
-      (.occupied("documents/x.pdf"), "documents/x.pdf is in its place"),
+      (.occupied("documents/x.pdf"), "another file is at documents/x.pdf now"),
       (.failed("the disk is read-only"), "the disk is read-only"),
     ])
   func removalErrorsReadAsADetail(error: KindleRemovalError, detail: String) {

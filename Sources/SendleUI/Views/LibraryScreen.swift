@@ -118,6 +118,15 @@ struct LibraryScreen: View {
       }
     }
     .animation(reduceMotion ? nil : Theme.press, value: panel.showsSendBar)
+    .overlay(alignment: .bottom) {
+      if let held = panel.undoToast {
+        UndoToast(panel: panel, held: held)
+          .padding(14)
+          .id(held.id)
+          .transition(reduceMotion ? .opacity : .move(edge: .bottom).combined(with: .opacity))
+      }
+    }
+    .animation(ScreenMotion.animation(reduceMotion: reduceMotion), value: panel.undoToast?.id)
   }
 
   private func books(_ side: LibrarySide) -> AnyTransition {
@@ -779,6 +788,68 @@ struct SendBarContent: View {
     }
     .padding(.leading, 12)
     .padding(8)
+  }
+}
+
+/// The Undo of a delete from the Kindle, where the send bar would be, with a bar for the time
+/// left. It says nothing to the menu bar icon.
+struct UndoToast: View {
+  let panel: PanelModel
+  let held: HeldBook
+  @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+  var body: some View {
+    let shape = RoundedRectangle(cornerRadius: 16, style: .continuous)
+    let title = "Deleted \"\(held.book.title)\""
+    HStack(spacing: 10) {
+      Image(systemName: "checkmark")
+        .font(.system(size: 11, weight: .bold))
+        .foregroundStyle(Theme.live)
+      Text(title)
+        .font(.system(size: 12, weight: .semibold))
+        .lineLimit(1)
+      Spacer(minLength: 4)
+      Button("Undo", action: undo)
+        .buttonStyle(.plain)
+        .font(.system(size: 11.5, weight: .semibold))
+        .foregroundStyle(Theme.link)
+    }
+    .padding(.horizontal, 12)
+    .padding(.vertical, 10)
+    .background(Theme.live.opacity(0.1), in: shape)
+    .background(Theme.floating, in: shape)
+    .overlay(alignment: .bottom) {
+      TimeLeftBar(isMoving: !reduceMotion)
+        .padding(.horizontal, 12)
+        .padding(.bottom, 2)
+    }
+    .overlay(shape.strokeBorder(Theme.live.opacity(0.3)))
+    .shadow(color: .black.opacity(0.5), radius: 14, y: 8)
+    .help("Undo (⌘Z)")
+    .accessibilityElement(children: .ignore)
+    .accessibilityLabel(title)
+    .accessibilityAction(named: "Undo", undo)
+  }
+
+  private func undo() {
+    Task { await panel.undoKindleDelete() }
+  }
+}
+
+/// Shrinks over the Undo window from the moment it shows; with Reduce Motion it stays full.
+private struct TimeLeftBar: View {
+  let isMoving: Bool
+
+  var body: some View {
+    Capsule()
+      .fill(Theme.link.opacity(0.8))
+      .frame(height: 2)
+      .phaseAnimator(isMoving ? [1.0, 0] : [1.0]) { bar, left in
+        bar.scaleEffect(x: left, anchor: .leading)
+      } animation: { left in
+        left == 0 ? .linear(duration: KindleRemovals.undoWindow / .seconds(1)) : nil
+      }
+      .accessibilityHidden(true)
   }
 }
 

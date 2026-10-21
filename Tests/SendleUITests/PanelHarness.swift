@@ -108,7 +108,8 @@ struct PanelHarness {
     ejector: FakeKindleEjector? = nil, remover: FakeKindleBookRemover? = nil,
     removalSleep: @escaping @Sendable (Duration) async -> Void = { _ in
       try? await Task.sleep(for: .seconds(60))
-    }
+    },
+    channel: FakeDeliveryChannel = FakeDeliveryChannel()
   ) async -> (panel: PanelModel, kindle: FakeKindleLibrary, channel: FakeDeliveryChannel) {
     library.result = .success(
       books ?? [
@@ -116,7 +117,6 @@ struct PanelHarness {
         .fixture(id: "b", title: "Dracula", author: "Bram Stoker", format: .pdf),
       ])
     let kindle = FakeKindleLibrary(.success(.fixture(listing)))
-    let channel = FakeDeliveryChannel()
     let (panel, _) = makePanel(
       AppSettings(email: .fixture, activeDestination: .usb), channel: channel, ejector: ejector,
       kindle: kindle, converter: FakeFormatConverter(isAvailable: converts), edits: edits,

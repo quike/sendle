@@ -15,13 +15,14 @@ struct Composition {
   private let settings: JSONSettingsStore
   private let chooseTool: ChooseConverterTool
 
-  /// Snapshot mode replaces every delivery, so that nothing is sent, the plugged-in Kindles and how
-  /// they are read.
+  /// Snapshot mode replaces every delivery, so that nothing is sent, the plugged-in Kindles, how
+  /// they are read and what removes a book from them.
   init(
     loginItem: any LoginItem,
     channels override: (any DeliveryChannelFactory)? = nil,
     kindles: (any DestinationMonitor)? = nil,
-    kindleLibrary: (any KindleLibrary)? = nil
+    kindleLibrary: (any KindleLibrary)? = nil,
+    remover: (any KindleBookRemover)? = nil
   ) {
     let data = DataDirectory.url()
     let log = MemoryActivityLog()
@@ -39,6 +40,8 @@ struct Composition {
     let history = JSONSendHistoryStore(directory: data, log: log)
     let edits = JSONMetadataEditStore(directory: data, log: log)
     let chooseTool = ChooseConverterTool(settings: settings, choice: converter, log: log)
+    // One instance, so a Replace's removal and a delete's leftovers sweep know each other's holds.
+    let remover = remover ?? USBKindleBookRemover(log: log)
     let library = LibraryViewModel(
       loadLibrary: LoadLibrary(
         library: AppleBooksLibrary(location: .standard()), inspector: EPUBProtectionInspector(),
@@ -53,7 +56,8 @@ struct Composition {
       match: MatchKindleBooks(
         editions: OPFEditionReader(cacheFile: data.appending(path: "editions.json")),
         digests: CachedFileDigester(), kindleDigests: CachedKindleDigester(cacheDirectory: data),
-        asins: SendleASINScheme(), history: history))
+        asins: SendleASINScheme(), history: history),
+      canReplaceOtherCopies: true)
     let setup = SetupViewModel(
       configure: configure, sendTest: sendTest,
       checkAccess: {
@@ -70,10 +74,11 @@ struct Composition {
       queue: SendQueueViewModel(
         sendBooks: SendBooks(
           channels: channels, preparer: KindleEPUBPreparer(log: log), converter: converter,
-          staging: staging, history: history, settings: settings, log: log)),
+          staging: staging, history: history, settings: settings, remover: remover, log: log)),
       logs: LogsViewModel(feed: log), kindle: kindle,
       editDetails: EditBookDetails(store: edits, settings: settings),
-      ejector: VolumeEjector(log: log), log: log)
+      ejector: VolumeEjector(log: log),
+      removal: KindleRemovalModel(removals: KindleRemovals(remover: remover, log: log)), log: log)
     self.settings = settings
     self.chooseTool = chooseTool
     // Clears folders an interrupted send left behind.

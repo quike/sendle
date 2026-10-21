@@ -224,10 +224,11 @@ enum Snapshot {
       await panel.library.setLayout(layout)
       await write(window, "kindle-\(layout.rawValue).png", to: folder)
     }
-    panel.openKindleDetails(
-      KindleBookID(relativePath: "Alice's Adventures in Wonderland - Lewis Carroll.azw3"))
+    let alice = KindleBookID(relativePath: "Alice's Adventures in Wonderland - Lewis Carroll.azw3")
+    panel.openKindleDetails(alice)
     await write(window, "kindle-details.png", to: folder)
     panel.closeKindleDetails()
+    await renderDelete(alice, panel, window: window, to: folder)
     panel.openKindleDetails(
       KindleBookID(relativePath: "Downloads/Items01/The Hobbit_B007978NPG.kfx"))
     // Once the sheet has risen, down to its note under the last field.
@@ -274,6 +275,19 @@ enum Snapshot {
     }
     _ = panel.library.clearSelection()
     await panel.library.setSort(.recent)
+  }
+
+  /// Deleting `book` from its sheet: the question, then the toast, whose Undo puts it back. The
+  /// snapshot's remover only hides the book from the listing.
+  private static func renderDelete(
+    _ book: KindleBookID, _ panel: PanelModel, window: NSWindow, to folder: URL
+  ) async {
+    panel.openKindleDetails(book)
+    panel.askToDeleteKindleBook()
+    await write(window, "kindle-delete-confirm.png", to: folder)
+    await panel.deleteKindleBook()
+    await write(window, "kindle-delete-undo.png", to: folder)
+    await panel.undoKindleDelete()
   }
 
   /// The send bar and the A–Z bar on cards of their own: the send card, the A–Z card on the right
@@ -552,7 +566,8 @@ final class SnapshotKindles: DestinationMonitor {
   }
 }
 
-/// Reads the mock Kindle as the real library would, and can stop a read at its third book.
+/// Reads the mock Kindle as the real library would, without the books `remover` took, and can
+/// stop a read at its third book.
 final class SnapshotKindleLibrary: KindleLibrary {
   private struct Gate {
     var isHolding = false
@@ -560,10 +575,12 @@ final class SnapshotKindleLibrary: KindleLibrary {
   }
 
   private let reader: USBKindleLibrary
+  private let remover: SnapshotKindleRemover
   private let gate = OSAllocatedUnfairLock(initialState: Gate())
 
-  init(cacheDirectory: URL) {
+  init(cacheDirectory: URL, remover: SnapshotKindleRemover) {
     reader = USBKindleLibrary(cacheDirectory: cacheDirectory)
+    self.remover = remover
   }
 
   /// The next read waits at its third book until `release()`.
@@ -584,10 +601,13 @@ final class SnapshotKindleLibrary: KindleLibrary {
     of volume: KindleVolume,
     progress: @escaping @Sendable (_ done: Int, _ total: Int) async -> Void
   ) async throws(KindleListingError) -> KindleListing {
-    try await reader.listing(of: volume) { [self] done, total in
+    let listing = try await reader.listing(of: volume) { [self] done, total in
       await progress(done, total)
       if done == 3 { await waitWhileHeld() }
     }
+    let taken = remover.taken
+    return KindleListing(
+      books: listing.books.filter { !taken.contains($0.id) }, freeBytes: listing.freeBytes)
   }
 
   func cover(of book: KindleBook, on volume: KindleVolume, maxPixel: Int) async -> Cover {
@@ -603,6 +623,30 @@ final class SnapshotKindleLibrary: KindleLibrary {
       if !isHeld { continuation.resume() }
     }
   }
+}
+
+/// Snapshot mode's remover never touches a file: it remembers the books it took until they are
+/// put back, and the listing leaves them out.
+final class SnapshotKindleRemover: KindleBookRemover {
+  private let held = OSAllocatedUnfairLock<[UUID: KindleBookID]>(initialState: [:])
+
+  var taken: Set<KindleBookID> { held.withLock { Set($0.values) } }
+
+  func hold(_ book: KindleBook, listedWith listing: [KindleBook], on volume: KindleVolume)
+    async throws(KindleRemovalError) -> HeldBook
+  {
+    let item = HeldBook(book: book, volume: volume, parts: [.book])
+    held.withLock { $0[item.id] = book.id }
+    return item
+  }
+
+  func restore(_ item: HeldBook) async throws(KindleRemovalError) {
+    _ = held.withLock { $0.removeValue(forKey: item.id) }
+  }
+
+  func finalize(_ item: HeldBook) async throws(KindleRemovalError) {}
+
+  func clearLeftovers(on volume: KindleVolume) async -> Int { 0 }
 }
 
 /// Snapshot mode sends nothing: to each destination, the first book goes at once and the next

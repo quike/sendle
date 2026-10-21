@@ -53,13 +53,19 @@ private struct ReadOnlyField: View {
   }
 }
 
-/// Where the book is in the library, above Edit in Library when it can be edited there and Done.
+/// Why a delete failed, where the book is in the library, then Delete… on the left and Edit in
+/// Library, when it can be edited there, and Done on the right; or the delete's question.
 private struct KindleDetailsActions: View {
   let panel: PanelModel
   let details: KindleDetailsViewModel
+  @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
   var body: some View {
+    let isAsking = panel.removal.map { $0.stage != .idle } ?? false
     VStack(alignment: .leading, spacing: 6) {
+      if let failure = panel.removal?.failure {
+        FieldNote(text: failure, color: Theme.danger)
+      }
       if let line = details.libraryLine {
         Text(line)
           .font(.system(size: 11))
@@ -68,23 +74,84 @@ private struct KindleDetailsActions: View {
           .fixedSize(horizontal: false, vertical: true)
           .help(line)
       }
-      HStack(spacing: 8) {
-        Spacer(minLength: 0)
-        if details.library?.canEdit == true {
-          Button("Edit in Library") {
-            Task { await panel.editInLibrary() }
-          }
-          .buttonStyle(SecondaryButtonStyle())
-        }
-        Button {
-          panel.closeKindleDetails()
-        } label: {
-          KeyHintLabel(title: "Done", key: "esc")
-        }
-        .buttonStyle(PrimaryButtonStyle())
-        .accessibilityLabel("Done")
+      if isAsking {
+        DeleteQuestion(panel: panel, details: details).transition(.opacity)
+      } else {
+        buttons.transition(.opacity)
       }
     }
     .padding(.top, 8)
+    .animation(ScreenMotion.animation(reduceMotion: reduceMotion), value: isAsking)
+  }
+
+  private var buttons: some View {
+    HStack(spacing: 8) {
+      if panel.removal != nil {
+        Button("Delete…") {
+          panel.askToDeleteKindleBook()
+        }
+        .buttonStyle(DangerButtonStyle())
+        .disabled(!panel.canDeleteKindleBook)
+      }
+      Spacer(minLength: 0)
+      if details.library?.canEdit == true {
+        Button("Edit in Library") {
+          Task { await panel.editInLibrary() }
+        }
+        .buttonStyle(SecondaryButtonStyle())
+      }
+      Button {
+        panel.closeKindleDetails()
+      } label: {
+        KeyHintLabel(title: "Done", key: "esc")
+      }
+      .buttonStyle(PrimaryButtonStyle())
+      .accessibilityLabel("Done")
+    }
+  }
+}
+
+/// The red strip the actions row turns into: the question, what goes with the book, Cancel and
+/// Delete. Its buttons wait while the delete is made.
+private struct DeleteQuestion: View {
+  let panel: PanelModel
+  let details: KindleDetailsViewModel
+
+  var body: some View {
+    let shape = RoundedRectangle(cornerRadius: 12, style: .continuous)
+    VStack(alignment: .leading, spacing: 3) {
+      Text(details.deleteQuestion)
+        .font(.system(size: 12, weight: .semibold))
+        .fixedSize(horizontal: false, vertical: true)
+      Text(details.deleteDetail)
+        .font(.system(size: 11))
+        .foregroundStyle(Theme.muted)
+        .fixedSize(horizontal: false, vertical: true)
+      HStack(spacing: 8) {
+        Spacer(minLength: 0)
+        Button {
+          panel.cancelKindleDelete()
+        } label: {
+          KeyHintLabel(title: "Cancel", key: "esc")
+        }
+        .buttonStyle(SecondaryButtonStyle())
+        .accessibilityLabel("Cancel")
+        Button {
+          Task { await panel.deleteKindleBook() }
+        } label: {
+          KeyHintLabel(title: "Delete", key: "↩")
+        }
+        .buttonStyle(DangerSolidButtonStyle())
+        .accessibilityLabel("Delete")
+      }
+      .padding(.top, 5)
+      .disabled(panel.removal?.stage != .confirming)
+    }
+    .padding(.horizontal, 10)
+    .padding(.vertical, 9)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(Theme.danger.opacity(0.08), in: shape)
+    .overlay(shape.strokeBorder(Theme.danger.opacity(0.3)))
+    .accessibilityElement(children: .contain)
   }
 }

@@ -13,6 +13,8 @@ public final class KindleRemovalModel {
   package private(set) var failure: String?
   /// The delete Undo can take back, while its toast shows.
   package private(set) var toast: HeldBook?
+  /// The toast's delete, from when its time runs out until it is final.
+  private var finalizing: HeldBook?
   /// Told when the toast's time runs out and its delete becomes final.
   @ObservationIgnored package var onFinal: (@MainActor () async -> Void)?
 
@@ -28,6 +30,9 @@ public final class KindleRemovalModel {
     self.removals = removals
     self.sleep = sleep
   }
+
+  /// A delete Undo could still take back, one under way, or one still becoming final.
+  package var isPending: Bool { toast != nil || stage == .deleting || finalizing != nil }
 
   package func ask() {
     guard stage == .idle else { return }
@@ -92,19 +97,21 @@ public final class KindleRemovalModel {
 
   private func showToast(for held: HeldBook) {
     toast = held
-    timer = Task { [weak self, removals, sleep] in
+    timer = Task { [weak self, sleep] in
       await sleep(KindleRemovals.undoWindow)
-      guard !Task.isCancelled else { return }
-      await removals.finalize(held)
       guard !Task.isCancelled else { return }
       await self?.toastEnded(held)
     }
   }
 
+  /// The toast goes first, so an Undo can't be offered for a delete becoming final.
   private func toastEnded(_ held: HeldBook) async {
     guard toast == held else { return }
     toast = nil
-    timer = nil
+    finalizing = held
+    await removals.finalize(held)
+    if finalizing == held { finalizing = nil }
+    guard !Task.isCancelled else { return }
     await onFinal?()
   }
 

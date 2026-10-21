@@ -197,6 +197,42 @@ struct SecondaryButtonStyle: ButtonStyle {
   }
 }
 
+/// A destructive action that asks first, such as Delete…, at the secondary style's size.
+struct DangerButtonStyle: ButtonStyle {
+  @Environment(\.isEnabled) private var isEnabled
+
+  func makeBody(configuration: Configuration) -> some View {
+    configuration.label
+      .font(.system(size: 12, weight: .semibold))
+      .foregroundStyle(Theme.dangerText)
+      .padding(.horizontal, 12)
+      .frame(minHeight: 30)
+      .background(
+        Theme.danger.opacity(0.16), in: RoundedRectangle(cornerRadius: 11, style: .continuous)
+      )
+      .opacity(isEnabled ? 1 : 0.4)
+      .pressEffect(configuration.isPressed)
+      .contentShape(Rectangle())
+  }
+}
+
+/// The button that confirms a destructive action, at the primary style's size.
+struct DangerSolidButtonStyle: ButtonStyle {
+  @Environment(\.isEnabled) private var isEnabled
+
+  func makeBody(configuration: Configuration) -> some View {
+    configuration.label
+      .font(.system(size: 12.5, weight: .semibold))
+      .foregroundStyle(.white)
+      .padding(.horizontal, 14)
+      .frame(minHeight: 34)
+      .background(Theme.dangerSolid, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+      .opacity(isEnabled ? 1 : 0.4)
+      .pressEffect(configuration.isPressed)
+      .contentShape(Rectangle())
+  }
+}
+
 /// Text-only actions such as "Set up later".
 struct QuietButtonStyle: ButtonStyle {
   func makeBody(configuration: Configuration) -> some View {

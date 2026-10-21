@@ -232,12 +232,15 @@ public final class PanelModel {
   }
 
   /// A delete from the Kindle that Undo could still take back, or that is still being made.
-  public var hasPendingKindleDelete: Bool {
-    removal.map { $0.toast != nil || $0.stage == .deleting } ?? false
-  }
+  public var hasPendingKindleDelete: Bool { removal?.isPending ?? false }
 
   public func prepareToQuit() async {
     await removal?.finalizeNow()
+  }
+
+  /// The delete's Undo, which floats over the Kindle's books and takes ⌘Z there.
+  package var undoToast: HeldBook? {
+    isOnLibrary && side == .kindle ? removal?.toast : nil
   }
 
   // MARK: Setup
@@ -589,14 +592,16 @@ public final class PanelModel {
   }
 
   /// Deletes the sheet's book as the Kindle was last read, so a retry after a change takes the
-  /// book read again. The sheet closes before the Kindle is read again, unless the book changed; a
-  /// sheet closed meanwhile keeps no failure, and another book's sheet stays open.
+  /// book read again. The sheet closes before the Kindle is read again, unless the delete failed; a
+  /// sheet closed meanwhile keeps no failure, and another book's sheet stays open. A failure still
+  /// made the toast's delete final, so the Kindle's free space is read again.
   package func deleteKindleBook() async {
     guard let removal, removal.stage == .confirming, canDeleteKindleBook,
       let shown = kindleDetails?.item.book, let volume = kindle.volume,
       let listing = kindle.listing?.books
     else { return }
     let book = listing.first { $0.id == shown.id } ?? shown
+    let hadToast = removal.toast != nil
     let error = await removal.delete(book, listedWith: listing, on: volume)
     let isShown = kindleDetails?.item.book.id == book.id
     if !isShown { removal.reset() }
@@ -609,7 +614,7 @@ public final class PanelModel {
     case .deviceDisconnected?:
       if isShown { closeKindleDetails() }
     case .occupied?, .failed?:
-      break
+      if hadToast { await kindle.refresh() }
     }
   }
 
@@ -844,9 +849,13 @@ public final class PanelModel {
     if kindleDetails != nil {
       switch command {
       case .escape: escape()
-      case .confirm where removal?.stage == .confirming:
-        if !key.isRepeat { Task { await deleteKindleBook() } }
-      case .confirm: closeKindleDetails()
+      case .confirm where key.isRepeat: break
+      case .confirm:
+        switch removal?.stage {
+        case .confirming?: Task { await deleteKindleBook() }
+        case .deleting?: break
+        case .idle?, nil: closeKindleDetails()
+        }
       default: return false
       }
       return true
@@ -881,7 +890,7 @@ public final class PanelModel {
       else { return false }
       Task { await openDetails(book.id) }
     case .undo:
-      guard !key.isRepeat, removal?.toast != nil else { return false }
+      guard !key.isRepeat, undoToast != nil else { return false }
       Task { await undoKindleDelete() }
     }
     return true

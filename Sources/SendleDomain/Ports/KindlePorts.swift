@@ -22,7 +22,7 @@ public enum KindleRemovalError: Error, Hashable, Sendable {
     switch self {
     case .changedSinceListed: "it changed on the Kindle since Sendle read it"
     case .deviceDisconnected: "the Kindle was unplugged"
-    case .occupied(let path): "\(path) is in its place"
+    case .occupied(let path): "another file is at \(path) now"
     case .failed(let detail): detail
     }
   }
