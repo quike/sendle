@@ -53,6 +53,25 @@ struct PanelHitTestingTests {
     #expect(await eventually { panel.kindleDetails?.item.book.id == book.id })
   }
 
+  @Test func aClickOnTheEditCircleOpensDetailsAndSelectsNothing() async throws {
+    let (panel, _) = PanelHarness().makePanel()
+    await panel.launch()
+    await panel.panelDidOpen()
+    let first = try #require(panel.library.items.first?.id)
+    let (window, host) = try await show(panel)
+    defer { window.orderOut(nil) }
+    panel.library.hovered = first
+    try await layOut(window, host)
+
+    let cover = firstCoverFrame(of: panel)
+    let send = NSPoint(x: cover.maxX - (6 + 14), y: cover.minY + 6 + 14)
+    try click(at: NSPoint(x: send.x, y: send.y + 34), in: window)
+
+    #expect(await eventually { panel.bookDetails?.book.id == first })
+    #expect(panel.library.selection.ids.isEmpty)
+    #expect(panel.queue.isEmpty)
+  }
+
   /// `panel` in a borderless window of its size, laid out and drawn.
   private func show(_ panel: PanelModel) async throws -> (NSWindow, NSHostingView<PanelView>) {
     let size = PanelView.windowSize(margins: panel.windowMargins, card: panel.cardSize)
@@ -63,28 +82,38 @@ struct PanelHitTestingTests {
     host.sizingOptions = []
     window.contentView = host
     window.orderFrontRegardless()
+    try await layOut(window, host)
+    return (window, host)
+  }
+
+  private func layOut(_ window: NSWindow, _ host: NSHostingView<PanelView>) async throws {
     for _ in 0..<5 {
       host.layoutSubtreeIfNeeded()
       window.displayIfNeeded()
       try await Task.sleep(for: .milliseconds(50))
     }
-    return (window, host)
   }
 
-  /// The middle of the grid's first cover, in the window's coordinates, which start at its bottom.
   private func firstCoverCentre(of panel: PanelModel) -> NSPoint {
+    let frame = firstCoverFrame(of: panel)
+    return NSPoint(x: frame.midX, y: frame.midY)
+  }
+
+  /// The grid's first cover, unlifted, in the window's coordinates, which start at its bottom.
+  private func firstCoverFrame(of panel: PanelModel) -> NSRect {
     let margins = panel.windowMargins
     let padding = BooksArea.screenPadding
     let columns = CGFloat(BookGridMetrics.columns)
     let grid = panel.cardSize.width - 2 * (padding + BooksArea.gridInset)
     let column = (grid - (columns - 1) * BookGridMetrics.columnSpacing) / columns
     let top =
-      margins.top + padding + LibraryControls.height(withKindle: true) + BooksArea.controlsGap
-      + BooksArea.insets.top + BooksArea.liftRoom
+      margins.top + padding
+      + LibraryControls.height(withKindle: panel.library.isKindlePluggedIn)
+      + BooksArea.controlsGap + BooksArea.insets.top + BooksArea.liftRoom
     let height = PanelView.windowSize(margins: margins, card: panel.cardSize).height
-    return NSPoint(
-      x: margins.leading + padding + BooksArea.gridInset + column / 2,
-      y: height - top - column * 3 / 4)
+    return NSRect(
+      x: margins.leading + padding + BooksArea.gridInset, y: height - top - column * 3 / 2,
+      width: column, height: column * 3 / 2)
   }
 
   private func click(at point: NSPoint, in window: NSWindow) throws {

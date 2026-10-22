@@ -59,6 +59,12 @@ enum Snapshot {
         await write(window, "library-\(layout.rawValue).png", to: folder)
       }
       let layout = panel.library.layout
+      for hoverLayout in [LibraryLayout.grid, .list] {
+        await panel.library.setLayout(hoverLayout)
+        panel.library.hovered = panel.library.items.first?.id
+        await write(window, "library-hover-edit-\(hoverLayout.rawValue).png", to: folder)
+      }
+      panel.library.hovered = nil
       await panel.library.setSort(.title)
       await panel.library.setLayout(.list)
       panel.library.letterJump.jump(to: "M")

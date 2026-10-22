@@ -143,6 +143,7 @@ struct BookShelf: View {
 struct BookRow: View {
   let panel: PanelModel
   let item: BookItemViewModel
+  @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
   var body: some View {
     let library = panel.library
@@ -168,7 +169,18 @@ struct BookRow: View {
         .padding(.top, 2)
       }
       Spacer(minLength: 6)
-      RowMark(panel: panel, item: item, isSelected: isSelected, isHovered: isHovered)
+      HStack(spacing: 6) {
+        Group {
+          if isHovered, panel.canEditDetails(item.book) {
+            EditDetailsButton(panel: panel, item: item, onCover: false)
+              .transition(
+                EditDetailsButton.transition(
+                  from: CGSize(width: 34, height: 0), reduceMotion: reduceMotion))
+          }
+        }
+        .animation(EditDetailsButton.animation(reduceMotion: reduceMotion), value: isHovered)
+        RowMark(panel: panel, item: item, isSelected: isSelected, isHovered: isHovered).zIndex(1)
+      }
     }
     .padding(7)
     .background(
@@ -238,6 +250,41 @@ struct QuickSendButton: View {
     .opacity(library.canSend ? 1 : 0.6)
     .help(library.quickSendHelp)
     .accessibilityLabel("Send")
+  }
+}
+
+/// Opens a book's Edit Details sheet, as its menu item does.
+struct EditDetailsButton: View {
+  let panel: PanelModel
+  let item: BookItemViewModel
+  /// Over a cover, where glass wouldn't read.
+  let onCover: Bool
+
+  var body: some View {
+    Button {
+      Task { await panel.openDetails(item.id) }
+    } label: {
+      Image(systemName: "pencil.line")
+        .font(.system(size: 11, weight: .semibold))
+        .foregroundStyle(Theme.warm)
+        .frame(width: 28, height: 28)
+        .background(onCover ? Theme.floating : Theme.glass, in: Circle())
+    }
+    .buttonStyle(.plain)
+    .help("Edit Details")
+    .accessibilityLabel("Edit Details")
+  }
+
+  /// Out from behind the circle `offset` away. With Reduce Motion, or no circle there, a fade.
+  static func transition(from offset: CGSize?, reduceMotion: Bool) -> AnyTransition {
+    guard let offset, !reduceMotion else { return .opacity }
+    return .offset(offset).combined(with: .opacity)
+  }
+
+  /// Slightly after the circle it comes out of shows. It goes on a group around the circle's `if`,
+  /// since a transition's own animation moves only its opacity, not its offset.
+  static func animation(reduceMotion: Bool) -> Animation {
+    ScreenMotion.animation(reduceMotion: reduceMotion).delay(0.06)
   }
 }
 
@@ -328,8 +375,23 @@ struct BookCover: View {
       }
     }
     .overlay(alignment: .bottomTrailing) {
-      if isHovered, let item, item.canSend, size == .large {
-        QuickSendButton(panel: panel, item: item, isProminent: true).padding(6)
+      if let item, size == .large {
+        VStack(spacing: 6) {
+          Group {
+            if isHovered, panel.canEditDetails(item.book) {
+              EditDetailsButton(panel: panel, item: item, onCover: true)
+                .transition(
+                  EditDetailsButton.transition(
+                    from: item.canSend ? CGSize(width: 0, height: 34) : nil,
+                    reduceMotion: reduceMotion))
+            }
+          }
+          .animation(EditDetailsButton.animation(reduceMotion: reduceMotion), value: isHovered)
+          if isHovered, item.canSend {
+            QuickSendButton(panel: panel, item: item, isProminent: true).zIndex(1)
+          }
+        }
+        .padding(6)
       }
     }
     .shadow(color: .black.opacity(isHovered ? 0.6 : 0.45), radius: isHovered ? 12 : 8, y: 6)
@@ -552,7 +614,7 @@ extension ClickKind {
 
 extension View {
   /// Click to select, hover for quick-send: the same in every layout. VoiceOver reads one element
-  /// per book, whose actions select it or send it.
+  /// per book, whose actions select it, send it or edit its details.
   func bookInteractions(_ panel: PanelModel, _ item: BookItemViewModel) -> some View {
     let library = panel.library
     let details = [
@@ -583,6 +645,9 @@ extension View {
       .accessibilityActions {
         if item.canSend, library.canSend {
           Button("Send") { Task { await panel.quickSend(item.id) } }
+        }
+        if panel.canEditDetails(item.book) {
+          Button("Edit Details") { Task { await panel.openDetails(item.id) } }
         }
       }
       .contextMenu {
