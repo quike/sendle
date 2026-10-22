@@ -20,6 +20,7 @@ public final class KindleViewModel {
   package private(set) var matches: KindleMatches? {
     didSet { refreshItems() }
   }
+  package private(set) var hovered: KindleBookID?
   package var query = "" {
     didSet { listChanged(query != oldValue) }
   }
@@ -221,8 +222,18 @@ public final class KindleViewModel {
       sort == .recent ? nil : AlphabetIndex(items, sort: sort, id: \.id, fields: fields)
   }
 
+  /// A book the pointer leaves after entering another one doesn't clear that one.
+  package func hover(_ id: KindleBookID, _ isInside: Bool) {
+    if isInside {
+      hovered = id
+    } else if hovered == id {
+      hovered = nil
+    }
+  }
+
   private func forget() {
     epoch += 1
+    hovered = nil
     reading?.cancel()
     queued.values.forEach { $0.cancel() }
     isReadQueued = false

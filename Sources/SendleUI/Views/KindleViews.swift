@@ -80,8 +80,11 @@ struct KindleGrid: View {
     ) {
       ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
         VStack(alignment: .leading, spacing: 0) {
-          KindleCover(kindle: panel.kindle, item: item, size: .large, showsFormat: showsFormat)
-            .aspectRatio(2 / 3, contentMode: .fit)
+          KindleCover(
+            kindle: panel.kindle, item: item, size: .large, showsFormat: showsFormat,
+            isHovered: panel.kindle.hovered == item.id
+          )
+          .aspectRatio(2 / 3, contentMode: .fit)
           GridCaption(title: item.title, byline: item.byline)
         }
         .kindleInteractions(panel, item)
@@ -126,9 +129,12 @@ struct KindleShelfStrip: View {
       ScrollView(.horizontal) {
         LazyHStack(spacing: 10) {
           ForEach(recent) { item in
-            KindleCover(kindle: panel.kindle, item: item, size: .large, titleSize: 8)
-              .frame(width: 62, height: 93)
-              .kindleInteractions(panel, item)
+            KindleCover(
+              kindle: panel.kindle, item: item, size: .large, titleSize: 8,
+              isHovered: panel.kindle.hovered == item.id
+            )
+            .frame(width: 62, height: 93)
+            .kindleInteractions(panel, item)
           }
         }
         .padding(.horizontal, 6)
@@ -173,6 +179,8 @@ struct KindleCover: View {
   let size: CoverSize
   var titleSize: CGFloat = 10
   var showsFormat = false
+  var isHovered = false
+  @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
   var body: some View {
     let book = item.book
@@ -193,7 +201,7 @@ struct KindleCover: View {
     .overlay(alignment: .bottomLeading) {
       if showsFormat { FormatBadge(text: item.badge, onCover: true).padding(6) }
     }
-    .shadow(color: .black.opacity(0.45), radius: 8, y: 6)
+    .coverLift(isHovered, reduceMotion: reduceMotion)
     .task(id: book) {
       guard let volume = kindle.volume else { return }
       await kindle.covers.load(book, on: volume, size: size)
@@ -208,6 +216,7 @@ extension View {
   func kindleInteractions(_ panel: PanelModel, _ item: KindleItemViewModel) -> some View {
     contentShape(Rectangle())
       .onTapGesture { panel.openKindleDetails(item.id) }
+      .onHover { panel.kindle.hover(item.id, $0) }
       .help(item.help)
       .accessibilityElement(children: .ignore)
       .accessibilityLabel("\(item.title), \(item.byline)")

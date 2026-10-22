@@ -393,10 +393,7 @@ struct BookCover: View {
         .padding(6)
       }
     }
-    .shadow(color: .black.opacity(isHovered ? 0.6 : 0.45), radius: isHovered ? 12 : 8, y: 6)
-    .scaleEffect(isHovered ? 1.03 : 1)
-    .offset(y: isHovered ? -3 : 0)
-    .animation(reduceMotion ? nil : Theme.press, value: isHovered)
+    .coverLift(isHovered, reduceMotion: reduceMotion)
     .task(id: book) { await panel.covers.load(book, size: size) }
     .accessibilityHidden(true)
   }
@@ -443,6 +440,16 @@ struct CoverFace: View {
 struct CoverSpine: View {
   var body: some View {
     Rectangle().fill(Color.black.opacity(0.18)).frame(width: 3)
+  }
+}
+
+extension View {
+  /// A cover's shadow, which rises with the cover while the pointer is over it.
+  func coverLift(_ isHovered: Bool, reduceMotion: Bool) -> some View {
+    shadow(color: .black.opacity(isHovered ? 0.6 : 0.45), radius: isHovered ? 12 : 8, y: 6)
+      .scaleEffect(isHovered ? 1.03 : 1)
+      .offset(y: isHovered ? -3 : 0)
+      .animation(reduceMotion ? nil : Theme.press, value: isHovered)
   }
 }
 

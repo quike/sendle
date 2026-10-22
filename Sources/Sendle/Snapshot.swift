@@ -244,6 +244,12 @@ enum Snapshot {
       await panel.library.setLayout(layout)
       await write(window, "kindle-\(layout.rawValue).png", to: folder)
     }
+    if let first = panel.kindle.items.first?.id {
+      await panel.library.setLayout(.grid)
+      panel.kindle.hover(first, true)
+      await write(window, "kindle-grid-hover.png", to: folder)
+      panel.kindle.hover(first, false)
+    }
     await panel.library.setLayout(.shelf)
     await panel.library.setSort(.title)
     let ids = panel.kindle.items.map(\.id)

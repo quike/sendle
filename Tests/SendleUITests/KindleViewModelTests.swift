@@ -29,6 +29,30 @@ struct KindleViewModelTests {
     #expect(told.last??.byBook[moby.id]?.confidence == .sure)
   }
 
+  @Test func aHoveredBookStaysHoveredUntilThePointerLeavesIt() {
+    let model = makeModel()
+    let a = KindleBookID(relativePath: "a.txt")
+    let b = KindleBookID(relativePath: "b.txt")
+
+    model.hover(a, true)
+    #expect(model.hovered == a)
+    model.hover(b, true)
+    model.hover(a, false)
+    #expect(model.hovered == b)
+    model.hover(b, false)
+    #expect(model.hovered == nil)
+  }
+
+  @Test func aKindleThatGoesTakesItsHoveredBookWithIt() async {
+    let model = makeModel()
+    await model.follow(.fixture(), books: [moby])
+    model.hover(KindleBookID(relativePath: "a.txt"), true)
+
+    await model.follow(nil, books: [moby])
+
+    #expect(model.hovered == nil)
+  }
+
   @Test func countsOneBookInTheSingular() async {
     kindle.result = .success(.fixture([.fixture()], freeBytes: nil))
     let model = makeModel()
