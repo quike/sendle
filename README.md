@@ -7,7 +7,22 @@
 <p align="center">Send the books in Apple Books to your Kindle, from the menu bar.</p>
 
 <p align="center">
-  <img src="docs/hero.png" alt="Sendle's panel three times: the library with three books selected for a Kindle plugged in over USB, the queue sending books by email, and the books on the Kindle">
+  <a href="#download"><b>Download</b></a> &nbsp;·&nbsp;
+  <a href="#getting-started"><b>Getting started</b></a> &nbsp;·&nbsp;
+  <a href="#development"><b>Development</b></a> &nbsp;·&nbsp;
+  <a href="CONTRIBUTING.md"><b>Contribute</b></a>
+</p>
+
+<p align="center">
+  <img src="https://img.shields.io/badge/Built%20with-Swift-F05138?logo=swift&logoColor=white" alt="Built with Swift">
+  <img src="https://img.shields.io/badge/macOS%2014%2B-555555?logo=apple&logoColor=white" alt="macOS 14 or later">
+  <a href="https://github.com/quike/sendle/releases/latest"><img src="https://img.shields.io/github/v/release/quike/sendle?label=Release&color=2ea44f" alt="Latest release"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-2ea44f" alt="License: MIT"></a>
+  <a href="https://x.com/quike"><img src="https://img.shields.io/badge/Follow-%40quike-000000?logo=x&logoColor=white" alt="Follow @quike on X"></a>
+</p>
+
+<p align="center">
+  <img src="docs/hero.png" alt="Sendle's panel three times: the library with three books selected to send by email, the queue sending them, and the books on a Kindle plugged in over USB">
 </p>
 
 Apple Books has no way to put a book on a Kindle. Sendle reads your Books library, shows it in a small panel under the menu bar, and sends any EPUB or PDF you added yourself to your Kindle: by email through Amazon's Send to Kindle, or straight over the USB cable.
@@ -36,7 +51,7 @@ Every image comes with its SHA-256:
 shasum -a 256 -c Sendle-1.0.0.dmg.sha256
 ```
 
-Once the repository is public, each image also carries a build provenance attestation, which proves GitHub built it from this repository's code:
+Each image also carries a build provenance attestation, which proves GitHub built it from this repository's code:
 
 ```bash
 gh attestation verify Sendle-1.0.0.dmg --repo quike/sendle
@@ -92,9 +107,19 @@ Outlook.com doesn't work: it only allows sign-in through OAuth, which Sendle doe
 
 ### Set up USB
 
+<p align="center">
+  <img src="docs/usb.png" width="820" alt="Three books selected to copy to a Kindle plugged in over USB, and the queue copying them">
+</p>
+
 Plug in the Kindle. Its chip appears next to Kindle email in the panel, and books copy to it straight away. For EPUBs, install boko; Sendle looks for it in `~/.cargo/bin`, `~/.local/bin`, `/opt/homebrew/bin` and `/usr/local/bin`, or wherever you point it under **Settings › USB › Choose…**.
 
 ## Using it
+
+Sorted by title or author, the library gets an A–Z bar to jump through it. **Full** shows every letter, all the time. **Compact** shows only the letters that have books, when the pointer is over it. Choose one under **Settings › General**.
+
+<p align="center">
+  <img src="docs/az.png" width="820" alt="The A–Z bar beside the panel: Full, at the letter M, and Compact, while dragging to P">
+</p>
 
 | Do this | To get this |
 |---|---|
@@ -140,19 +165,7 @@ Edits change only the copy Sendle sends; Books' library and files stay untouched
 
 ## Privacy
 
-Sendle runs on your Mac and talks to one server: your own email account's, when you send a book by email.
-
-| Where | What |
-|---|---|
-| `~/Library/Application Support/Sendle/` | `settings.json` (your choices, Kindle addresses, sender address and server, but no password), `history.json` (the last 1,000 sends), `edits.json` and `edit-covers/` (your book edits), `editions.json` and `kindles/` (caches). A file Sendle can't read is moved aside as `<name>.corrupt-<time>.json`, never overwritten. |
-| `~/Library/Caches/Sendle/covers/` | Cover thumbnails |
-| Your login Keychain | The app password, under `io.github.quike.Sendle.smtp` |
-| `$TMPDIR/Sendle-staging/` | The copy of each book being prepared, deleted after every send and at launch |
-| Your Kindle | The books you send to `documents/`, their cover thumbnails in `system/thumbnails/`, and books you delete, held in `.sendle-held/` until the Undo time is over |
-
-- Sendle reads the Books library and book files, and never writes to them. Books that are only in iCloud are never opened, so nothing downloads.
-- Logs live in memory until Sendle quits. They also go to the macOS log under `io.github.quike.Sendle`, marked private. Passwords never appear in either.
-- An email carries the book, its title as the subject, your sender address and "Sent by Sendle."
+Sendle runs on your Mac and talks to one server: your own email account's, when you send a book by email. It reads the Books library and never writes to it. [Privacy](docs/PRIVACY.md) lists everything it keeps and where.
 
 ## Limitations
 
@@ -165,6 +178,8 @@ Sendle runs on your Mac and talks to one server: your own email account's, when 
 Planned and proposed features are in [Issues](https://github.com/quike/sendle/issues).
 
 ## Development
+
+Want to help? Start with [CONTRIBUTING.md](CONTRIBUTING.md).
 
 Sendle is a Swift 6 package with no third-party dependencies, split into one target per layer: the domain (`SendleDomain`), one adapter per outside system (Books, EPUB, covers, SMTP, mail, USB, persistence), the SwiftUI views (`SendleUI`) and the AppKit shell (`Sendle`). It builds with the Command Line Tools alone; Xcode isn't needed.
 

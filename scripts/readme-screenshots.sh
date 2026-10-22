@@ -45,12 +45,21 @@ optimise() {
   magick "$@" -strip -define png:compression-level=9 -define png:compression-filter=5 \
     -define png:exclude-chunks=date,time "$output"
 }
-# Each panel without the window's empty margins.
-for shot in floating-send-card queue-sending kindle-grid edit-epub settings-sender; do
-  magick "$work/shots/$shot.png" -trim +repage "$work/$shot.png"
-done
-optimise docs/hero.png "$work/floating-send-card.png" "$work/queue-sending.png" \
-  "$work/kindle-grid.png" -background none -gravity north +smush 64
-optimise docs/edit.png "$work/edit-epub.png"
-optimise docs/settings.png "$work/settings-sender.png"
-ls -l docs/hero.png docs/edit.png docs/settings.png
+# Writes $1 from the panels named by the rest, side by side, each without the window's margins.
+panels() {
+  local output=$1
+  shift
+  local shot files=()
+  for shot in "$@"; do
+    magick "$work/shots/$shot.png" -trim +repage "$work/$shot.png"
+    files+=("$work/$shot.png")
+  done
+  optimise "$output" "${files[@]}" -background none -gravity north +smush 64
+}
+
+panels docs/hero.png floating-send-card-email queue-sending kindle-grid
+panels docs/usb.png floating-send-card queue-usb-sending
+panels docs/az.png floating-az-right floating-az-compact
+panels docs/edit.png edit-epub
+panels docs/settings.png settings-sender
+ls -l docs/*.png
