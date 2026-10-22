@@ -6,8 +6,8 @@ name: CI
 # builds Sendle-<version>.dmg and attaches it and its SHA-256 to that release.
 #
 # The app is signed ad hoc, not with a Developer ID, so no personal certificate ever leaves a
-# developer's Mac. Once the repository is public, every image also carries a build provenance
-# attestation: `gh attestation verify <dmg> --repo quike/sendle`.
+# developer's Mac. Every image also carries a build provenance attestation:
+# `gh attestation verify <dmg> --repo quike/sendle`.
 
 on:
   push:
