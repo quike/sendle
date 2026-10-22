@@ -1,5 +1,14 @@
 name: CI
 
+# Pull requests: lint and test.
+# Pushes to main: lint and test, then semantic-release (the org workflow) picks the next version from
+# the conventional commits, tags it and publishes a GitHub release. When it does, the package job
+# builds Sendle-<version>.dmg and attaches it and its SHA-256 to that release.
+#
+# The app is signed ad hoc, not with a Developer ID, so no personal certificate ever leaves a
+# developer's Mac. Once the repository is public, every image also carries a build provenance
+# attestation: `gh attestation verify <dmg> --repo quike/sendle`.
+
 on:
   push:
     branches: [main]
@@ -9,7 +18,8 @@ permissions: {}
 
 concurrency:
   group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  # Never cancel a run on main halfway: the release may already be tagged.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   test:
@@ -30,3 +40,44 @@ jobs:
           # The runner's login keychain may be locked or prompt; Keychain tests run locally.
           SENDLE_SKIP_KEYCHAIN_TESTS: "1"
         run: swift test
+
+  release:
+    needs: test
+    if: github.event_name == 'push'
+    permissions:
+      contents: write
+    uses: quike/workflow-github/.github/workflows/release.yml@15a6f8baec0dea98eb96de5766c595404ae3424d # v1
+    secrets: inherit
+
+  package:
+    needs: release
+    if: needs.release.outputs.release-published == 'true'
+    runs-on: macos-15
+    timeout-minutes: 30
+    permissions:
+      contents: write # attach the image to the release
+      id-token: write # sign the provenance attestation
+      attestations: write # store it
+    env:
+      VERSION: ${{ needs.release.outputs.release-version }}
+      TAG: ${{ needs.release.outputs.release-git-tag }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Select the newest Xcode
+        run: sudo xcode-select -s "$(ls -d /Applications/Xcode_*.app | sort -V | tail -1)"
+      - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
+      - name: Build the app and the disk image
+        run: SENDLE_VERSION="$VERSION" UNSIGNED=1 ./scripts/release-mac.sh
+      - name: Attest build provenance
+        if: github.event.repository.visibility == 'public'
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: build/Sendle-${{ needs.release.outputs.release-version }}.dmg
+      - name: Attach the image to the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release upload "$TAG" "build/Sendle-$VERSION.dmg" "build/Sendle-$VERSION.dmg.sha256" \
+            --repo "$GITHUB_REPOSITORY" --clobber

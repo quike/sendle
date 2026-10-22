@@ -1,0 +1,22 @@
+{
+  "branches": [
+    {
+      "name": "main"
+    }
+  ],
+  "plugins": [
+    [
+      "@semantic-release/commit-analyzer",
+      {
+        "preset": "custom"
+      }
+    ],
+    [
+      "@semantic-release/release-notes-generator",
+      {
+        "preset": "custom"
+      }
+    ],
+    "@semantic-release/github"
+  ]
+}
