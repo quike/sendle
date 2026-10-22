@@ -64,6 +64,13 @@ enum Snapshot {
         panel.library.hovered = panel.library.items.first?.id
         await write(window, "library-hover-edit-\(hoverLayout.rawValue).png", to: folder)
       }
+      // Only a library with a book that can't be sent, such as one only in iCloud, has this shot.
+      if let unsendable = panel.library.items.first(where: { !$0.canSend })?.id {
+        await panel.library.setLayout(.grid)
+        panel.library.letterJump.top = unsendable
+        panel.library.hovered = unsendable
+        await write(window, "library-hover-edit-unsendable.png", to: folder)
+      }
       panel.library.hovered = nil
       await panel.library.setSort(.title)
       await panel.library.setLayout(.list)

@@ -54,22 +54,51 @@ struct PanelHitTestingTests {
   }
 
   @Test func aClickOnTheEditCircleOpensDetailsAndSelectsNothing() async throws {
-    let (panel, _) = PanelHarness().makePanel()
-    await panel.launch()
-    await panel.panelDidOpen()
-    let first = try #require(panel.library.items.first?.id)
-    let (window, host) = try await show(panel)
+    let (panel, window, first) = try await hoveringFirstBook()
     defer { window.orderOut(nil) }
-    panel.library.hovered = first
-    try await layOut(window, host)
 
-    let cover = firstCoverFrame(of: panel)
-    let send = NSPoint(x: cover.maxX - (6 + 14), y: cover.minY + 6 + 14)
+    let send = coverSendCentre(of: panel)
     try click(at: NSPoint(x: send.x, y: send.y + 34), in: window)
 
     #expect(await eventually { panel.bookDetails?.book.id == first })
     #expect(panel.library.selection.ids.isEmpty)
     #expect(panel.queue.isEmpty)
+  }
+
+  @Test func aClickOnARowsEditCircleOpensDetailsAndSelectsNothing() async throws {
+    let (panel, window, first) = try await hoveringFirstBook(in: .list)
+    defer { window.orderOut(nil) }
+
+    let send = rowSendCentre(of: panel)
+    try click(at: NSPoint(x: send.x - 34, y: send.y), in: window)
+
+    #expect(await eventually { panel.bookDetails?.book.id == first })
+    #expect(panel.library.selection.ids.isEmpty)
+    #expect(panel.queue.isEmpty)
+  }
+
+  @Test func aCoverThatCantBeSentHasTheEditCircleInTheSendCirclesPlace() async throws {
+    let (panel, window, first) = try await hoveringFirstBook(
+      of: [.fixture(id: "a", availability: .inCloudOnly)])
+    defer { window.orderOut(nil) }
+
+    try click(at: coverSendCentre(of: panel), in: window)
+
+    #expect(await eventually { panel.bookDetails?.book.id == first })
+  }
+
+  /// A store purchase that can be sent isn't edited, so where the edit circle would sit the
+  /// cover takes the click and selects it.
+  @Test func aBookWhoseDetailsCantBeEditedHasNoEditCircle() async throws {
+    let (panel, window, first) = try await hoveringFirstBook(
+      of: [.fixture(id: "a", isStorePurchase: true)])
+    defer { window.orderOut(nil) }
+
+    let send = coverSendCentre(of: panel)
+    try click(at: NSPoint(x: send.x, y: send.y + 34), in: window)
+
+    #expect(await eventually { panel.library.selection.ids == [first] })
+    #expect(panel.bookDetails == nil)
   }
 
   /// `panel` in a borderless window of its size, laid out and drawn.
@@ -94,26 +123,64 @@ struct PanelHitTestingTests {
     }
   }
 
+  /// A shown panel of `books` in `layout`, once the pointer has rested on its first book long
+  /// enough for the hover's circles to stop moving.
+  private func hoveringFirstBook(of books: [Book]? = nil, in layout: LibraryLayout = .grid)
+    async throws -> (PanelModel, NSWindow, BookID)
+  {
+    let harness = PanelHarness()
+    if let books { harness.library.result = .success(books) }
+    var saved = AppSettings(email: .fixture)
+    saved.layout = layout
+    let (panel, _) = harness.makePanel(saved)
+    await panel.launch()
+    await panel.panelDidOpen()
+    let first = try #require(panel.library.items.first?.id)
+    let (window, host) = try await show(panel)
+    panel.library.hovered = first
+    for _ in 0..<2 { try await layOut(window, host) }
+    return (panel, window, first)
+  }
+
   private func firstCoverCentre(of panel: PanelModel) -> NSPoint {
     let frame = firstCoverFrame(of: panel)
     return NSPoint(x: frame.midX, y: frame.midY)
   }
 
-  /// The grid's first cover, unlifted, in the window's coordinates, which start at its bottom.
+  /// The send circle's place on the first cover, 6 pt in from its bottom-right corner.
+  private func coverSendCentre(of panel: PanelModel) -> NSPoint {
+    let cover = firstCoverFrame(of: panel)
+    return NSPoint(x: cover.maxX - (6 + 14), y: cover.minY + 6 + 14)
+  }
+
+  /// The send circle at the end of the first row, inside the row's 7 pt padding.
+  private func rowSendCentre(of panel: PanelModel) -> NSPoint {
+    let padding = BooksArea.screenPadding
+    let rowHeight: CGFloat = 7 + 50 + 7
+    return NSPoint(
+      x: panel.windowMargins.leading + panel.cardSize.width - padding - 7 - 14,
+      y: booksTop(of: panel) - rowHeight / 2)
+  }
+
+  /// The grid's first cover, unlifted.
   private func firstCoverFrame(of panel: PanelModel) -> NSRect {
-    let margins = panel.windowMargins
     let padding = BooksArea.screenPadding
     let columns = CGFloat(BookGridMetrics.columns)
     let grid = panel.cardSize.width - 2 * (padding + BooksArea.gridInset)
     let column = (grid - (columns - 1) * BookGridMetrics.columnSpacing) / columns
+    return NSRect(
+      x: panel.windowMargins.leading + padding + BooksArea.gridInset,
+      y: booksTop(of: panel) - column * 3 / 2, width: column, height: column * 3 / 2)
+  }
+
+  /// The top of the first book, in the window's coordinates, which start at its bottom.
+  private func booksTop(of panel: PanelModel) -> CGFloat {
+    let margins = panel.windowMargins
     let top =
-      margins.top + padding
+      margins.top + BooksArea.screenPadding
       + LibraryControls.height(withKindle: panel.library.isKindlePluggedIn)
       + BooksArea.controlsGap + BooksArea.insets.top + BooksArea.liftRoom
-    let height = PanelView.windowSize(margins: margins, card: panel.cardSize).height
-    return NSRect(
-      x: margins.leading + padding + BooksArea.gridInset, y: height - top - column * 3 / 2,
-      width: column, height: column * 3 / 2)
+    return PanelView.windowSize(margins: margins, card: panel.cardSize).height - top
   }
 
   private func click(at point: NSPoint, in window: NSWindow) throws {

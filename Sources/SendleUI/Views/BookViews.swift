@@ -330,6 +330,7 @@ struct BookCover: View {
     let slot = panel.covers.slot(for: book, size: size)
     let isSelected = item.map { panel.library.selection.contains($0.id) } ?? false
     let isHovered = item.map { panel.library.hovered == $0.id } ?? false
+    let canEdit = item.map { panel.canEditDetails($0.book) } ?? false
     let look = CoverLook.of(book.availability)
     CoverFace(
       data: slot.data, isPending: slot.isPending, title: book.title, seed: book.id,
@@ -370,7 +371,8 @@ struct BookCover: View {
       if showsFormat, let item { FormatBadge(text: item.badge, onCover: true).padding(6) }
     }
     .overlay(alignment: .bottomTrailing) {
-      if look.showsCloud, size == .large {
+      // The edit circle takes its corner on hover.
+      if look.showsCloud, size == .large, !(isHovered && canEdit) {
         CoverMark(symbol: "icloud.fill", color: Theme.muted).padding(5)
       }
     }
@@ -378,7 +380,7 @@ struct BookCover: View {
       if let item, size == .large {
         VStack(spacing: 6) {
           Group {
-            if isHovered, panel.canEditDetails(item.book) {
+            if isHovered, canEdit {
               EditDetailsButton(panel: panel, item: item, onCover: true)
                 .transition(
                   EditDetailsButton.transition(
