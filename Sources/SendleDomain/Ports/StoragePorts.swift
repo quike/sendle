@@ -64,3 +64,20 @@ public struct NoMetadataEdits: MetadataEditStore {
     throw .storage(.writeFailed("No edits"))
   }
 }
+
+public protocol HiddenBooksStore: Sendable {
+  func hidden() async -> Set<BookID>
+  /// Hides or shows `books` in one step; nothing changes when it throws.
+  func set(_ books: Set<BookID>, hidden: Bool) async throws(StorageError)
+}
+
+/// Hides nothing and refuses changes, for code that runs without a store.
+public struct NoHiddenBooks: HiddenBooksStore {
+  public init() {}
+
+  public func hidden() async -> Set<BookID> { [] }
+
+  public func set(_ books: Set<BookID>, hidden: Bool) async throws(StorageError) {
+    throw .writeFailed("No hidden books")
+  }
+}
