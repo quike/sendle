@@ -1,17 +1,21 @@
 #!/bin/bash
 # Builds Sendle.app, a menu bar app with no Dock icon, into build/: one binary for Apple silicon
 # and Intel Macs.
-#   SENDLE_VERSION=…     the version About shows (default 0.1.0)
+#   SENDLE_VERSION=…     the version About shows (default: the latest v* tag, or 0.0.0 before
+#                        the first release; semantic-release sets it on CI)
 #   APP_PATH=…           where to put the app (default build/Sendle.app)
 #   CODESIGN_IDENTITY=…  the certificate to sign with (`security find-identity -p codesigning`).
 #                        The default is "Sendle Local Signing" from scripts/make-signing-identity.sh,
 #                        or an ad-hoc signature without it. macOS forgets Full Disk Access and the
 #                        Keychain item's approval each time an ad-hoc signature changes.
+#   UNSIGNED=1           always sign ad hoc, even with the local identity installed (release builds)
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 APP="${APP_PATH:-$ROOT/build/Sendle.app}"
 [[ "$APP" == /* ]] || APP="$PWD/$APP"
-VERSION="${SENDLE_VERSION:-0.1.0}"
+LATEST_TAG="$(git -C "$ROOT" describe --tags --abbrev=0 --match 'v*' 2>/dev/null || true)"
+LATEST_TAG="${LATEST_TAG#v}"
+VERSION="${SENDLE_VERSION:-${LATEST_TAG:-0.0.0}}"
 BUILD="$(git -C "$ROOT" rev-list --count HEAD 2>/dev/null || echo 1)"
 LOCAL_IDENTITY="Sendle Local Signing"
 [[ "$APP" == *.app ]] || { echo "APP_PATH must end in .app"; exit 1; }
@@ -59,7 +63,9 @@ PLIST
 plutil -lint -s "$APP/Contents/Info.plist"
 
 echo "▸ Signing"
-if [ -n "${CODESIGN_IDENTITY:-}" ]; then
+if [ -n "${UNSIGNED:-}" ]; then
+  codesign --force --sign - "$APP"
+elif [ -n "${CODESIGN_IDENTITY:-}" ]; then
   codesign --force --options runtime --timestamp --sign "$CODESIGN_IDENTITY" "$APP"
 elif security find-identity -p codesigning | grep -F "\"$LOCAL_IDENTITY\"" >/dev/null; then
   codesign --force --options runtime --sign "$LOCAL_IDENTITY" "$APP"
