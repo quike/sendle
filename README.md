@@ -29,12 +29,13 @@ Apple Books has no way to put a book on a Kindle. Sendle reads your Books librar
 
 ## What it does
 
-- **Shows your Books library** in a dark panel under the menu bar: grid, list or shelf, sorted by date added, title or author, with an A–Z bar for big libraries, search and filters.
+- **Shows your Books library** in a dark panel under the menu bar: grid, list or shelf (the newest books stay above the list), sorted by date added, title or author, with an A–Z bar for big libraries, search and filters.
 - **Sends by email** through your own Gmail, iCloud, Fastmail or other account, using an app password kept in the Keychain. Before sending, Sendle repacks each EPUB and fixes the problems that make Amazon reject or garble it.
 - **Copies over USB** to a Kindle that mounts as a drive. PDFs go as they are; EPUBs are converted to AZW3 with [boko](https://github.com/zacharydenton/boko) first, with a cover thumbnail the Kindle shows.
 - **Knows what's on your Kindle.** With the Kindle plugged in, the library marks which books are already on it, an On Kindle view lists everything the Kindle holds, and sending a book that's already there asks whether to skip, keep both or replace it.
 - **Lets you fix a book's details** (title, author, year, ISBN, language and cover) for the copies it sends, without ever touching Books' own files.
 - **Deletes books from the Kindle,** one at a time, with a few seconds to undo.
+- **Hides books you don't want to see** in Sendle, with a few seconds to undo, and a Hidden scope that brings them back. Books' own library stays as it is: **Show in Books** opens a book there, where you can delete it.
 - **Explains every problem** with what happened and a button that fixes it, and shows a logs screen when you want to see what's going on underneath.
 
 ## Download
@@ -128,12 +129,15 @@ Sorted by title or author, the library gets an A–Z bar to jump through it. **F
 | Click a destination chip | Make it where Send and quick-send go: email is blue, USB is green |
 | Click a book, ⌘-click, ⇧-click | Select one, add or remove one, select a range |
 | Hover a cover and click the paper plane | Quick-send that book to the active destination |
+| Hover a book and click the pencil | Edit its details |
 | Return | Send the selection |
 | Click or drag along the A–Z bar | Jump to a letter (sort by title or author first) |
 | Right-click a book › Edit Details…, or ⌘I | Change its title, author, year, ISBN, language or cover |
+| Right-click a book › Hide from Sendle | Hide it, or the selected books, from Sendle; the Hidden scope lists them, with Show in Sendle |
+| Right-click a book › Show in Books | Open it in Books, where you can delete it |
 | Library / On Kindle switch | With a Kindle plugged in, see what's on it |
 | Click a book on the Kindle | Its details, Edit in Library, or Delete… |
-| ⌘Z, or Undo on the toast | Bring back a book you just deleted from the Kindle |
+| ⌘Z, or Undo on the toast | Bring back a book you just deleted from the Kindle or hid from Sendle |
 | Hover the Kindle chip | Eject it |
 
 | Key | Action |
@@ -161,7 +165,7 @@ While books are sending, the menu bar shows `↑ 2/3`, and you can close the pan
   <img src="docs/edit.png" width="400" alt="The edit sheet for Great Expectations, with a new author name and year, and a box to rename the author's other books too">
 </p>
 
-Edits change only the copy Sendle sends; Books' library and files stay untouched. Each field shows what changed and can go back to the original with ↺. A pencil on the cover marks an edited book: send it again to update your Kindle. Renaming an author can update all their books at once. PDFs take a title and author only, which go into the file name.
+Edits change only the copy Sendle sends; Books' library and files stay untouched. Each field shows what changed and can go back to the original with ↺. Hovering a book also shows a pencil beside the paper plane that opens the sheet. A pencil on the cover marks an edited book: send it again to update your Kindle. Renaming an author can update all their books at once. PDFs take a title and author only, which go into the file name.
 
 ## Privacy
 
@@ -174,6 +178,7 @@ Sendle runs on your Mac and talks to one server: your own email account's, when 
 - **One book per email,** and emails are limited to Amazon's 50 MB.
 - **Amazon reports email problems by email.** Sendle can say a book reached Amazon, not that it reached the Kindle.
 - **Kindle collections** and editing books on the Kindle itself aren't supported.
+- **Deleting a book from your library** happens in Books. Sendle never writes Books' library, so it hides books instead and opens Books to delete them.
 
 Planned and proposed features are in [Issues](https://github.com/quike/sendle/issues).
 
