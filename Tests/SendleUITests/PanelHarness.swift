@@ -35,9 +35,10 @@ struct PanelHarness {
   /// `onSleep` runs each time setup waits between access checks.
   /// `channel` delivers every send and test email; `ejector` replaces the harness's.
   /// `edits` apply to the library's books, and `editions` are their EPUBs' editions. Saving a book's
-  /// details fails with `editFailure`. `remover` removes the copy a Replace leaves behind, turns
-  /// Replace on for copies Sendle did not name, and deletes from the Kindle sheet, whose Undo waits
-  /// on `removalSleep`.
+  /// details fails with `editFailure`. `hiddenBooks`, if given, keeps the hidden books in place of
+  /// one holding `hidden`. `remover` removes the copy a Replace leaves behind, turns Replace on for
+  /// copies Sendle did not name, and deletes from the Kindle sheet. That Undo and the hide's wait on
+  /// `removalSleep`.
   func makePanel(
     _ saved: AppSettings = AppSettings(email: .fixture),
     channel: FakeDeliveryChannel = FakeDeliveryChannel(),
@@ -48,6 +49,7 @@ struct PanelHarness {
     editions: [BookID: Edition] = [:],
     editFailure: MetadataEditError? = nil,
     hidden: Set<BookID> = [],
+    hiddenBooks: InMemoryHiddenBooksStore? = nil,
     remover: FakeKindleBookRemover? = nil,
     removalSleep: @escaping @Sendable (Duration) async -> Void = { _ in
       try? await Task.sleep(for: .seconds(60))
@@ -66,7 +68,7 @@ struct PanelHarness {
         settings: settings),
       observeDestinations: ObserveDestinations(monitor: monitor, settings: settings),
       settings: settings, history: history, converter: converter,
-      hiddenBooks: InMemoryHiddenBooksStore(hidden))
+      hiddenBooks: hiddenBooks ?? InMemoryHiddenBooksStore(hidden))
     let setup = SetupViewModel(
       configure: configure, sendTest: sendTest,
       checkAccess: {
@@ -97,7 +99,7 @@ struct PanelHarness {
       removal: remover.map {
         KindleRemovalModel(removals: KindleRemovals(remover: $0, log: log), sleep: removalSleep)
       },
-      log: log)
+      sleep: removalSleep, log: log)
     panel.attach(system)
     return (panel, settings)
   }

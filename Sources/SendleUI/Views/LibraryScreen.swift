@@ -117,16 +117,38 @@ struct LibraryScreen: View {
           .transition(.move(edge: .bottom).combined(with: .opacity))
       }
     }
+    .overlay(alignment: .bottom) {
+      // Scoped to the toast, so the books a hide takes out of the list don't move with it.
+      ZStack {
+        if let hidden = panel.shownHideToast {
+          UndoToast(title: hidden.title, ends: panel.hideToastEnds) {
+            Task { await panel.undoHide() }
+          }
+          .padding(14)
+          // Above the send bar, while a selection the hide left keeps it up.
+          .padding(.bottom, panel.sendBarRoom)
+          .id(hidden)
+          .transition(toastTransition)
+        }
+      }
+      .animation(ScreenMotion.animation(reduceMotion: reduceMotion), value: panel.shownHideToast)
+    }
     .animation(reduceMotion ? nil : Theme.press, value: panel.showsSendBar)
     .overlay(alignment: .bottom) {
       if let held = panel.undoToast {
-        UndoToast(panel: panel, held: held, ends: panel.removal?.toastEnds)
-          .padding(14)
-          .id(held.id)
-          .transition(reduceMotion ? .opacity : .move(edge: .bottom).combined(with: .opacity))
+        UndoToast(title: "Deleted \"\(held.book.title)\"", ends: panel.removal?.toastEnds) {
+          Task { await panel.undoKindleDelete() }
+        }
+        .padding(14)
+        .id(held.id)
+        .transition(toastTransition)
       }
     }
     .animation(ScreenMotion.animation(reduceMotion: reduceMotion), value: panel.undoToast?.id)
+  }
+
+  private var toastTransition: AnyTransition {
+    reduceMotion ? .opacity : .move(edge: .bottom).combined(with: .opacity)
   }
 
   private func books(_ side: LibrarySide) -> AnyTransition {
@@ -791,18 +813,17 @@ struct SendBarContent: View {
   }
 }
 
-/// The Undo of a delete from the Kindle, where the send bar would be, with a bar for the time
-/// left. It says nothing to the menu bar icon.
+/// The Undo of a delete from the Kindle or a hide, over the bottom of the books, with a bar for the
+/// time left. It says nothing to the menu bar icon.
 struct UndoToast: View {
-  let panel: PanelModel
-  let held: HeldBook
+  let title: String
   /// Given, not read from the model, so a fading toast's bar doesn't fill up again.
   let ends: Date?
+  let undo: () -> Void
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
   var body: some View {
     let shape = RoundedRectangle(cornerRadius: 16, style: .continuous)
-    let title = "Deleted \"\(held.book.title)\""
     HStack(spacing: 10) {
       Image(systemName: "checkmark")
         .font(.system(size: 11, weight: .bold))
@@ -831,10 +852,6 @@ struct UndoToast: View {
     .accessibilityElement(children: .ignore)
     .accessibilityLabel(title)
     .accessibilityAction(named: "Undo", undo)
-  }
-
-  private func undo() {
-    Task { await panel.undoKindleDelete() }
   }
 }
 

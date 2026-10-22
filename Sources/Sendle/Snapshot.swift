@@ -230,6 +230,7 @@ enum Snapshot {
       await write(window, "\(name).png", to: folder)
     }
     panel.library.filter = .all
+    await renderHide(["A004", "A013"], panel, window: window, to: folder)
     panel.hoveredChip = kindles.volume(named: "Kindle")
     await write(window, "chip-eject-hover.png", to: folder)
     panel.hoveredChip = nil
@@ -299,6 +300,18 @@ enum Snapshot {
     }
     _ = panel.library.clearSelection()
     await panel.library.setSort(.recent)
+  }
+
+  /// Hiding the selected `books`: the toast, then the Hidden scope, before Undo shows them again.
+  private static func renderHide(
+    _ books: [String], _ panel: PanelModel, window: NSWindow, to folder: URL
+  ) async {
+    select(books, in: panel)
+    await panel.hideFromSendle(BookID(rawValue: books[0]))
+    await write(window, "library-hide-toast.png", to: folder)
+    panel.library.filter = .hidden
+    await write(window, "library-scope-hidden.png", to: folder)
+    await panel.undoHide()
   }
 
   /// Deleting `book` from its sheet: the question, then the toast, whose Undo puts it back. The

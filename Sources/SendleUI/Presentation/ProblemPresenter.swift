@@ -106,10 +106,19 @@ public enum ProblemPresenter {
   }
 
   package static func undoFailed(title: String, _ error: KindleRemovalError) -> Problem {
-    let detail = error.detail
-    return Problem(
-      "Couldn't put \"\(title)\" back",
-      message: detail.prefix(1).uppercased() + detail.dropFirst() + ".")
+    Problem("Couldn't put \"\(title)\" back", message: sentence(error.detail))
+  }
+
+  package static func hideFailed(_ error: StorageError, count: Int) -> Problem {
+    Problem(
+      count > 1 ? "Couldn't hide the books" : "Couldn't hide the book",
+      message: sentence(error.detail))
+  }
+
+  package static func showFailed(_ error: StorageError, count: Int) -> Problem {
+    Problem(
+      count > 1 ? "Couldn't show the books in Sendle" : "Couldn't show the book in Sendle",
+      message: sentence(error.detail))
   }
 
   package static func ejectWhileCopying(_ volume: KindleVolume) -> Problem {
@@ -124,6 +133,10 @@ public enum ProblemPresenter {
       message: "They were moved to \(file.lastPathComponent) in Sendle's data folder. "
         + "Set up your Kindle email again.",
       fix: Fix("Open Settings", .openSettings(.kindle)))
+  }
+
+  private static func sentence(_ detail: String) -> String {
+    detail.prefix(1).uppercased() + detail.dropFirst() + "."
   }
 
   private static func tooLargeTitle(bytes: Int64, limit: Int64) -> String {

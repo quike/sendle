@@ -18,6 +18,12 @@ package enum LibrarySide: Hashable, Sendable {
   case kindle
 }
 
+/// Books just hidden from Sendle, which the hide's Undo shows again.
+package struct HiddenUndo: Hashable, Sendable {
+  package let ids: Set<BookID>
+  package let title: String
+}
+
 /// The panel's state above its screens: which one shows, the settings sheet, keys, fixes and the
 /// menu bar icon.
 @Observable @MainActor
@@ -55,6 +61,12 @@ public final class PanelModel {
   /// The Kindle a send is checked against, while it is: read for duplicates, then its copies' ASINs
   /// planned against it. Another send would only race it.
   package private(set) var checkingKindle: KindleVolume?
+  /// The hide Undo can take back, while its toast shows.
+  package private(set) var hideToast: HiddenUndo? {
+    didSet { if hideToast == nil { hideToastEnds = nil } }
+  }
+  /// When the hide toast's time runs out.
+  package private(set) var hideToastEnds: Date?
   /// Bumped by ⌘F; the search field takes the keyboard when it changes.
   package private(set) var searchFocusRequests = 0
   /// The status item's centre, measured from the card's left edge, where the arrow points.
@@ -68,6 +80,9 @@ public final class PanelModel {
   @ObservationIgnored private let ejector: any KindleEjector
   @ObservationIgnored private let editDetails: EditBookDetails
   @ObservationIgnored private let log: any ActivityLog
+  /// What the hide toast's time waits on.
+  @ObservationIgnored private let sleep: @Sendable (Duration) async -> Void
+  @ObservationIgnored private var hideTimer: Task<Void, Never>?
   @ObservationIgnored private var accessWatch: Task<Void, Never>?
   /// Where the logs go back to, and whether the settings sheet was over it.
   private var beforeLogs = (route: PanelRoute.library, showedSettings: false)
@@ -92,6 +107,7 @@ public final class PanelModel {
     editDetails: EditBookDetails,
     ejector: any KindleEjector,
     removal: KindleRemovalModel? = nil,
+    sleep: @escaping @Sendable (Duration) async -> Void = { try? await Task.sleep(for: $0) },
     log: any ActivityLog = NoActivityLog()
   ) {
     self.library = library
@@ -104,6 +120,7 @@ public final class PanelModel {
     self.editDetails = editDetails
     self.ejector = ejector
     self.removal = removal
+    self.sleep = sleep
     self.log = log
     library.reportProblem = { [weak self] problem in self?.show(notice: problem) }
     library.onKindleInputsChange = { [weak self] in self?.followKindle() }
@@ -241,6 +258,11 @@ public final class PanelModel {
   /// The delete's Undo, which floats over the Kindle's books and takes ⌘Z there.
   package var undoToast: HeldBook? {
     isOnLibrary && side == .kindle ? removal?.toast : nil
+  }
+
+  /// The hide's Undo, which floats over the library's books and takes ⌘Z there.
+  package var shownHideToast: HiddenUndo? {
+    isOnLibraryBooks ? hideToast : nil
   }
 
   // MARK: Setup
@@ -707,6 +729,76 @@ public final class PanelModel {
     }
   }
 
+  // MARK: Hiding
+
+  /// Books opens at the book, where it can be deleted: Sendle never changes Books' library.
+  package func showInBooks(_ id: BookID) {
+    let segment = CharacterSet.urlPathAllowed.subtracting(CharacterSet(charactersIn: "/"))
+    guard let asset = id.rawValue.addingPercentEncoding(withAllowedCharacters: segment),
+      let url = URL(string: "ibooks://assetid/\(asset)")
+    else { return }
+    system?.open(url)
+  }
+
+  package func hideMenuTitle(for id: BookID) -> String {
+    let count = hideTargets(for: id).count
+    let books = count > 1 ? " \(count) Books" : ""
+    return library.filter == .hidden ? "Show\(books) in Sendle" : "Hide\(books) from Sendle"
+  }
+
+  /// Leaves the books out of every scope but Hidden, with a toast whose Undo shows them again.
+  package func hideFromSendle(_ id: BookID) async {
+    guard let book = library.books.first(where: { $0.id == id }) else { return }
+    let ids = hideTargets(for: id)
+    do throws(StorageError) {
+      try await library.hide(ids)
+    } catch {
+      return show(notice: ProblemPresenter.hideFailed(error, count: ids.count))
+    }
+    let title =
+      ids.count > 1 ? "Hid \(ids.count) books from Sendle" : "Hid \"\(book.title)\" from Sendle"
+    showHideToast(HiddenUndo(ids: ids, title: title))
+  }
+
+  package func showInSendle(_ id: BookID) async {
+    let ids = hideTargets(for: id)
+    do throws(StorageError) {
+      try await library.show(ids)
+    } catch {
+      show(notice: ProblemPresenter.showFailed(error, count: ids.count))
+    }
+  }
+
+  /// A failed Undo keeps the toast and its time.
+  package func undoHide() async {
+    guard let toast = hideToast else { return }
+    do throws(StorageError) {
+      try await library.show(toast.ids)
+    } catch {
+      return show(notice: ProblemPresenter.showFailed(error, count: toast.ids.count))
+    }
+    if hideToast == toast {
+      hideTimer?.cancel()
+      hideToast = nil
+    }
+  }
+
+  /// The selection when it holds `id`, otherwise `id` alone.
+  private func hideTargets(for id: BookID) -> Set<BookID> {
+    library.selection.contains(id) ? library.selection.ids : [id]
+  }
+
+  /// A new hide's toast takes the place of the last one, whose hide stays.
+  private func showHideToast(_ toast: HiddenUndo) {
+    hideTimer?.cancel()
+    hideToastEnds = Date.now.addingTimeInterval(KindleRemovals.undoWindow / .seconds(1))
+    hideToast = toast
+    hideTimer = Task { [weak self, sleep] in
+      await sleep(KindleRemovals.undoWindow)
+      if !Task.isCancelled { self?.hideToast = nil }
+    }
+  }
+
   // MARK: Logs
 
   /// Opens the logs over whatever shows; `subject` scrolls to the latest story of that send.
@@ -899,8 +991,14 @@ public final class PanelModel {
       else { return false }
       Task { await openDetails(book.id) }
     case .undo:
-      guard !key.isRepeat, undoToast != nil else { return false }
-      Task { await undoKindleDelete() }
+      guard !key.isRepeat else { return false }
+      if shownHideToast != nil {
+        Task { await undoHide() }
+      } else if undoToast != nil {
+        Task { await undoKindleDelete() }
+      } else {
+        return false
+      }
     }
     return true
   }

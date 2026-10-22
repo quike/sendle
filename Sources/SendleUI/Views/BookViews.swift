@@ -613,7 +613,8 @@ extension ClickKind {
 
 extension View {
   /// Click to select, hover for quick-send: the same in every layout. VoiceOver reads one element
-  /// per book, whose actions select it, send it or edit its details.
+  /// per book, whose actions select it, send it or edit its details. The menu also opens the book
+  /// in Books and hides it from Sendle, or shows it again in the Hidden scope.
   func bookInteractions(_ panel: PanelModel, _ item: BookItemViewModel) -> some View {
     let library = panel.library
     let details = [
@@ -652,6 +653,17 @@ extension View {
       .contextMenu {
         Button("Edit Details…") { Task { await panel.openDetails(item.id) } }
           .disabled(!panel.canEditDetails(item.book))
+        Divider()
+        Button("Show in Books") { panel.showInBooks(item.id) }
+        Button(panel.hideMenuTitle(for: item.id)) {
+          Task {
+            if library.filter == .hidden {
+              await panel.showInSendle(item.id)
+            } else {
+              await panel.hideFromSendle(item.id)
+            }
+          }
+        }
       }
   }
 }
