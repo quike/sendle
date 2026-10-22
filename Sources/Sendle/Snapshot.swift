@@ -108,7 +108,7 @@ enum Snapshot {
     panel.skipSetup()
     await renderKindle(panel, window: window, kindles: kindles, library: kindleLibrary, to: folder)
     await renderFloating(panel, window: window, to: folder)
-    select(["A004", "A013"], in: panel)
+    select(["A004", "A013", "A020"], in: panel)
     await panel.sendSelection()
     await write(window, "queue-usb-sending.png", to: folder)
     panel.queue.cancel()
@@ -291,8 +291,9 @@ enum Snapshot {
     await panel.undoKindleDelete()
   }
 
-  /// The send bar and the A–Z bar on cards of their own: the send card, the A–Z card on the right
-  /// and mirrored on the left, compact, on the Kindle side, and the setting that switches them.
+  /// The send bar and the A–Z bar on cards of their own: the send card to USB and to email, the
+  /// A–Z card on the right and mirrored on the left, compact, on the Kindle side, and the setting
+  /// that switches them.
   private static func renderFloating(_ panel: PanelModel, window: NSWindow, to folder: URL) async {
     await renderHeight(
       panel, window: window, to: folder, sides: [.library, .kindle], kindle: "kindle")
@@ -308,6 +309,10 @@ enum Snapshot {
     await panel.library.setLayout(.grid)
     select(["A004", "A013", "A020"], in: panel)
     await write(window, "floating-send-card.png", to: folder)
+    await panel.library.activate(DestinationKind.email)
+    select(["A022", "A017", "A013"], in: panel)
+    await write(window, "floating-send-card-email.png", to: folder)
+    await panel.library.activate(DestinationKind.usb)
     _ = panel.library.clearSelection()
 
     await panel.library.setSort(.title)
