@@ -49,7 +49,7 @@ struct JSONHiddenBooksStoreTests {
 
     #expect(await store.hidden() == [a])
     await #expect(
-      throws: StorageError.writeFailed("hidden.json is from a newer version of Sendle")
+      throws: StorageError.writeFailed("the hidden list was saved by a newer version of Sendle")
     ) {
       try await store.set([b], hidden: true)
     }

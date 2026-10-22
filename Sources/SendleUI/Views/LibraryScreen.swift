@@ -700,7 +700,7 @@ struct LibraryContent: View {
   private func loaded(_ library: LibraryViewModel) -> some View {
     let items = library.items
     if items.isEmpty {
-      EmptyLibraryView(isFiltered: !library.books.isEmpty)
+      EmptyLibraryView(library: library)
     } else {
       BooksScroll(
         jump: library.letterJump, style: library.jumpBar,
@@ -916,15 +916,22 @@ struct ProblemCard: View {
 }
 
 struct EmptyLibraryView: View {
-  let isFiltered: Bool
+  let library: LibraryViewModel
 
   var body: some View {
-    EmptyPlaceholder(
-      symbol: isFiltered ? "magnifyingglass" : "books.vertical",
-      title: isFiltered ? "No books match" : "Your Books library is empty",
-      message: isFiltered
-        ? "Try another search or filter."
-        : "Add EPUB or PDF files to Books, and they show up here.")
+    if library.isEverythingHidden {
+      EmptyPlaceholder(
+        symbol: "eye.slash", title: "All your books are hidden",
+        message: "Bring them back from Hidden.")
+    } else if library.books.isEmpty {
+      EmptyPlaceholder(
+        symbol: "books.vertical", title: "Your Books library is empty",
+        message: "Add EPUB or PDF files to Books, and they show up here.")
+    } else {
+      EmptyPlaceholder(
+        symbol: "magnifyingglass", title: "No books match",
+        message: "Try another search or filter.")
+    }
   }
 }
 

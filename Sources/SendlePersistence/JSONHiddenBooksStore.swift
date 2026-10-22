@@ -34,7 +34,7 @@ public actor JSONHiddenBooksStore: HiddenBooksStore {
     // Rewriting a newer file as this version would drop what this version can't read.
     guard !stored.isFromANewerVersion else {
       log.error(.app, "Couldn't save hidden.json: it is from a newer version of Sendle")
-      throw .writeFailed("hidden.json is from a newer version of Sendle")
+      throw .writeFailed("the hidden list was saved by a newer version of Sendle")
     }
     let updated = hidden ? stored.ids.union(books) : stored.ids.subtracting(books)
     try file.write(File(updated))

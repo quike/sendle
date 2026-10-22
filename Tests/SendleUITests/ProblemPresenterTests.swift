@@ -160,6 +160,26 @@ struct ProblemPresenterTests {
         == .useDestination(.usb))
   }
 
+  @Test(arguments: [
+    ("the disk is full", "The disk is full."),
+    ("the disk is full.", "The disk is full."),
+    (
+      "The file couldn’t be saved in the folder “Sendle”.",
+      "The file couldn’t be saved in the folder “Sendle”."
+    ),
+    ("is it full?", "Is it full?"),
+    ("it is full!", "It is full!"),
+  ])
+  func endsAStorageFailureWithOneStop(detail: String, message: String) {
+    let failure = StorageError.writeFailed(detail)
+
+    #expect(ProblemPresenter.hideFailed(failure, count: 1).message == message)
+    #expect(ProblemPresenter.showFailed(failure, count: 2).message == message)
+    #expect(
+      ProblemPresenter.undoFailed(title: "Emma", KindleRemovalError.failed(detail)).message
+        == message)
+  }
+
   @Test func saysWhereUnreadableSettingsWent() {
     let file = URL(filePath: "/Users/me/Library/Application Support/Sendle/settings.corrupt-1.json")
 

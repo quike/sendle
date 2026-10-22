@@ -75,8 +75,10 @@ enum Snapshot {
       await panel.library.setSort(.title)
       await panel.library.setLayout(.shelf)
       let ids = panel.library.items.map(\.id)
-      panel.library.letterJump.top = ids[ids.count * 2 / 3]
-      await write(window, "library-shelf-scrolled.png", to: folder)
+      if !ids.isEmpty {
+        panel.library.letterJump.top = ids[ids.count * 2 / 3]
+        await write(window, "library-shelf-scrolled.png", to: folder)
+      }
       await panel.library.setLayout(.list)
       panel.library.letterJump.jump(to: "M")
       await write(window, "library-az-full.png", to: folder)
@@ -245,8 +247,10 @@ enum Snapshot {
     await panel.library.setLayout(.shelf)
     await panel.library.setSort(.title)
     let ids = panel.kindle.items.map(\.id)
-    panel.kindle.letterJump.top = ids[ids.count * 2 / 3]
-    await write(window, "kindle-shelf-scrolled.png", to: folder)
+    if !ids.isEmpty {
+      panel.kindle.letterJump.top = ids[ids.count * 2 / 3]
+      await write(window, "kindle-shelf-scrolled.png", to: folder)
+    }
     await panel.library.setSort(.recent)
     let alice = KindleBookID(relativePath: "Alice's Adventures in Wonderland - Lewis Carroll.azw3")
     panel.openKindleDetails(alice)
@@ -458,10 +462,10 @@ enum Snapshot {
         await panel.library.setLayout(layout)
         if side == .library {
           let ids = panel.library.items.map(\.id)
-          panel.library.letterJump.top = ids[ids.count / 3]
+          panel.library.letterJump.top = ids.dropFirst(ids.count / 3).first
         } else {
           let ids = panel.kindle.items.map(\.id)
-          panel.kindle.letterJump.top = ids[ids.count / 3]
+          panel.kindle.letterJump.top = ids.dropFirst(ids.count / 3).first
         }
         // Past the side switch's slide, so only the new side's books are left to scroll.
         try? await Task.sleep(for: .seconds(1))

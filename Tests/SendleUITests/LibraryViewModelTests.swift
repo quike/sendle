@@ -658,6 +658,52 @@ struct LibraryViewModelTests {
     #expect(model.shownCount == 2)
   }
 
+  @Test func everythingHiddenIsToldApartFromNothingMatching() async throws {
+    let (model, _) = makeModel()
+    await model.start()
+    await model.appear()
+    #expect(!model.isEverythingHidden)
+
+    try await model.hide([a])
+    #expect(!model.isEverythingHidden)
+
+    try await model.hide([b])
+    #expect(model.items.isEmpty)
+    #expect(model.isEverythingHidden)
+
+    model.filter = .notSent
+    #expect(model.items.isEmpty)
+    #expect(model.isEverythingHidden)
+
+    model.filter = .hidden
+    #expect(!model.items.isEmpty)
+    #expect(!model.isEverythingHidden)
+
+    model.filter = .all
+    model.query = "  "
+    #expect(model.isEverythingHidden)
+    model.query = "Moby"
+    #expect(!model.isEverythingHidden)
+    model.query = ""
+    model.format = .pdf
+    #expect(!model.isEverythingHidden)
+    model.format = nil
+    #expect(model.isEverythingHidden)
+
+    try await model.show([a])
+    #expect(!model.isEverythingHidden)
+  }
+
+  @Test func anEmptyLibraryHasNothingHidden() async {
+    library.result = .success([])
+    let (model, _) = makeModel(hiddenBooks: InMemoryHiddenBooksStore([a]))
+    await model.start()
+    await model.appear()
+
+    #expect(model.items.isEmpty)
+    #expect(!model.isEverythingHidden)
+  }
+
   @Test func hidingBooksTakesThemOutOfTheSelectionAndTheLists() async throws {
     let (model, _) = makeModel()
     await model.start()

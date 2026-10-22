@@ -120,6 +120,12 @@ public final class LibraryViewModel {
 
   private var hiddenCount: Int { books.count { hidden.contains($0.id) } }
 
+  /// The books area is empty for no search or filter: every book the library holds is hidden.
+  package var isEverythingHidden: Bool {
+    !books.isEmpty && hiddenCount == books.count && filter != .hidden && format == nil
+      && query.allSatisfy(\.isWhitespace)
+  }
+
   /// The saved choice while it's available, otherwise the first destination there is.
   package var activeDestination: Destination? {
     let preferred = destinations.filter { $0.kind == preferredDestination }

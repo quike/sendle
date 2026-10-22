@@ -136,7 +136,8 @@ public enum ProblemPresenter {
   }
 
   private static func sentence(_ detail: String) -> String {
-    detail.prefix(1).uppercased() + detail.dropFirst() + "."
+    let text = detail.prefix(1).uppercased() + detail.dropFirst()
+    return text.last.map { ".!?".contains($0) } == true ? text : text + "."
   }
 
   private static func tooLargeTitle(bytes: Int64, limit: Int64) -> String {

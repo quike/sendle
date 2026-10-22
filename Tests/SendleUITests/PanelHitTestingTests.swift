@@ -53,6 +53,9 @@ struct PanelHitTestingTests {
     panel.library.letterJump.top = panel.library.items.last?.id
     for _ in 0..<2 { try await layOut(window, host) }
 
+    let scrolled = try #require(listScrollOffset(in: host))
+    #expect(scrolled > 0)
+
     try click(at: firstStripCoverCentre(of: panel), in: window)
 
     let recent = try #require(panel.library.recentItems.first?.id)
@@ -161,6 +164,17 @@ struct PanelHitTestingTests {
     panel.library.hovered = first
     for _ in 0..<2 { try await layOut(window, host) }
     return (panel, window, first)
+  }
+
+  /// How far the books' list has scrolled from its rest: the one scroll view that holds more than
+  /// it shows, as the strip's scrolls sideways.
+  private func listScrollOffset(in view: NSView) -> CGFloat? {
+    if let scroll = view as? NSScrollView, let document = scroll.documentView,
+      document.frame.height > scroll.frame.height
+    {
+      return scroll.contentView.bounds.minY + scroll.contentInsets.top
+    }
+    return view.subviews.lazy.compactMap { listScrollOffset(in: $0) }.first
   }
 
   private func firstCoverCentre(of panel: PanelModel) -> NSPoint {

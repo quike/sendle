@@ -740,10 +740,22 @@ public final class PanelModel {
     system?.open(url)
   }
 
+  /// The Hidden scope brings its books back; every other scope hides them.
+  private var showsHiddenBooks: Bool { library.filter == .hidden }
+
   package func hideMenuTitle(for id: BookID) -> String {
     let count = hideTargets(for: id).count
     let books = count > 1 ? " \(count) Books" : ""
-    return library.filter == .hidden ? "Show\(books) in Sendle" : "Hide\(books) from Sendle"
+    return showsHiddenBooks ? "Show\(books) in Sendle" : "Hide\(books) from Sendle"
+  }
+
+  /// Does what `hideMenuTitle(for:)` says.
+  package func toggleHidden(_ id: BookID) async {
+    if showsHiddenBooks {
+      await showInSendle(id)
+    } else {
+      await hideFromSendle(id)
+    }
   }
 
   /// Leaves the books out of every scope but Hidden, with a toast whose Undo shows them again.
@@ -760,13 +772,15 @@ public final class PanelModel {
     showHideToast(HiddenUndo(ids: ids, title: title))
   }
 
+  /// A toast that hid any of these books goes: its Undo would no longer say what happened.
   package func showInSendle(_ id: BookID) async {
     let ids = hideTargets(for: id)
     do throws(StorageError) {
       try await library.show(ids)
     } catch {
-      show(notice: ProblemPresenter.showFailed(error, count: ids.count))
+      return show(notice: ProblemPresenter.showFailed(error, count: ids.count))
     }
+    if let toast = hideToast, !toast.ids.isDisjoint(with: ids) { dismissHideToast() }
   }
 
   /// A failed Undo keeps the toast and its time.
@@ -777,10 +791,12 @@ public final class PanelModel {
     } catch {
       return show(notice: ProblemPresenter.showFailed(error, count: toast.ids.count))
     }
-    if hideToast == toast {
-      hideTimer?.cancel()
-      hideToast = nil
-    }
+    if hideToast == toast { dismissHideToast() }
+  }
+
+  private func dismissHideToast() {
+    hideTimer?.cancel()
+    hideToast = nil
   }
 
   /// The selection when it holds `id`, otherwise `id` alone.

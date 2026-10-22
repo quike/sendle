@@ -655,15 +655,7 @@ extension View {
           .disabled(!panel.canEditDetails(item.book))
         Divider()
         Button("Show in Books") { panel.showInBooks(item.id) }
-        Button(panel.hideMenuTitle(for: item.id)) {
-          Task {
-            if library.filter == .hidden {
-              await panel.showInSendle(item.id)
-            } else {
-              await panel.hideFromSendle(item.id)
-            }
-          }
-        }
+        Button(panel.hideMenuTitle(for: item.id)) { Task { await panel.toggleHidden(item.id) } }
       }
   }
 }

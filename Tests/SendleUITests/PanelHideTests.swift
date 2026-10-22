@@ -218,6 +218,69 @@ struct PanelHideTests {
     #expect(panel.hideToast == nil)
   }
 
+  @Test func showingTheBooksTheToastHidDropsTheToastAndItsTime() async {
+    let endings = OSAllocatedUnfairLock<[Signal]>(initialState: [])
+    let panel = await panel(removalSleep: { _ in
+      let ending = Signal()
+      endings.withLock { $0.append(ending) }
+      await ending.wait()
+    })
+    select([a, b], in: panel)
+    await panel.hideFromSendle(a)
+    panel.library.filter = .hidden
+
+    await panel.showInSendle(b)
+
+    #expect(panel.library.hidden == [a])
+    #expect(panel.hideToast == nil)
+    #expect(panel.hideToastEnds == nil)
+    #expect(!panel.handle(undo))
+
+    await panel.hideFromSendle(c)
+    _ = await eventually { endings.withLock { $0.count } > 0 }
+    await endings.withLock { $0[0] }.fire()
+    try? await Task.sleep(for: .milliseconds(50))
+    #expect(panel.hideToast?.ids == [c])
+  }
+
+  @Test func showingOtherBooksKeepsTheToast() async {
+    let panel = await panel(store: InMemoryHiddenBooksStore([c]))
+    await panel.hideFromSendle(a)
+    panel.library.filter = .hidden
+
+    await panel.showInSendle(c)
+
+    #expect(panel.library.hidden == [a])
+    #expect(panel.hideToast?.ids == [a])
+  }
+
+  @Test func aFailedShowKeepsTheToast() async {
+    let store = InMemoryHiddenBooksStore()
+    let panel = await panel(store: store)
+    await panel.hideFromSendle(a)
+    panel.library.filter = .hidden
+    await store.fail(with: .writeFailed("the disk is full"))
+
+    await panel.showInSendle(a)
+
+    #expect(panel.hideToast?.ids == [a])
+  }
+
+  @Test func toggleHiddenHidesInTheOtherScopesAndShowsInHidden() async {
+    let panel = await panel(store: InMemoryHiddenBooksStore([d]))
+    panel.library.filter = .all
+
+    await panel.toggleHidden(a)
+    #expect(panel.library.hidden == [a, d])
+    #expect(panel.hideToast?.ids == [a])
+
+    panel.library.filter = .hidden
+    await panel.toggleHidden(d)
+    #expect(panel.library.hidden == [a])
+    #expect(panel.hideToast?.ids == [a])
+    #expect(panel.hideMenuTitle(for: a) == "Show in Sendle")
+  }
+
   @Test func showInBooksOpensBooksAtTheBook() async throws {
     let panel = await panel()
 
