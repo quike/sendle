@@ -6,6 +6,10 @@
 
 <p align="center">Send the books in Apple Books to your Kindle, from the menu bar.</p>
 
+<p align="center">
+  <img src="docs/hero.png" alt="Sendle's panel three times: the library with three books selected for a Kindle plugged in over USB, the queue sending books by email, and the books on the Kindle">
+</p>
+
 Apple Books has no way to put a book on a Kindle. Sendle reads your Books library, shows it in a small panel under the menu bar, and sends any EPUB or PDF you added yourself to your Kindle: by email through Amazon's Send to Kindle, or straight over the USB cable.
 
 ## What it does
@@ -71,6 +75,10 @@ macOS keeps the Books library private, and on recent versions it denies access w
 
 In the panel, click **Set up Kindle email** (or open **Settings › Kindle** and **Settings › Sender**):
 
+<p align="center">
+  <img src="docs/settings.png" width="400" alt="Settings › Sender, with iCloud chosen and a sender address filled in">
+</p>
+
 | Send with | Server | App password |
 |---|---|---|
 | Gmail | `smtp.gmail.com`, port 465 | [Create one](https://myaccount.google.com/apppasswords) in your Google account. It needs 2-Step Verification. |
@@ -124,6 +132,10 @@ While books are sending, the menu bar shows `↑ 2/3`, and you can close the pan
 
 ### Editing a book's details
 
+<p align="center">
+  <img src="docs/edit.png" width="400" alt="The edit sheet for Great Expectations, with a new author name and year, and a box to rename the author's other books too">
+</p>
+
 Edits change only the copy Sendle sends; Books' library and files stay untouched. Each field shows what changed and can go back to the original with ↺. A pencil on the cover marks an edited book: send it again to update your Kindle. Renaming an author can update all their books at once. PDFs take a title and author only, which go into the file name.
 
 ## Privacy
@@ -171,6 +183,14 @@ open build/Sendle.app
 ```
 
 `make-signing-identity.sh` creates a local "Sendle Local Signing" certificate, once. Without it the app is signed ad hoc, and macOS forgets its Full Disk Access and Keychain approval on every rebuild.
+
+### Screenshots
+
+The screenshots here never show a real library. `scripts/make-fixture-library.swift` writes a Books-style library of public-domain books with drawn covers, by default to `build/fixture-library`, for `SENDLE_LIBRARY_DB` to read. To render the panel with it and write the images in `docs/`, run (it needs ImageMagick, `brew install imagemagick`):
+
+```bash
+./scripts/readme-screenshots.sh
+```
 
 | Variable | What it does |
 |---|---|
