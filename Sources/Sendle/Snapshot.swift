@@ -230,7 +230,8 @@ enum Snapshot {
     panel.closeKindleDetails()
     await renderDelete(alice, panel, window: window, to: folder)
     panel.openKindleDetails(
-      KindleBookID(relativePath: "Downloads/Items01/The Hobbit_B007978NPG.kfx"))
+      KindleBookID(
+        relativePath: "Downloads/Items01/The Hound of the Baskervilles_B0FIXTURE1.kfx"))
     // Once the sheet has risen, down to its note under the last field.
     try? await Task.sleep(for: .milliseconds(700))
     scrollToEnd(
@@ -515,12 +516,17 @@ enum Snapshot {
     }
   }
 
-  /// Waits for covers and animations, then draws the window's content.
+  /// Waits for covers and animations, then draws the window's content at 2x, whatever the screen.
   private static func write(_ window: NSWindow, _ name: String, to folder: URL) async {
     try? await Task.sleep(for: .milliseconds(700))
     guard let view = window.contentView,
-      let bitmap = view.bitmapImageRepForCachingDisplay(in: view.bounds)
+      let bitmap = NSBitmapImageRep(
+        bitmapDataPlanes: nil, pixelsWide: Int(view.bounds.width * 2),
+        pixelsHigh: Int(view.bounds.height * 2), bitsPerSample: 8, samplesPerPixel: 4,
+        hasAlpha: true, isPlanar: false, colorSpaceName: .deviceRGB, bytesPerRow: 0,
+        bitsPerPixel: 0)
     else { return }
+    bitmap.size = view.bounds.size
     view.cacheDisplay(in: view.bounds, to: bitmap)
     try? bitmap.representation(using: .png, properties: [:])?.write(
       to: folder.appending(path: name))
@@ -566,8 +572,8 @@ final class SnapshotKindles: DestinationMonitor {
   }
 }
 
-/// Reads the mock Kindle as the real library would, without the books `remover` took, and can
-/// stop a read at its third book.
+/// Reads the mock Kindle as the real library would, without the books `remover` took and with a
+/// Kindle's free space rather than the Mac's, and can stop a read at its third book.
 final class SnapshotKindleLibrary: KindleLibrary {
   private struct Gate {
     var isHolding = false
@@ -607,7 +613,7 @@ final class SnapshotKindleLibrary: KindleLibrary {
     }
     let taken = remover.taken
     return KindleListing(
-      books: listing.books.filter { !taken.contains($0.id) }, freeBytes: listing.freeBytes)
+      books: listing.books.filter { !taken.contains($0.id) }, freeBytes: 5_380_000_000)
   }
 
   func cover(of book: KindleBook, on volume: KindleVolume, maxPixel: Int) async -> Cover {
