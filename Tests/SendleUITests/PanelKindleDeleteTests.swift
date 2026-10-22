@@ -279,6 +279,25 @@ struct PanelKindleDeleteTests {
     #expect(remover.restored == [])
   }
 
+  @Test func ejectingDuringADeleteMakesItFinalWithNoUndo() async {
+    let (panel, _) = await panelWithSheet()
+    let gate = Signal()
+    remover.gate = gate
+    panel.askToDeleteKindleBook()
+    let deleting = Task { await panel.deleteKindleBook() }
+    #expect(await eventually { remover.holds == [mobyDick] })
+
+    let ejecting = Task { await panel.eject(.fixture()) }
+    #expect(await eventually { panel.ejecting != nil })
+    await gate.fire()
+    await deleting.value
+    await ejecting.value
+
+    #expect(remover.finalized.count == 1)
+    #expect(panel.removal?.toast == nil)
+    #expect(!panel.hasPendingKindleDelete)
+  }
+
   @Test func sendingToTheKindleMakesItFinalFirst() async throws {
     let (panel, kindle) = await panelWithSheet()
     let held = try #require(await delete(on: panel))

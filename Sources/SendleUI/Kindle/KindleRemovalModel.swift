@@ -102,6 +102,13 @@ public final class KindleRemovalModel {
     let held = endToast()
     await removals.finalizePending()
     if let held, finalizing == held { finalizing = nil }
+    // A delete under way when this began was made final too, so its new toast can't undo it.
+    guard let shown = toast else { return }
+    let isUndoable = await removals.pending == shown
+    if !isUndoable, toast == shown {
+      stopTimer()
+      toast = nil
+    }
   }
 
   package func clearLeftovers(on volume: KindleVolume) async {
