@@ -13,6 +13,7 @@ struct LibraryItemsTests {
   func items(
     _ books: [Book],
     sends: [SendRecord] = [],
+    hidden: Set<BookID> = [],
     filter: LibraryFilter = .all,
     format: BookFormat? = nil,
     query: String = "",
@@ -20,8 +21,9 @@ struct LibraryItemsTests {
     kindle: KindleMatches? = nil
   ) -> [BookItemViewModel] {
     LibraryItems.make(
-      books: books, sends: LibraryItems.sendsByBook(in: sends), filter: filter, format: format,
-      query: query, destination: destination, converterAvailable: false, kindle: kindle, now: now)
+      books: books, sends: LibraryItems.sendsByBook(in: sends), hidden: hidden, filter: filter,
+      format: format, query: query, destination: destination, converterAvailable: false,
+      kindle: kindle, now: now)
   }
 
   func item(_ book: Book, _ sends: [SendRecord], kindle: KindlePresence) -> BookItemViewModel {
@@ -79,6 +81,30 @@ struct LibraryItemsTests {
     )
     #expect(
       items([moby, jane, manual], filter: .notOnKindle, kindle: kindle).map(\.id) == [manual.id])
+  }
+
+  @Test func hiddenBooksLeaveEveryOtherScopeAndTheSearch() {
+    let kindle = KindleMatches(
+      byBook: [
+        moby.id: KindleMatch(book: .fixture(), confidence: .sure, reason: .sendleName)
+      ], onKindle: [:])
+
+    for filter in LibraryFilter.allCases where filter != .hidden {
+      let shown = items([moby, jane], hidden: [moby.id], filter: filter, kindle: kindle)
+      #expect(!shown.contains { $0.id == moby.id }, "\(filter)")
+    }
+    #expect(items([moby, jane], hidden: [moby.id], query: "moby").isEmpty)
+    #expect(items([moby, jane], hidden: [moby.id], query: "melville").isEmpty)
+    #expect(items([moby, jane], hidden: [moby.id]).map(\.id) == [jane.id])
+  }
+
+  @Test func theHiddenScopeShowsOnlyHiddenBooks() {
+    #expect(items([moby, jane, manual], hidden: [moby.id], filter: .hidden).map(\.id) == [moby.id])
+    #expect(items([moby, jane], filter: .hidden).isEmpty)
+    #expect(items([moby, jane], hidden: [moby.id], filter: .hidden, query: "bronte").isEmpty)
+    #expect(
+      items([moby, manual], hidden: [moby.id, manual.id], filter: .hidden, format: .pdf)
+        .map(\.id) == [manual.id])
   }
 
   @Test func notSentHidesBooksAlreadyDelivered() {

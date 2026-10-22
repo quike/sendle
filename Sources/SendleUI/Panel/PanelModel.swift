@@ -179,7 +179,7 @@ public final class PanelModel {
   package func switchTitle(_ side: LibrarySide) -> String {
     switch side {
     case .library:
-      "Library · \(library.books.count)"
+      "Library · \(library.shownCount)"
     case .kindle:
       kindle.listing.map { "On Kindle · \($0.books.count)" } ?? "On Kindle"
     }
@@ -637,14 +637,14 @@ public final class PanelModel {
   }
 
   /// Closes the sheet and opens the matching library book's edit sheet, where it is scrolled to,
-  /// from the whole library when the search or filters hide it.
+  /// from the whole library when the search or filters hide it, or from Hidden when it is hidden.
   package func editInLibrary() async {
     guard let link = kindleDetails?.library, link.canEdit else { return }
     closeKindleDetails()
     showSide(.library)
     if !library.items.contains(where: { $0.id == link.id }) {
       library.query = ""
-      library.filter = .all
+      library.filter = library.hidden.contains(link.id) ? .hidden : .all
       library.format = nil
     }
     library.letterJump.top = link.id

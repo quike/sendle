@@ -13,6 +13,7 @@ package enum LibraryItems {
   package static func make(
     books: [Book],
     sends: [BookID: BookSends],
+    hidden: Set<BookID>,
     filter: LibraryFilter,
     format: BookFormat?,
     query: String,
@@ -27,7 +28,8 @@ package enum LibraryItems {
       .filter { book in
         (format == nil || book.format == format)
           && filter.includes(
-            book, wasSent: sends[book.id] != nil, onKindle: kindle?.byBook[book.id]?.confidence)
+            book, wasSent: sends[book.id] != nil, onKindle: kindle?.byBook[book.id]?.confidence,
+            isHidden: hidden.contains(book.id))
           && matches(book, words)
       }
       .map { book in

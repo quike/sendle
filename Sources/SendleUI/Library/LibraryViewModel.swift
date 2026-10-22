@@ -16,6 +16,8 @@ package enum LibraryState: Equatable, Sendable {
 public final class LibraryViewModel {
   package private(set) var state = LibraryState.loading
   package private(set) var books: [Book] = []
+  /// Books left out of every scope but Hidden. It may hold books that have left Books.
+  package private(set) var hidden: Set<BookID> = []
   package private(set) var needsAccess = false
   package var query = "" {
     didSet {
@@ -83,6 +85,7 @@ public final class LibraryViewModel {
   private let observeDestinations: ObserveDestinations
   private let settings: any SettingsStore
   private let history: any SendHistoryStore
+  private let hiddenBooks: any HiddenBooksStore
   private let converter: any FormatConverter
   private let now: @Sendable () -> Date
 
@@ -92,6 +95,7 @@ public final class LibraryViewModel {
     settings: any SettingsStore,
     history: any SendHistoryStore,
     converter: any FormatConverter,
+    hiddenBooks: any HiddenBooksStore = NoHiddenBooks(),
     now: @escaping @Sendable () -> Date = { Date() }
   ) {
     self.loadLibrary = loadLibrary
@@ -99,13 +103,22 @@ public final class LibraryViewModel {
     self.settings = settings
     self.history = history
     self.converter = converter
+    self.hiddenBooks = hiddenBooks
     self.now = now
   }
 
   package var summary: String {
-    let sendable = books.filter { $0.availability == .ready }.count
-    return "\(books.count) \(books.count == 1 ? "book" : "books") · \(sendable) sendable"
+    let shown = books.filter { !hidden.contains($0.id) }
+    let sendable = shown.filter { $0.availability == .ready }.count
+    let line = "\(shown.count) \(shown.count == 1 ? "book" : "books") · \(sendable) sendable"
+    let hiddenCount = books.count - shown.count
+    return hiddenCount > 0 ? "\(line) · \(hiddenCount) hidden" : line
   }
+
+  /// The books that aren't hidden.
+  package var shownCount: Int { books.count - hiddenCount }
+
+  private var hiddenCount: Int { books.count { hidden.contains($0.id) } }
 
   /// The saved choice while it's available, otherwise the first destination there is.
   package var activeDestination: Destination? {
@@ -117,9 +130,12 @@ public final class LibraryViewModel {
   /// The kind the library plans its books for and wears the colour of: the active destination's, or the saved choice.
   package var activeKind: DestinationKind { activeDestination?.kind ?? preferredDestination }
 
-  /// The scopes on offer: the Kindle ones once the plugged-in Kindle has been read.
+  /// The scopes on offer: the Kindle ones once the plugged-in Kindle has been read, and Hidden
+  /// while a book is hidden.
   package var filters: [LibraryFilter] {
-    LibraryFilter.allCases.filter { kindleMatches != nil || !$0.needsKindle }
+    LibraryFilter.allCases.filter {
+      (kindleMatches != nil || !$0.needsKindle) && ($0 != .hidden || hiddenCount > 0)
+    }
   }
 
   /// Covers carry their format only where the format menu lets formats mix.
@@ -165,6 +181,7 @@ public final class LibraryViewModel {
     preferredDestination = saved.activeDestination
     hasKindleEmail = saved.email != nil
     converterAvailable = converter.isAvailable
+    hidden = await hiddenBooks.hidden()
     refreshItems()
     onSortChange?(sort)
     onAuthorSortChange?(authorSort)
@@ -253,6 +270,17 @@ public final class LibraryViewModel {
     await save { $0.sort = sort }
   }
 
+  /// Nothing changes when the store can't save the change.
+  package func hide(_ ids: Set<BookID>) async throws(StorageError) {
+    try await hiddenBooks.set(ids, hidden: true)
+    await readHidden()
+  }
+
+  package func show(_ ids: Set<BookID>) async throws(StorageError) {
+    try await hiddenBooks.set(ids, hidden: false)
+    await readHidden()
+  }
+
   package func activate(_ kind: DestinationKind) async {
     preferredDestination = kind
     refreshItems()
@@ -309,6 +337,11 @@ public final class LibraryViewModel {
     onKindleInputsChange?()
   }
 
+  private func readHidden() async {
+    hidden = await hiddenBooks.hidden()
+    refreshItems()
+  }
+
   private func readHistory() async {
     sends = LibraryItems.sendsByBook(in: await history.records())
   }
@@ -325,8 +358,12 @@ public final class LibraryViewModel {
 
   /// Rebuilds what the layouts show, and drops selected books that are no longer among it.
   private func refreshItems() {
+    if filter == .hidden, hiddenCount == 0 {
+      filter = .all
+      return
+    }
     let newestFirst = LibraryItems.make(
-      books: books, sends: sends, filter: filter, format: format, query: query,
+      books: books, sends: sends, hidden: hidden, filter: filter, format: format, query: query,
       destination: activeKind, converterAvailable: converterAvailable, kindle: kindleMatches,
       now: now())
     items = LibraryOrder.sorted(newestFirst, by: sort, book: \.book)

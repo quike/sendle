@@ -15,13 +15,14 @@ struct LibraryViewModelTests {
 
   func makeModel(
     _ saved: AppSettings = AppSettings(email: .fixture),
-    converter: FakeFormatConverter = FakeFormatConverter(isAvailable: false)
+    converter: FakeFormatConverter = FakeFormatConverter(isAvailable: false),
+    hiddenBooks: InMemoryHiddenBooksStore = InMemoryHiddenBooksStore()
   ) -> (LibraryViewModel, InMemorySettingsStore) {
     let settings = InMemorySettingsStore(saved)
     let model = LibraryViewModel(
       loadLibrary: LoadLibrary(library: library, inspector: StubProtectionInspector()),
       observeDestinations: ObserveDestinations(monitor: monitor, settings: settings),
-      settings: settings, history: history, converter: converter,
+      settings: settings, history: history, converter: converter, hiddenBooks: hiddenBooks,
       now: { Date(timeIntervalSince1970: 1_800_000_000) })
     return (model, settings)
   }
@@ -580,6 +581,170 @@ struct LibraryViewModelTests {
     model.showKindleMatches(nil)
 
     #expect(model.filter == .all)
+  }
+
+  // MARK: Hidden books
+
+  let a = BookID(rawValue: "a")
+  let b = BookID(rawValue: "b")
+
+  @Test func hiddenBooksLeaveEveryOtherScopeTheSearchAndTheShelf() async {
+    let (model, _) = makeModel(hiddenBooks: InMemoryHiddenBooksStore([a]))
+    await model.start()
+    await model.appear()
+    model.showKindleMatches(.empty)
+
+    for filter in LibraryFilter.allCases where filter != .hidden {
+      model.filter = filter
+      #expect(!model.items.contains { $0.id == a }, "\(filter)")
+      #expect(!model.recentItems.contains { $0.id == a }, "\(filter)")
+    }
+    model.filter = .all
+    model.query = "Moby"
+    #expect(model.items.map(\.id) == [b])
+  }
+
+  @Test func theHiddenScopeShowsOnlyHiddenBooks() async {
+    let (model, _) = makeModel(hiddenBooks: InMemoryHiddenBooksStore([a]))
+    await model.start()
+    await model.appear()
+
+    model.filter = .hidden
+
+    #expect(model.items.map(\.id) == [a])
+    #expect(model.recentItems.map(\.id) == [a])
+  }
+
+  @Test func theHiddenScopeIsOfferedOnlyWhileABookIsHidden() async throws {
+    let (model, _) = makeModel()
+    await model.start()
+    await model.appear()
+    #expect(model.filters == [.all, .notSent])
+
+    try await model.hide([a])
+    #expect(model.filters == [.all, .notSent, .hidden])
+
+    model.showKindleMatches(.empty)
+    #expect(model.filters == [.all, .notSent, .onKindle, .notOnKindle, .hidden])
+
+    try await model.show([a])
+    #expect(model.filters == [.all, .notSent, .onKindle, .notOnKindle])
+  }
+
+  @Test func theHiddenScopeIsOfferedOnlyForBooksTheLibraryHolds() async {
+    let (model, _) = makeModel(hiddenBooks: InMemoryHiddenBooksStore([BookID(rawValue: "gone")]))
+    await model.start()
+    await model.appear()
+
+    #expect(model.filters == [.all, .notSent])
+    #expect(model.summary == "2 books · 2 sendable")
+  }
+
+  @Test func theSummaryCountsShownBooksAndSaysHowManyAreHidden() async throws {
+    let (model, _) = makeModel()
+    await model.start()
+    await model.appear()
+    #expect(model.summary == "2 books · 2 sendable")
+    #expect(model.shownCount == 2)
+
+    try await model.hide([a])
+
+    #expect(model.summary == "1 book · 1 sendable · 1 hidden")
+    #expect(model.shownCount == 1)
+
+    try await model.show([a])
+
+    #expect(model.summary == "2 books · 2 sendable")
+    #expect(model.shownCount == 2)
+  }
+
+  @Test func hidingBooksTakesThemOutOfTheSelectionAndTheLists() async throws {
+    let (model, _) = makeModel()
+    await model.start()
+    await model.appear()
+    model.click(a, .plain)
+    model.click(b, .toggle)
+
+    try await model.hide([a])
+
+    #expect(model.items.map(\.id) == [b])
+    #expect(model.recentItems.map(\.id) == [b])
+    #expect(model.selection.ids == [b])
+    #expect(model.hidden == [a])
+  }
+
+  @Test func hidingKeepsTheBooksForTheKindleToMatch() async throws {
+    let (model, _) = makeModel()
+    await model.start()
+    await model.appear()
+
+    try await model.hide([a, b])
+
+    #expect(model.books.map(\.id) == [a, b])
+  }
+
+  @Test func readsTheHiddenBooksWhenItStarts() async {
+    let (model, _) = makeModel(hiddenBooks: InMemoryHiddenBooksStore([b]))
+
+    await model.start()
+    await model.appear()
+
+    #expect(model.hidden == [b])
+    #expect(model.items.map(\.id) == [a])
+  }
+
+  @Test func unhidingTheLastBookLeavesTheHiddenScope() async throws {
+    let (model, _) = makeModel(hiddenBooks: InMemoryHiddenBooksStore([a, b]))
+    await model.start()
+    await model.appear()
+    model.filter = .hidden
+
+    try await model.show([a])
+    #expect(model.filter == .hidden)
+    #expect(model.items.map(\.id) == [b])
+
+    try await model.show([b])
+    #expect(model.filter == .all)
+    #expect(model.items.map(\.id) == [a, b])
+  }
+
+  @Test func aHiddenBookThatLeavesBooksTakesTheHiddenScopeWithIt() async {
+    let (model, _) = makeModel(hiddenBooks: InMemoryHiddenBooksStore([a]))
+    await model.start()
+    await model.appear()
+    model.filter = .hidden
+
+    library.result = .success([.fixture(id: "b")])
+    await model.reload()
+
+    #expect(model.filter == .all)
+    #expect(model.items.map(\.id) == [b])
+  }
+
+  @Test func aFailedHideChangesNothing() async {
+    let failure = StorageError.writeFailed("disk full")
+    let (model, _) = makeModel(hiddenBooks: InMemoryHiddenBooksStore(failure: failure))
+    await model.start()
+    await model.appear()
+
+    await #expect(throws: failure) { try await model.hide([a]) }
+
+    #expect(model.hidden.isEmpty)
+    #expect(model.items.map(\.id) == [a, b])
+    #expect(model.summary == "2 books · 2 sendable")
+  }
+
+  @Test func aFailedShowChangesNothing() async {
+    let failure = StorageError.writeFailed("disk full")
+    let (model, _) = makeModel(
+      hiddenBooks: InMemoryHiddenBooksStore([a], failure: failure))
+    await model.start()
+    await model.appear()
+
+    await #expect(throws: failure) { try await model.show([a]) }
+
+    #expect(model.hidden == [a])
+    #expect(model.items.map(\.id) == [b])
   }
 
   @Test func hidesTheFormatUnderEveryFilterWhenTheSettingIsOff() async {

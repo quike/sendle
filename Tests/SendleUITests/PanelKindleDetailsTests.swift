@@ -16,10 +16,11 @@ struct PanelKindleDetailsTests {
 
   /// The Kindle side, once the first of `listing` is matched to the library's book "a".
   private func panelOnKindle(
-    listing: [KindleBook]? = nil, books: [Book]? = nil
+    listing: [KindleBook]? = nil, books: [Book]? = nil, hidden: Set<BookID> = []
   ) async -> PanelModel {
     let listing = listing ?? [sendlesPDF]
-    let (panel, _, _) = await harness.pluggedInPanel(listing: listing, books: books)
+    let (panel, _, _) = await harness.pluggedInPanel(
+      listing: listing, books: books, hidden: hidden)
     #expect(await eventually { panel.kindle.matches?.libraryBook(for: listing[0].id) == a })
     panel.showSide(.kindle)
     return panel
@@ -231,6 +232,23 @@ struct PanelKindleDetailsTests {
     await panel.editInLibrary()
 
     #expect(panel.library.items.contains { $0.id == a })
+    #expect(panel.library.letterJump.top == a)
+    #expect(panel.bookDetails?.book.id == a)
+  }
+
+  @Test func editInLibraryOnAHiddenBookShowsTheHiddenScope() async {
+    let panel = await panelOnKindle(hidden: [a])
+    panel.library.query = "Dracula"
+    panel.library.format = .epub
+    #expect(!panel.library.items.contains { $0.id == a })
+    panel.openKindleDetails(sendlesPDF.id)
+
+    await panel.editInLibrary()
+
+    #expect(panel.library.filter == .hidden)
+    #expect(panel.library.query.isEmpty)
+    #expect(panel.library.format == nil)
+    #expect(panel.library.items.map(\.id) == [a])
     #expect(panel.library.letterJump.top == a)
     #expect(panel.bookDetails?.book.id == a)
   }

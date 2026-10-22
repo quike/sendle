@@ -47,6 +47,7 @@ struct PanelHarness {
     edits: MetadataEdits = .none,
     editions: [BookID: Edition] = [:],
     editFailure: MetadataEditError? = nil,
+    hidden: Set<BookID> = [],
     remover: FakeKindleBookRemover? = nil,
     removalSleep: @escaping @Sendable (Duration) async -> Void = { _ in
       try? await Task.sleep(for: .seconds(60))
@@ -64,7 +65,8 @@ struct PanelHarness {
         library: library, inspector: StubProtectionInspector(), edits: editStore,
         settings: settings),
       observeDestinations: ObserveDestinations(monitor: monitor, settings: settings),
-      settings: settings, history: history, converter: converter)
+      settings: settings, history: history, converter: converter,
+      hiddenBooks: InMemoryHiddenBooksStore(hidden))
     let setup = SetupViewModel(
       configure: configure, sendTest: sendTest,
       checkAccess: {
@@ -104,7 +106,7 @@ struct PanelHarness {
   /// destination, and the Kindle read. `converts` lets EPUBs go over USB.
   func pluggedInPanel(
     listing: [KindleBook], books: [Book]? = nil, converts: Bool = false,
-    edits: MetadataEdits = .none, editions: [BookID: Edition] = [:],
+    edits: MetadataEdits = .none, editions: [BookID: Edition] = [:], hidden: Set<BookID> = [],
     ejector: FakeKindleEjector? = nil, remover: FakeKindleBookRemover? = nil,
     removalSleep: @escaping @Sendable (Duration) async -> Void = { _ in
       try? await Task.sleep(for: .seconds(60))
@@ -120,7 +122,7 @@ struct PanelHarness {
     let (panel, _) = makePanel(
       AppSettings(email: .fixture, activeDestination: .usb), channel: channel, ejector: ejector,
       kindle: kindle, converter: FakeFormatConverter(isAvailable: converts), edits: edits,
-      editions: editions, remover: remover, removalSleep: removalSleep)
+      editions: editions, hidden: hidden, remover: remover, removalSleep: removalSleep)
     monitor.update([.fixture()])
     await panel.launch()
     await panel.panelDidOpen()

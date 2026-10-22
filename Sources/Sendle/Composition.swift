@@ -39,6 +39,7 @@ struct Composition {
       settings: settings, channels: channels, staging: staging, log: log)
     let history = JSONSendHistoryStore(directory: data, log: log)
     let edits = JSONMetadataEditStore(directory: data, log: log)
+    let hiddenBooks = JSONHiddenBooksStore(directory: data, log: log)
     let chooseTool = ChooseConverterTool(settings: settings, choice: converter, log: log)
     // One instance, so a Replace's removal and a delete's leftovers sweep know each other's holds.
     let remover = remover ?? USBKindleBookRemover(log: log)
@@ -50,7 +51,8 @@ struct Composition {
         monitor: kindles ?? KindleVolumeMonitor(log: log), settings: settings),
       settings: settings,
       history: history,
-      converter: converter)
+      converter: converter,
+      hiddenBooks: hiddenBooks)
     let kindle = KindleViewModel(
       library: kindleLibrary ?? USBKindleLibrary(cacheDirectory: data, log: log),
       match: MatchKindleBooks(

@@ -14,7 +14,8 @@ struct SelectionTests {
       Book.fixture(id: $0, availability: blocked.contains($0) ? .missing : .ready)
     }
     return LibraryItems.make(
-      books: books, sends: [:], filter: .all, format: nil, query: "", destination: .email,
+      books: books, sends: [:], hidden: [], filter: .all, format: nil, query: "",
+      destination: .email,
       converterAvailable: false, kindle: nil, now: Date())
   }
 

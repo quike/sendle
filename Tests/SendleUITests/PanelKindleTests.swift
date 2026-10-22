@@ -23,6 +23,14 @@ struct PanelKindleTests {
     #expect(panel.switchTitle(.library) == "Library · 2")
   }
 
+  @Test func theSwitchCountsOnlyTheBooksThatAreNotHidden() async {
+    let (panel, _) = harness.makePanel(hidden: [BookID(rawValue: "a")])
+    await panel.launch()
+    await panel.panelDidOpen()
+
+    #expect(await eventually { panel.switchTitle(.library) == "Library · 1" })
+  }
+
   @Test func showsTheKindleSideOnlyWhileOneIsPluggedIn() async {
     let (panel, _) = harness.makePanel()
     await panel.launch()
