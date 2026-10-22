@@ -174,7 +174,7 @@ private struct LetterColumn<ID: Hashable & Sendable>: View {
 /// The books' scroll view, with the A–Z bar over its right edge while sorted by title or author,
 /// or on a card of its own on `floatingSide`. The compact bar shows while the pointer is near
 /// that edge, the bar included.
-struct BooksScroll<ID: Hashable & Sendable, Content: View>: View {
+struct BooksScroll<ID: Hashable & Sendable, Pinned: View, Content: View>: View {
   private static var top: String { "top" }
 
   let jump: LetterJump<ID>
@@ -185,28 +185,37 @@ struct BooksScroll<ID: Hashable & Sendable, Content: View>: View {
   var bottomRoom: CGFloat = 0
   /// The side of the floating A–Z card, or nil while the bar sits inside the books.
   var floatingSide: RailSide?
+  /// Stays above the books while they scroll; the attached bar runs beside the books only. It
+  /// takes the room the first row rests in, so the books start right under it.
+  let pinned: Pinned?
   @ViewBuilder let content: Content
 
   var body: some View {
     let isAttached = floatingSide == nil
     let fullRail = isAttached && jump.isShown && style == .full
     GeometryReader { geometry in
-      ScrollViewReader { proxy in
-        ScrollView {
-          VStack(alignment: .leading, spacing: 0) { content }
-            .id(Self.top)
-            .padding(.trailing, fullRail ? AlphabetRail<ID>.reservedWidth : 0)
-            .padding(.bottom, 6 + bottomRoom)
+      VStack(alignment: .leading, spacing: 0) {
+        if let pinned {
+          pinned.fixedSize(horizontal: false, vertical: true).padding(.top, BooksArea.liftRoom)
         }
-        .scrollOverflow(.horizontal)
-        .contentMargins(.vertical, BooksArea.liftRoom, for: .scrollContent)
-        .scrollIndicators(.never)
-        .scrollPosition(id: Bindable(jump).top, anchor: .top)
-        .onChange(of: scrollToTopRequests) { proxy.scrollTo(Self.top, anchor: .top) }
-      }
-      .overlay(alignment: .trailing) {
-        if isAttached, jump.isShown {
-          AlphabetRail(jump: jump, style: style).padding(.bottom, bottomRoom)
+        ScrollViewReader { proxy in
+          ScrollView {
+            VStack(alignment: .leading, spacing: 0) { content }
+              .id(Self.top)
+              .padding(.trailing, fullRail ? AlphabetRail<ID>.reservedWidth : 0)
+              .padding(.bottom, 6 + bottomRoom)
+          }
+          .scrollOverflow(.horizontal)
+          .contentMargins(.top, pinned == nil ? BooksArea.liftRoom : 0, for: .scrollContent)
+          .contentMargins(.bottom, BooksArea.liftRoom, for: .scrollContent)
+          .scrollIndicators(.never)
+          .scrollPosition(id: Bindable(jump).top, anchor: .top)
+          .onChange(of: scrollToTopRequests) { proxy.scrollTo(Self.top, anchor: .top) }
+        }
+        .overlay(alignment: .trailing) {
+          if isAttached, jump.isShown {
+            AlphabetRail(jump: jump, style: style).padding(.bottom, bottomRoom)
+          }
         }
       }
       .onContinuousHover { phase in

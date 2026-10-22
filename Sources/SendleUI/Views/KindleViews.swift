@@ -51,17 +51,17 @@ private struct KindleBooks: View {
       let style = panel.library.jumpBar
       // Letter headers come with the full A–Z bar, as in the library.
       let headers = style == .full ? kindle.letterJump.index : nil
+      let layout = panel.library.layout
       BooksScroll(
         jump: kindle.letterJump, style: style, scrollToTopRequests: kindle.scrollToTopRequests,
-        floatingSide: panel.floatingRailSide
+        floatingSide: panel.floatingRailSide,
+        pinned: layout == .shelf ? KindleShelfStrip(panel: panel, recent: kindle.recentItems) : nil
       ) {
-        switch panel.library.layout {
+        switch layout {
         case .grid:
           KindleGrid(panel: panel, items: items, showsFormat: panel.showsFormatOnKindleCovers)
-        case .list:
+        case .list, .shelf:
           KindleList(panel: panel, items: items, headers: headers)
-        case .shelf:
-          KindleShelf(panel: panel, items: items, recent: kindle.recentItems, headers: headers)
         }
       }
     }
@@ -115,12 +115,10 @@ struct KindleList: View {
   }
 }
 
-/// "Recently added" covers above the full list.
-struct KindleShelf: View {
+/// Shelf's "Recently added" covers and the label of the full list, which scrolls under them.
+struct KindleShelfStrip: View {
   let panel: PanelModel
-  let items: [KindleItemViewModel]
   let recent: [KindleItemViewModel]
-  let headers: AlphabetIndex<KindleBookID>?
 
   var body: some View {
     VStack(alignment: .leading, spacing: 0) {
@@ -136,11 +134,9 @@ struct KindleShelf: View {
         .padding(.horizontal, 6)
         .padding(.vertical, 8)
       }
-      // Not past the trailing edge, which keeps the A–Z bar's gutter.
-      .scrollOverflow([.vertical, .leading])
+      .scrollOverflow()
       .scrollIndicators(.never)
       SectionLabel("All books").padding(.top, 6).padding(.bottom, 4)
-      KindleList(panel: panel, items: items, headers: headers)
     }
   }
 }

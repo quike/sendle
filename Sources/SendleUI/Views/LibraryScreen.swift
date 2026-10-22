@@ -683,15 +683,15 @@ struct LibraryContent: View {
       BooksScroll(
         jump: library.letterJump, style: library.jumpBar,
         scrollToTopRequests: library.scrollToTopRequests, bottomRoom: panel.sendBarRoom,
-        floatingSide: panel.floatingRailSide
+        floatingSide: panel.floatingRailSide,
+        pinned: library.layout == .shelf
+          ? BookShelfStrip(panel: panel, recent: library.recentItems) : nil
       ) {
         switch library.layout {
         case .grid:
           BookGrid(panel: panel, items: items)
-        case .list:
+        case .list, .shelf:
           BookList(panel: panel, items: items)
-        case .shelf:
-          BookShelf(panel: panel, items: items, recent: library.recentItems)
         }
       }
     }

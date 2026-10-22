@@ -38,6 +38,27 @@ struct PanelHitTestingTests {
     }
   }
 
+  @Test func theRecentStripStaysPutWhileTheListScrolls() async throws {
+    let harness = PanelHarness()
+    harness.library.result = .success(
+      (0..<40).map { .fixture(id: "b\($0)", title: "Book \($0)", author: "Writer \($0)") })
+    var saved = AppSettings(email: .fixture)
+    saved.layout = .shelf
+    saved.sort = .title
+    let (panel, _) = harness.makePanel(saved)
+    await panel.launch()
+    await panel.panelDidOpen()
+    let (window, host) = try await show(panel)
+    defer { window.orderOut(nil) }
+    panel.library.letterJump.top = panel.library.items.last?.id
+    for _ in 0..<2 { try await layOut(window, host) }
+
+    try click(at: firstStripCoverCentre(of: panel), in: window)
+
+    let recent = try #require(panel.library.recentItems.first?.id)
+    #expect(await eventually { panel.library.selection.contains(recent) })
+  }
+
   @Test func aClickOnAKindleBookOpensItsDetails() async throws {
     let harness = PanelHarness()
     let book = KindleBook.fixture(
@@ -145,6 +166,16 @@ struct PanelHitTestingTests {
   private func firstCoverCentre(of panel: PanelModel) -> NSPoint {
     let frame = firstCoverFrame(of: panel)
     return NSPoint(x: frame.midX, y: frame.midY)
+  }
+
+  /// The first of Shelf's recent covers, 62 × 93 pt, under the "Recently added" label and the
+  /// strip's 6 pt and 8 pt padding.
+  private func firstStripCoverCentre(of panel: PanelModel) -> NSPoint {
+    let font = NSFont.systemFont(ofSize: 9.5, weight: .semibold)
+    let label = (font.ascender - font.descender + font.leading).rounded(.up)
+    return NSPoint(
+      x: panel.windowMargins.leading + BooksArea.screenPadding + 6 + 62 / 2,
+      y: booksTop(of: panel) - label - 8 - 93 / 2)
   }
 
   /// The send circle's place on the first cover, 6 pt in from its bottom-right corner.

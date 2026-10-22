@@ -73,6 +73,10 @@ enum Snapshot {
       }
       panel.library.hovered = nil
       await panel.library.setSort(.title)
+      await panel.library.setLayout(.shelf)
+      let ids = panel.library.items.map(\.id)
+      panel.library.letterJump.top = ids[ids.count * 2 / 3]
+      await write(window, "library-shelf-scrolled.png", to: folder)
       await panel.library.setLayout(.list)
       panel.library.letterJump.jump(to: "M")
       await write(window, "library-az-full.png", to: folder)
@@ -237,6 +241,12 @@ enum Snapshot {
       await panel.library.setLayout(layout)
       await write(window, "kindle-\(layout.rawValue).png", to: folder)
     }
+    await panel.library.setLayout(.shelf)
+    await panel.library.setSort(.title)
+    let ids = panel.kindle.items.map(\.id)
+    panel.kindle.letterJump.top = ids[ids.count * 2 / 3]
+    await write(window, "kindle-shelf-scrolled.png", to: folder)
+    await panel.library.setSort(.recent)
     let alice = KindleBookID(relativePath: "Alice's Adventures in Wonderland - Lewis Carroll.azw3")
     panel.openKindleDetails(alice)
     await write(window, "kindle-details.png", to: folder)

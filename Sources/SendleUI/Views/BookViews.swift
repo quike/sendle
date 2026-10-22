@@ -111,10 +111,9 @@ struct LetterHeader: View {
   }
 }
 
-/// "Recently added" covers above the full list.
-struct BookShelf: View {
+/// Shelf's "Recently added" covers and the label of the full list, which scrolls under them.
+struct BookShelfStrip: View {
   let panel: PanelModel
-  let items: [BookItemViewModel]
   let recent: [BookItemViewModel]
 
   var body: some View {
@@ -131,11 +130,9 @@ struct BookShelf: View {
         .padding(.horizontal, 6)
         .padding(.vertical, 8)
       }
-      // Not past the trailing edge, which keeps the A–Z bar's gutter.
-      .scrollOverflow([.vertical, .leading])
+      .scrollOverflow()
       .scrollIndicators(.never)
       SectionLabel("All books").padding(.top, 6).padding(.bottom, 4)
-      BookList(panel: panel, items: items)
     }
   }
 }
