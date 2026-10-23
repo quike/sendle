@@ -6,9 +6,13 @@ import Testing
 
 @Suite(.timeLimit(.minutes(1)))
 struct USBKindleLibraryTests {
-  let tree = try! KindleTree()
+  let tree: KindleTree
   let log = FakeActivityLog()
   let alice = "Alice's Adventures in Wonderland - Lewis Carroll"
+
+  init() throws {
+    tree = try KindleTree()
+  }
 
   func library(device: String = "TEST-UUID", free: Int64? = 3_100_000_000) -> USBKindleLibrary {
     USBKindleLibrary(

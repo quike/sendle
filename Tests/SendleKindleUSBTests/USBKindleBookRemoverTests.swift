@@ -7,12 +7,16 @@ import os
 
 @Suite(.timeLimit(.minutes(1)))
 struct USBKindleBookRemoverTests {
-  let tree = try! KindleTree()
+  let tree: KindleTree
   let alice = "Alice's Adventures in Wonderland - Lewis Carroll"
   let moby = "Moby Dick; Or, The Whale - Herman Melville"
   let thumbnail = "system/thumbnails/thumbnail_SNALICE001_EBOK_portrait.jpg"
   let thumbnailTwin = "system/thumbnails/._thumbnail_SNALICE001_EBOK_portrait.jpg"
   let holding = USBKindleBookRemover.holdingFolder
+
+  init() throws {
+    tree = try KindleTree()
+  }
 
   /// Alice with every part a book can have, and Moby Dick beside her with its own sidecar.
   private func writeAliceAndMoby() throws {

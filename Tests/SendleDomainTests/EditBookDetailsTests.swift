@@ -12,7 +12,11 @@ struct EditBookDetailsTests {
   private let eva = Book.fixture(
     id: "eva", title: "Los ritos del agua", author: "Eva Garcia Saenz", language: "es",
     sortAuthor: "Saenz, Eva Garcia")
-  private var evasKey: WriterKey { WriterKey(author: "Eva Garcia Saenz")! }
+  private let evasKey: WriterKey
+
+  init() throws {
+    evasKey = try #require(WriterKey(author: "Eva Garcia Saenz"))
+  }
 
   private func editor(
     _ store: InMemoryMetadataEditStore, _ authorSort: AuthorSort = .surname, at date: Date? = nil

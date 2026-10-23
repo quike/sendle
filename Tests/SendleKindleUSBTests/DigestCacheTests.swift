@@ -6,7 +6,11 @@ import Testing
 
 @Suite(.timeLimit(.minutes(1)))
 struct DigestCacheTests {
-  let tree = try! KindleTree()
+  let tree: KindleTree
+
+  init() throws {
+    tree = try KindleTree()
+  }
 
   func kindleDigester(_ digester: FakeFileDigester, device: String = "TEST-UUID")
     -> CachedKindleDigester

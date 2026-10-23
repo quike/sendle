@@ -6,8 +6,12 @@ import Testing
 
 @Suite(.timeLimit(.minutes(1)))
 struct KindleListingCacheTests {
-  let tree = try! KindleTree()
+  let tree: KindleTree
   let log = FakeActivityLog()
+
+  init() throws {
+    tree = try KindleTree()
+  }
 
   func library(device: String = "TEST-UUID") -> USBKindleLibrary {
     USBKindleLibrary(

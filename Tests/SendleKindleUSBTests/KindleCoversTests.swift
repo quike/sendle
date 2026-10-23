@@ -6,7 +6,11 @@ import SendleTestSupport
 import Testing
 
 struct KindleCoversTests {
-  let tree = try! KindleTree()
+  let tree: KindleTree
+
+  init() throws {
+    tree = try KindleTree()
+  }
 
   @Test func prefersTheKindlesOwnThumbnail() throws {
     try tree.write(

@@ -22,13 +22,18 @@ struct BookDetailsViewModelTests {
   private typealias Field = BookDetailsViewModel.Field
 
   private let now = Date(timeIntervalSince1970: 1_800_000_000)
-  private let utc = TimeZone(identifier: "UTC")!
+  private let utc = TimeZone.gmt
   private let folder = URL(filePath: "/edit-covers", directoryHint: .isDirectory)
   private let fileValues = Edition(isbn: "9780142437247", year: "2016")
   private let eva = Book.fixture(
     id: "eva", title: "Los ritos del agua", author: "Eva Garcia Saenz", language: "es",
     sizeBytes: 1_200_000, sortAuthor: "Saenz, Eva Garcia")
-  private var evasKey: WriterKey { WriterKey(author: "Eva Garcia Saenz")! }
+  private let evasKey: WriterKey
+
+  init() throws {
+    evasKey = try #require(WriterKey(author: "Eva Garcia Saenz"))
+  }
+
   /// Eva's book and two others by her, spelled differently.
   private var library: [Book] {
     [
