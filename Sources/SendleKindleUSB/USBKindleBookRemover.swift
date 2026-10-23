@@ -125,8 +125,8 @@ public actor USBKindleBookRemover: KindleBookRemover {
     guard Self.blockedFolder(above: folder, in: root) == nil else {
       throw .failed("\(Self.holdingFolder) isn't a folder")
     }
-    guard Self.removeAll(root.appending(path: folder)) || errno == ENOENT else {
-      throw Self.failure(errno, root: root)
+    if let code = Self.removeAll(root.appending(path: folder)), code != ENOENT {
+      throw Self.failure(code, root: root)
     }
     for empty in hold.emptyFolders where Self.blockedFolder(above: empty, in: root) == nil {
       guard rmdir(root.appending(path: empty).path) != 0 else { continue }
@@ -148,10 +148,10 @@ public actor USBKindleBookRemover: KindleBookRemover {
     // macOS keeps a "._" file for the entry it names on FAT, and removes it with that entry.
     for name in names where !name.hasPrefix("._") && !held.contains(name) {
       let path = "\(Self.holdingFolder)/\(name)"
-      if Self.removeAll(root.appending(path: path)) {
-        cleared += 1
+      if let code = Self.removeAll(root.appending(path: path)) {
+        log.warning(.usb, "Couldn't clear \(path): \(Self.reason(code))")
       } else {
-        log.warning(.usb, "Couldn't clear \(path): \(Self.reason(errno))")
+        cleared += 1
       }
     }
     Self.removeIfEmpty([Self.holdingFolder], in: root)
@@ -278,9 +278,17 @@ public actor USBKindleBookRemover: KindleBookRemover {
     for folder in folders { rmdir(root.appending(path: folder).path) }
   }
 
-  /// Removes a file, or a folder and all it holds, without following links.
-  private static func removeAll(_ url: URL) -> Bool {
-    removefile(url.path, nil, removefile_flags_t(REMOVEFILE_RECURSIVE)) == 0
+  /// Removes a file, or a folder and all it holds, without following links. Returns the POSIX
+  /// error code when it fails.
+  private static func removeAll(_ url: URL) -> Int32? {
+    do {
+      try FileManager.default.removeItem(at: url)
+      return nil
+    } catch {
+      let underlying = (error as NSError).userInfo[NSUnderlyingErrorKey] as? NSError
+      guard let underlying, underlying.domain == NSPOSIXErrorDomain else { return EIO }
+      return Int32(underlying.code)
+    }
   }
 
   private static func exists(_ path: String, in root: URL) -> Bool {
