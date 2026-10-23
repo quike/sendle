@@ -52,6 +52,16 @@ jobs:
           # The runner's login keychain may be locked or prompt; Keychain tests run locally.
           SENDLE_SKIP_KEYCHAIN_TESTS: "1"
         run: swift test
+      - name: Keep the crash reports
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: crash-reports-xcode-${{ matrix.xcode }}
+          path: |
+            ~/Library/Logs/DiagnosticReports/*.ips
+            /Library/Logs/DiagnosticReports/*.ips
+          if-no-files-found: warn
+          retention-days: 7
 
   release:
     needs: test
