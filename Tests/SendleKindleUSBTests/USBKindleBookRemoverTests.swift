@@ -335,8 +335,9 @@ struct USBKindleBookRemoverTests {
         flushed.withLock { _ = $0.insert(path) }
       })
     func take() -> Set<String> {
-      flushed.withLock {
-        defer { $0 = [] }; return $0
+      flushed.withLock { paths in
+        defer { paths = [] }
+        return paths
       }
     }
 
