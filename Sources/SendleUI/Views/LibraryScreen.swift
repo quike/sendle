@@ -872,7 +872,7 @@ private struct TimeLeftBar: View {
 
   private func left(at date: Date) -> CGFloat {
     guard let ends else { return 1 }
-    let share = ends.timeIntervalSince(date) / (KindleRemovals.undoWindow / .seconds(1))
+    let share = ends.timeIntervalSince(date) / (KindleRemovals.undoWindow / Duration.seconds(1))
     return CGFloat(min(max(share, 0), 1))
   }
 }
