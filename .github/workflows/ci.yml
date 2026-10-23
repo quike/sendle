@@ -28,9 +28,9 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # Xcode 27 is what Sendle is developed with; 26.3 keeps it building on the last stable one.
+          # Xcode 27 is what Sendle is developed with; 26.6 keeps it building on the last stable one.
           - { xcode: "27", runner: xcode-27 }
-          - { xcode: "26.3", runner: macos-15 }
+          - { xcode: "26.6", runner: macos-26 }
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 20
     permissions:
@@ -52,12 +52,6 @@ jobs:
           # The runner's login keychain may be locked or prompt; Keychain tests run locally.
           SENDLE_SKIP_KEYCHAIN_TESTS: "1"
         run: swift test
-      - name: Find a test that crashed
-        if: failure()
-        env:
-          SENDLE_SKIP_KEYCHAIN_TESTS: "1"
-        # One test at a time, so the last test started before a crash is the one that crashed.
-        run: swift test --no-parallel 2>&1 | grep -B3 -A3 "unexpected signal" || true
 
   release:
     needs: test
