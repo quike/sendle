@@ -1,0 +1,230 @@
+import SendleDomain
+import SwiftUI
+
+/// What the Kindle side shows under its search: the books in the layout the library uses. There is
+/// nothing to select or send; a click shows a book's details.
+struct KindleContent: View {
+  let panel: PanelModel
+  @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+  var body: some View {
+    let kindle = panel.kindle
+    Group {
+      switch kindle.state {
+      case .failed(let problem):
+        ProblemCard(problem: problem) { action in
+          if action == .retry {
+            Task { await kindle.refresh() }
+          } else {
+            Task { await panel.perform(action) }
+          }
+        }
+        .frame(maxHeight: .infinity, alignment: .top)
+      case .idle, .reading, .loaded:
+        if let listing = kindle.listing {
+          KindleBooks(panel: panel, isEmpty: listing.books.isEmpty).transition(.opacity)
+        } else {
+          SkeletonBooks(layout: panel.library.layout).transition(.opacity)
+        }
+      }
+    }
+    .animation(reduceMotion ? nil : Theme.press, value: kindle.listing != nil)
+  }
+}
+
+private struct KindleBooks: View {
+  let panel: PanelModel
+  let isEmpty: Bool
+
+  var body: some View {
+    let kindle = panel.kindle
+    let items = kindle.items
+    if isEmpty {
+      EmptyPlaceholder(
+        symbol: "books.vertical", title: "This Kindle has no books",
+        message: "Books you copy to it show up here.")
+    } else if items.isEmpty {
+      EmptyPlaceholder(
+        symbol: "magnifyingglass", title: "No books match",
+        message: "Try another search or filter.")
+    } else {
+      let style = panel.library.jumpBar
+      // Letter headers come with the full A–Z bar, as in the library.
+      let headers = style == .full ? kindle.letterJump.index : nil
+      let layout = panel.library.layout
+      BooksScroll(
+        jump: kindle.letterJump, style: style, scrollToTopRequests: kindle.scrollToTopRequests,
+        floatingSide: panel.floatingRailSide,
+        pinned: layout == .shelf ? KindleShelfStrip(panel: panel, recent: kindle.recentItems) : nil
+      ) {
+        switch layout {
+        case .grid:
+          KindleGrid(panel: panel, items: items, showsFormat: panel.showsFormatOnKindleCovers)
+        case .list, .shelf:
+          KindleList(panel: panel, items: items, headers: headers)
+        }
+      }
+    }
+  }
+}
+
+struct KindleGrid: View {
+  let panel: PanelModel
+  let items: [KindleItemViewModel]
+  let showsFormat: Bool
+  @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+  var body: some View {
+    LazyVGrid(
+      columns: bookGridColumns, alignment: .leading, spacing: BookGridMetrics.rowSpacing
+    ) {
+      ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
+        VStack(alignment: .leading, spacing: 0) {
+          KindleCover(
+            kindle: panel.kindle, item: item, size: .large, showsFormat: showsFormat,
+            isHovered: panel.kindle.hovered == item.id
+          )
+          .aspectRatio(2 / 3, contentMode: .fit)
+          GridCaption(title: item.title, byline: item.byline)
+        }
+        .kindleInteractions(panel, item)
+        .transition(Theme.entrance(index: index, reduceMotion: reduceMotion))
+      }
+    }
+    .scrollTargetLayout()
+    .padding(.horizontal, BooksArea.gridInset)
+  }
+}
+
+struct KindleList: View {
+  let panel: PanelModel
+  let items: [KindleItemViewModel]
+  let headers: AlphabetIndex<KindleBookID>?
+  @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+  var body: some View {
+    LazyVStack(spacing: 2) {
+      ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
+        VStack(alignment: .leading, spacing: 2) {
+          if let letter = headers?.header(before: item.id) {
+            LetterHeader(letter: letter)
+          }
+          KindleRow(panel: panel, item: item)
+        }
+        .transition(Theme.entrance(index: index, reduceMotion: reduceMotion))
+      }
+    }
+    .scrollTargetLayout()
+  }
+}
+
+/// Shelf's "Recently added" covers and the label of the full list, which scrolls under them.
+struct KindleShelfStrip: View {
+  let panel: PanelModel
+  let recent: [KindleItemViewModel]
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 0) {
+      SectionLabel("Recently added")
+      ScrollView(.horizontal) {
+        LazyHStack(spacing: 10) {
+          ForEach(recent) { item in
+            KindleCover(
+              kindle: panel.kindle, item: item, size: .large, titleSize: 8,
+              isHovered: panel.kindle.hovered == item.id
+            )
+            .frame(width: 62, height: 93)
+            .kindleInteractions(panel, item)
+          }
+        }
+        .padding(.horizontal, 6)
+        .padding(.vertical, 8)
+      }
+      .scrollOverflow()
+      .scrollIndicators(.never)
+      SectionLabel("All books").padding(.top, 6).padding(.bottom, 4)
+    }
+  }
+}
+
+struct KindleRow: View {
+  let panel: PanelModel
+  let item: KindleItemViewModel
+
+  var body: some View {
+    HStack(spacing: 10) {
+      KindleCover(kindle: panel.kindle, item: item, size: .small)
+        .frame(width: 34, height: 50)
+      VStack(alignment: .leading, spacing: 1) {
+        Text(item.title).font(.system(size: 12.5, weight: .semibold)).lineLimit(1)
+        Text(item.byline).font(.system(size: 10.5)).foregroundStyle(Theme.muted).lineLimit(1)
+        HStack(spacing: 5) {
+          FormatBadge(text: item.badge)
+          Text(item.detail).foregroundStyle(Theme.faint).lineLimit(1)
+        }
+        .font(.system(size: 9.5))
+        .padding(.top, 2)
+      }
+      Spacer(minLength: 6)
+    }
+    .padding(7)
+    .kindleInteractions(panel, item)
+  }
+}
+
+/// A Kindle book's cover from the device, or a title card where it has none.
+struct KindleCover: View {
+  let kindle: KindleViewModel
+  let item: KindleItemViewModel
+  let size: CoverSize
+  var titleSize: CGFloat = 10
+  var showsFormat = false
+  var isHovered = false
+  @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+  var body: some View {
+    let book = item.book
+    let look = CoverLook.of(book.isProtected ? .protected : .ready)
+    let slot = kindle.covers.slot(for: book, size: size)
+    CoverFace(
+      data: slot.data, isPending: slot.isPending, title: item.title,
+      seed: BookID(rawValue: book.id.relativePath), titleSize: size == .large ? titleSize : nil,
+      bottomInset: showsFormat ? 16 : 0
+    )
+    .saturation(look.saturation)
+    .brightness(look.brightness)
+    .overlay {
+      if book.isProtected {
+        Image(systemName: "lock.fill").font(.system(size: 14)).foregroundStyle(.white)
+      }
+    }
+    .overlay(alignment: .bottomLeading) {
+      if showsFormat { FormatBadge(text: item.badge, onCover: true).padding(6) }
+    }
+    .coverLift(isHovered, reduceMotion: reduceMotion)
+    .task(id: book) {
+      guard let volume = kindle.volume else { return }
+      await kindle.covers.load(book, on: volume, size: size)
+    }
+    .accessibilityHidden(true)
+  }
+}
+
+extension View {
+  /// Hover shows a summary, and a click or the context menu the details sheet. VoiceOver reads one
+  /// element per book, whose action opens the sheet.
+  func kindleInteractions(_ panel: PanelModel, _ item: KindleItemViewModel) -> some View {
+    contentShape(Rectangle())
+      .onTapGesture { panel.openKindleDetails(item.id) }
+      .onHover { panel.kindle.hover(item.id, $0) }
+      .help(item.help)
+      .accessibilityElement(children: .ignore)
+      .accessibilityLabel("\(item.title), \(item.byline)")
+      .accessibilityValue(item.spoken)
+      .accessibilityAddTraits(.isButton)
+      .accessibilityAction { panel.openKindleDetails(item.id) }
+      .contextMenu {
+        Button("Show Details…") { panel.openKindleDetails(item.id) }
+      }
+  }
+}

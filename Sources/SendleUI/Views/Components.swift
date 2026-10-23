@@ -1,0 +1,312 @@
+import AppKit
+import SwiftUI
+
+/// The dark card: background, a soft glow at the top and a 1 px inner hairline.
+struct CardBackground: View {
+  var cornerRadius = Theme.cardRadius
+
+  var body: some View {
+    let shape = RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+    // The glow is taller than a floating card, so it must neither size the card nor take the
+    // clicks meant for the books beside it.
+    Theme.background
+      .overlay(alignment: .top) {
+        RadialGradient(
+          colors: [Theme.accent.opacity(0.22), .clear], center: .top, startRadius: 0,
+          endRadius: 230
+        )
+        .frame(height: 230)
+        .offset(y: -100)
+        .allowsHitTesting(false)
+      }
+      .clipShape(shape)
+      .overlay(shape.strokeBorder(Color.white.opacity(0.08)))
+  }
+}
+
+extension View {
+  /// A translucent glass surface with a hairline, as house-control draws its controls.
+  func glass(cornerRadius: CGFloat, highlighted: Bool = false) -> some View {
+    let shape = RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+    return background(highlighted ? Theme.glassHigh : Theme.glass, in: shape)
+      .overlay(shape.strokeBorder(Theme.line))
+  }
+}
+
+/// Sendle's app icon, made from scripts/AppIcon-source.png by scripts/make-icon.swift --logo.
+package enum Brand {
+  package static let logo = Bundle.module.image(forResource: "Logo") ?? NSImage()
+}
+
+struct BrandBadge: View {
+  var body: some View {
+    Image(nsImage: Brand.logo)
+      .resizable()
+      .interpolation(.high)
+      .frame(width: 30, height: 30)
+      .accessibilityHidden(true)
+  }
+}
+
+struct PanelHeader<Trailing: View>: View {
+  let title: String
+  let subtitle: String
+  @ViewBuilder let trailing: Trailing
+
+  var body: some View {
+    HStack(spacing: 10) {
+      BrandBadge()
+      VStack(alignment: .leading, spacing: 1) {
+        Text(title).font(.system(size: 15, weight: .semibold))
+        Text(subtitle).font(.system(size: 11)).foregroundStyle(Theme.muted)
+      }
+      Spacer(minLength: 8)
+      trailing
+    }
+  }
+}
+
+struct SectionLabel: View {
+  let text: String
+
+  init(_ text: String) {
+    self.text = text
+  }
+
+  var body: some View {
+    Text(text.uppercased())
+      .font(.system(size: 9.5, weight: .semibold))
+      .kerning(0.9)
+      .foregroundStyle(Theme.faint)
+      .frame(maxWidth: .infinity, alignment: .leading)
+      .padding(.horizontal, 2)
+      .accessibilityAddTraits(.isHeader)
+  }
+}
+
+struct FormatBadge: View {
+  let text: String
+  /// Darker and brighter, to read over a cover.
+  var onCover = false
+
+  var body: some View {
+    Text(text)
+      .font(.system(size: 8.5, weight: .bold))
+      .kerning(0.3)
+      .foregroundStyle(Color.white.opacity(onCover ? 0.9 : 0.7))
+      .padding(.horizontal, 5)
+      .padding(.vertical, 1)
+      .background(
+        onCover ? Theme.background.opacity(0.72) : Color.white.opacity(0.08),
+        in: RoundedRectangle(cornerRadius: 5))
+  }
+}
+
+/// The press feedback the button styles share; with Reduce Motion on, buttons don't move.
+private struct PressEffect: ViewModifier {
+  let isPressed: Bool
+  let scale: CGFloat
+  @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+  func body(content: Content) -> some View {
+    content
+      .scaleEffect(isPressed && !reduceMotion ? scale : 1)
+      .animation(reduceMotion ? nil : Theme.press, value: isPressed)
+  }
+}
+
+extension View {
+  fileprivate func pressEffect(_ isPressed: Bool, scale: CGFloat = 0.97) -> some View {
+    modifier(PressEffect(isPressed: isPressed, scale: scale))
+  }
+}
+
+/// The hover feedback of the icon and text buttons: a brighter surface, icon and text, eased in.
+/// The pointer comes from the panel (`PointerModel`) and is compared with the button's frame, so
+/// the button holds no state. A disabled button, such as one under a sheet, ignores it.
+private struct HoverHighlight<Surface: InsettableShape>: ViewModifier {
+  let shape: Surface
+  let isPressed: Bool
+  @Environment(PointerModel.self) private var pointer: PointerModel?
+  @Environment(\.isEnabled) private var isEnabled
+  @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+  func body(content: Content) -> some View {
+    let location: CGPoint? = isEnabled ? pointer?.location : nil
+    let animation: Animation? = reduceMotion ? nil : ButtonHover.animation
+    @Sendable func isHovered(_ proxy: GeometryProxy) -> Bool {
+      ButtonHover.isOver(location, proxy.frame(in: PointerModel.space))
+    }
+    return
+      content
+      .visualEffect { label, proxy in
+        label.brightness(ButtonHover.brightness(isHovered: isHovered(proxy)))
+      }
+      .background {
+        GeometryReader { proxy in
+          shape.fill(ButtonHover.surface(isHovered: isHovered(proxy), isPressed: isPressed))
+        }
+      }
+      .overlay(shape.strokeBorder(Theme.line))
+      .animation(animation, value: location)
+  }
+}
+
+extension View {
+  fileprivate func hoverHighlight(
+    _ shape: some InsettableShape, isPressed: Bool
+  ) -> some View {
+    modifier(HoverHighlight(shape: shape, isPressed: isPressed))
+  }
+}
+
+/// The blue call to action. No glow: inside a scroll view its shadow draws a grey band.
+struct PrimaryButtonStyle: ButtonStyle {
+  var fullWidth = false
+  @Environment(\.isEnabled) private var isEnabled
+
+  func makeBody(configuration: Configuration) -> some View {
+    configuration.label
+      .font(.system(size: 12.5, weight: .semibold))
+      .foregroundStyle(.white)
+      .padding(.horizontal, 14)
+      .frame(maxWidth: fullWidth ? .infinity : nil, minHeight: 34)
+      .background(Theme.action, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+      .opacity(isEnabled ? 1 : 0.4)
+      .pressEffect(configuration.isPressed)
+      .contentShape(Rectangle())
+  }
+}
+
+struct SecondaryButtonStyle: ButtonStyle {
+  var fullWidth = false
+  @Environment(\.isEnabled) private var isEnabled
+
+  func makeBody(configuration: Configuration) -> some View {
+    configuration.label
+      .font(.system(size: 12, weight: .semibold))
+      .foregroundStyle(Theme.text)
+      .padding(.horizontal, 12)
+      .frame(maxWidth: fullWidth ? .infinity : nil, minHeight: 30)
+      .hoverHighlight(
+        RoundedRectangle(cornerRadius: 11, style: .continuous), isPressed: configuration.isPressed
+      )
+      .opacity(isEnabled ? 1 : 0.4)
+      .pressEffect(configuration.isPressed)
+      .contentShape(Rectangle())
+  }
+}
+
+/// A destructive action that asks first, such as Delete…, at the secondary style's size.
+struct DangerButtonStyle: ButtonStyle {
+  @Environment(\.isEnabled) private var isEnabled
+
+  func makeBody(configuration: Configuration) -> some View {
+    configuration.label
+      .font(.system(size: 12, weight: .semibold))
+      .foregroundStyle(Theme.dangerText)
+      .padding(.horizontal, 12)
+      .frame(minHeight: 30)
+      .background(
+        Theme.danger.opacity(0.16), in: RoundedRectangle(cornerRadius: 11, style: .continuous)
+      )
+      .opacity(isEnabled ? 1 : 0.4)
+      .pressEffect(configuration.isPressed)
+      .contentShape(Rectangle())
+  }
+}
+
+/// The button that confirms a destructive action, at the primary style's size.
+struct DangerSolidButtonStyle: ButtonStyle {
+  @Environment(\.isEnabled) private var isEnabled
+
+  func makeBody(configuration: Configuration) -> some View {
+    configuration.label
+      .font(.system(size: 12.5, weight: .semibold))
+      .foregroundStyle(.white)
+      .padding(.horizontal, 14)
+      .frame(minHeight: 34)
+      .background(Theme.dangerSolid, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+      .opacity(isEnabled ? 1 : 0.4)
+      .pressEffect(configuration.isPressed)
+      .contentShape(Rectangle())
+  }
+}
+
+/// Text-only actions such as "Set up later".
+struct QuietButtonStyle: ButtonStyle {
+  func makeBody(configuration: Configuration) -> some View {
+    configuration.label
+      .font(.system(size: 11.5, weight: .semibold))
+      .foregroundStyle(configuration.isPressed ? Theme.text : Theme.muted)
+      .contentShape(Rectangle())
+  }
+}
+
+/// The 30 pt round buttons in headers.
+struct CircleButtonStyle: ButtonStyle {
+  func makeBody(configuration: Configuration) -> some View {
+    configuration.label
+      .font(.system(size: 13, weight: .semibold))
+      .foregroundStyle(Color(hex: 0xc9d3ea))
+      .frame(width: 30, height: 30)
+      .hoverHighlight(Circle(), isPressed: configuration.isPressed)
+      .pressEffect(configuration.isPressed, scale: 0.94)
+  }
+}
+
+/// A one-line explanation under a field, in the colour of how much it matters.
+struct FieldNote: View {
+  let text: String
+  var color = Theme.muted
+
+  var body: some View {
+    Text(text)
+      .font(.system(size: 10.5))
+      .foregroundStyle(color)
+      .fixedSize(horizontal: false, vertical: true)
+  }
+}
+
+/// A success or a failure with its one-click fix, in the toast colours of the mockups.
+struct NoticeView: View {
+  let toast: Toast
+  let onFix: () -> Void
+  var onDismiss: (() -> Void)?
+
+  var body: some View {
+    let shape = RoundedRectangle(cornerRadius: 16, style: .continuous)
+    let color = toast.tone == .success ? Theme.live : Theme.danger
+    HStack(alignment: .top, spacing: 10) {
+      VStack(alignment: .leading, spacing: 2) {
+        Text(toast.title).font(.system(size: 12, weight: .semibold))
+        if let message = toast.message {
+          Text(message).font(.system(size: 11)).foregroundStyle(Theme.muted)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+      }
+      Spacer(minLength: 4)
+      if let fix = toast.fix {
+        Button("\(fix.label) →", action: onFix)
+          .buttonStyle(.plain)
+          .font(.system(size: 11.5, weight: .semibold))
+          .foregroundStyle(Theme.link)
+      }
+      if let onDismiss {
+        Button(action: onDismiss) {
+          Image(systemName: "xmark")
+            .font(.system(size: 9, weight: .bold))
+            .frame(width: 20, height: 20)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .foregroundStyle(Theme.faint)
+        .accessibilityLabel("Dismiss")
+      }
+    }
+    .padding(.horizontal, 12)
+    .padding(.vertical, 10)
+    .background(color.opacity(toast.tone == .success ? 0.1 : 0.12), in: shape)
+    .overlay(shape.strokeBorder(color.opacity(toast.tone == .success ? 0.3 : 0.35)))
+  }
+}

@@ -1,0 +1,48 @@
+import Foundation
+
+public protocol EPUBPreparer: Sendable {
+  /// Packages the book's EPUB into `staging`, writes `details` into its package document and
+  /// applies the Kindle fixes.
+  func prepare(_ book: Book, details: PackageDetails, in staging: URL) async throws(SendFailure)
+    -> PreparedFile
+}
+
+public protocol FormatConverter: Sendable {
+  /// The conversion tool, or nil while it isn't installed.
+  var toolURL: URL? { get }
+  func convert(
+    _ file: PreparedFile,
+    to format: FileFormat,
+    in staging: URL
+  ) async throws(SendFailure) -> PreparedFile
+}
+
+extension FormatConverter {
+  public var isAvailable: Bool { toolURL != nil }
+}
+
+/// A conversion tool the user can point at themselves.
+public protocol ToolChoice: Sendable {
+  /// Nil while Sendle looks in the usual folders.
+  var chosenTool: URL? { get }
+  func choose(_ tool: URL?)
+}
+
+public protocol StagingArea: Sendable {
+  func makeDirectory() throws(SendFailure) -> URL
+  func writeFile(named name: String, contents: Data, in directory: URL) throws(SendFailure) -> URL
+  func remove(_ directory: URL)
+}
+
+public protocol DeliveryChannel: Sendable {
+  /// Delivers `file` under the name `baseName` plus the file's extension.
+  func deliver(
+    _ file: PreparedFile,
+    named baseName: String,
+    progress: @Sendable (Double) async -> Void
+  ) async throws(SendFailure)
+}
+
+public protocol DeliveryChannelFactory: Sendable {
+  func channel(for destination: Destination) async throws(SendFailure) -> any DeliveryChannel
+}

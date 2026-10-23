@@ -1,0 +1,160 @@
+import Foundation
+import SendleDomain
+
+/// The only place where domain errors become user-facing text (spec §4).
+public enum ProblemPresenter {
+  public static func problem(for error: LibraryError) -> Problem {
+    switch error {
+    case .accessDenied:
+      Problem(
+        "Sendle can't see your Books library",
+        message: "macOS keeps the Books library private. Turn on Sendle under Full Disk Access; "
+          + "Sendle only reads it.",
+        fix: Fix("Open Privacy Settings", .openPrivacySettings))
+    case .notFound:
+      Problem(
+        "Sendle can't find a Books library",
+        message: "Open Books, add an EPUB or PDF, then try again.", fix: Fix("Retry", .retry))
+    case .unsupportedSchema(let missing):
+      Problem(
+        "This version of Books isn't supported yet",
+        message: "Its library has no \(missing.joined(separator: ", ")).")
+    case .unreadable(let detail):
+      Problem(
+        "Sendle couldn't read your Books library", message: detail, fix: Fix("Retry", .retry))
+    }
+  }
+
+  /// `kindleConnected` offers USB for books too large to email.
+  public static func problem(for failure: SendFailure, kindleConnected: Bool = false) -> Problem {
+    switch failure {
+    case .authenticationFailed(let provider):
+      Problem(
+        "\(provider.displayName) didn't accept the password", message: passwordHint(provider),
+        fix: Fix("Open Settings", .openSettings(.sender)))
+    case .connectionFailed(let host):
+      Problem(
+        "Couldn't reach \(host)", message: "Check your internet connection, then try again.",
+        fix: Fix("Retry", .retry))
+    case .unconfirmed(let host):
+      Problem(
+        "\(host) didn't confirm the book",
+        message: "It may still arrive. Check your Kindle before you send it again.")
+    case .rejected(let detail):
+      Problem("The mail server refused the message", message: detail)
+    case .mailSetup(let detail):
+      Problem(
+        "Check your sender settings", message: detail,
+        fix: Fix("Open Settings", .openSettings(.sender)))
+    case .notConfigured:
+      Problem("Set up your Kindle email first", fix: Fix("Open Settings", .openSettings(.kindle)))
+    case .passwordUnavailable:
+      Problem(
+        "Sendle couldn't read the app password", message: "Enter it again in Settings › Sender.",
+        fix: Fix("Open Settings", .openSettings(.sender)))
+    case .tooLarge(let bytes, let limit):
+      Problem(
+        tooLargeTitle(bytes: bytes, limit: limit),
+        fix: kindleConnected ? Fix("Use USB", .useDestination(.usb)) : nil)
+    case .protected:
+      Problem("Protected by Apple (DRM), can't be sent")
+    case .inCloudOnly:
+      Problem("In iCloud only. Open it in Books to download.")
+    case .missing:
+      Problem("The file is no longer on this Mac")
+    case .invalidBook(let detail):
+      Problem("This EPUB is damaged and can't be prepared", message: detail)
+    case .conversionUnavailable:
+      Problem(
+        "Your Kindle can't read EPUB over USB",
+        message: "Sendle converts EPUBs with boko, which isn't installed.",
+        fix: Fix("Send by email", .useDestination(.email)))
+    case .conversionFailed(let output):
+      Problem(
+        "boko couldn't convert this book", message: output,
+        fix: Fix("Send by email", .useDestination(.email)))
+    case .deviceDisconnected:
+      Problem("The Kindle was unplugged during the copy", fix: Fix("Retry", .retry))
+    case .diskFull:
+      Problem("Not enough space on the Kindle")
+    case .copyFailed(let detail):
+      Problem("Couldn't copy the book to the Kindle", message: detail, fix: Fix("Retry", .retry))
+    case .localStorage(let detail):
+      Problem("Couldn't write temporary files on this Mac", message: detail)
+    case .cancelled:
+      Problem("Cancelled")
+    }
+  }
+
+  public static func problem(for error: EjectError, ejecting volume: KindleVolume) -> Problem {
+    let again = Fix("Eject", .eject(volume))
+    return switch error {
+    case .inUse:
+      Problem(
+        "\(volume.name) is in use",
+        message: "Close any books or folders open on it, then eject it again.", fix: again)
+    case .failed(let detail):
+      Problem("Couldn't eject \(volume.name)", message: detail, fix: again)
+    }
+  }
+
+  package static func kindleChangedWhileChecking(_ volume: KindleVolume) -> Problem {
+    Problem(
+      "Nothing was sent to \(volume.name)",
+      message: "The Kindle changed before Sendle finished checking which books it already has. "
+        + "Send again.")
+  }
+
+  package static func undoFailed(title: String, _ error: KindleRemovalError) -> Problem {
+    Problem("Couldn't put \"\(title)\" back", message: sentence(error.detail))
+  }
+
+  package static func hideFailed(_ error: StorageError, count: Int) -> Problem {
+    Problem(
+      count > 1 ? "Couldn't hide the books" : "Couldn't hide the book",
+      message: sentence(error.detail))
+  }
+
+  package static func showFailed(_ error: StorageError, count: Int) -> Problem {
+    Problem(
+      count > 1 ? "Couldn't show the books in Sendle" : "Couldn't show the book in Sendle",
+      message: sentence(error.detail))
+  }
+
+  package static func ejectWhileCopying(_ volume: KindleVolume) -> Problem {
+    Problem(
+      "\(volume.name) is still being copied to", message: "Eject it when the copy is done.",
+      fix: Fix("Eject", .eject(volume)))
+  }
+
+  public static func settingsSetAside(_ file: URL) -> Problem {
+    Problem(
+      "Sendle couldn't read its settings",
+      message: "They were moved to \(file.lastPathComponent) in Sendle's data folder. "
+        + "Set up your Kindle email again.",
+      fix: Fix("Open Settings", .openSettings(.kindle)))
+  }
+
+  private static func sentence(_ detail: String) -> String {
+    let text = detail.prefix(1).uppercased() + detail.dropFirst()
+    return text.last.map { ".!?".contains($0) } == true ? text : text + "."
+  }
+
+  private static func tooLargeTitle(bytes: Int64, limit: Int64) -> String {
+    let precise = Formatting.size(bytes) == Formatting.size(limit)
+    let size = Formatting.size(bytes, precise: precise)
+    let limitSize = Formatting.size(limit, precise: precise)
+    return limit == FormatPolicy.emailSizeLimit
+      ? "\(size) is over Amazon's \(limitSize) email limit"
+      : "\(size) is over your mail server's \(limitSize) limit"
+  }
+
+  private static func passwordHint(_ provider: MailProvider) -> String {
+    switch provider {
+    case .gmail: "Gmail needs an app password, which requires 2-Step Verification."
+    case .iCloud: "iCloud Mail needs an app-specific password from account.apple.com."
+    case .fastmail: "Fastmail needs an app password from its Privacy & Security settings."
+    case .custom: "Check the sender address and app password in Settings."
+    }
+  }
+}

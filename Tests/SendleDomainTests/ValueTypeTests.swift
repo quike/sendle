@@ -1,0 +1,87 @@
+import Foundation
+import SendleDomain
+import SendleTestSupport
+import Testing
+
+struct KindleEmailTests {
+  @Test(arguments: ["reader@kindle.com", "Reader@Kindle.COM", "reader_123@kindle.cn"])
+  func recognisesAmazonAddresses(address: String) {
+    #expect(KindleEmail(rawValue: address).isAmazonAddress)
+  }
+
+  @Test(arguments: ["reader@gmail.com", "reader@kindle.com.evil.net", "kindle.com"])
+  func rejectsOtherAddresses(address: String) {
+    #expect(!KindleEmail(rawValue: address).isAmazonAddress)
+  }
+
+  @Test func addressesMatchWhateverTheirCase() {
+    #expect(KindleEmail(rawValue: "Reader@Kindle.COM").matches(.fixture))
+    #expect(!KindleEmail(rawValue: "reader2@kindle.com").matches(.fixture))
+  }
+}
+
+struct EmailAddressTests {
+  @Test(arguments: ["me@gmail.com", "first.last+kindle@icloud.com", "a@b.co"])
+  func acceptsPlausibleAddresses(address: String) {
+    #expect(EmailAddress.isPlausible(address))
+  }
+
+  @Test(arguments: [
+    "", "me", "@gmail.com", "me@", "me@gmail", "me@@gmail.com", "me @gmail.com", "me@.com",
+    "me@gmail.",
+  ])
+  func rejectsImplausibleAddresses(address: String) {
+    #expect(!EmailAddress.isPlausible(address))
+  }
+}
+
+struct FormatConverterTests {
+  private struct Tool: FormatConverter {
+    let toolURL: URL?
+
+    func convert(
+      _ file: PreparedFile, to format: FileFormat, in staging: URL
+    ) async throws(SendFailure) -> PreparedFile {
+      throw .conversionUnavailable
+    }
+  }
+
+  @Test func isAvailableOnlyWhileItsToolIsInstalled() {
+    #expect(Tool(toolURL: URL(filePath: "/Users/reader/.cargo/bin/boko")).isAvailable)
+    #expect(!Tool(toolURL: nil).isAvailable)
+  }
+}
+
+struct ByteCountTests {
+  @Test func writesSizesInDecimalUnitsInEnglish() {
+    #expect(ByteCount.text(999) == "999 bytes")
+    #expect(ByteCount.text(3_584) == "4 KB")
+    #expect(ByteCount.text(1_400_000) == "1.4 MB")
+    #expect(ByteCount.text(3_100_000_000) == "3.1 GB")
+    #expect(ByteCount.text(999_000_000_000) == "999 GB")
+    #expect(ByteCount.text(3_417_000_000_000) == "3.4 TB")
+    #expect(ByteCount.text(12_800_000_000_000) == "13 TB")
+    #expect(ByteCount.text(21_234_000, precise: true) == "21.2 MB")
+  }
+}
+
+struct ElapsedTests {
+  @Test func writesSecondsWithOneDecimalInEnglish() {
+    #expect(Elapsed.text(.milliseconds(87)) == "0.1 s")
+    #expect(Elapsed.text(.milliseconds(12_345)) == "12.3 s")
+  }
+}
+
+struct FileFormatTests {
+  @Test func mimeTypesMatchWhatAmazonExpects() {
+    #expect(FileFormat.epub.mimeType == "application/epub+zip")
+    #expect(FileFormat.pdf.mimeType == "application/pdf")
+    #expect(BookFormat.epub.fileFormat == .epub)
+    #expect(BookFormat.pdf.fileFormat == .pdf)
+  }
+
+  @Test func destinationsKnowTheirKind() {
+    #expect(Destination.email(.fixture).kind == .email)
+    #expect(Destination.usb(.fixture()).kind == .usb)
+  }
+}

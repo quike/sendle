@@ -1,0 +1,88 @@
+import CoreGraphics
+import SwiftUI
+
+/// The side of the card the floating A–Z card takes.
+package enum RailSide: Sendable {
+  case leading
+  case trailing
+}
+
+/// The floating send card and A–Z card: their sizes, where they sit next to the card, and the room
+/// the window keeps around the card for them.
+package enum FloatingControls {
+  /// Between the card and each floating card.
+  package static let gap: CGFloat = 10
+  package static let sendHeight: CGFloat = 50
+  package static let railWidth: CGFloat = 24
+  package static let sendRadius: CGFloat = 20
+
+  /// Right of the card while the screen has room for the A–Z card there, otherwise left.
+  package static func side(
+    card: CGRect, screen: CGRect, width: CGFloat = railWidth, gap: CGFloat = gap
+  ) -> RailSide {
+    card.maxX + gap + width <= screen.maxX ? .trailing : .leading
+  }
+
+  /// The arrow's and the shadow's room around the card, plus each floating card with the same
+  /// room again for its own shadow. The window keeps it whatever the controls, so switching them
+  /// never moves or resizes the window: the floating cards just come and go in it.
+  package static func margins(side: RailSide) -> EdgeInsets {
+    var margins = PanelView.margins
+    margins.bottom += gap + sendHeight
+    switch side {
+    case .leading: margins.leading += gap + railWidth
+    case .trailing: margins.trailing += gap + railWidth
+    }
+    return margins
+  }
+
+  /// The send card under `card`, in the same coordinates.
+  package static func sendFrame(card: CGRect) -> CGRect {
+    CGRect(x: card.minX, y: card.maxY + gap, width: card.width, height: sendHeight)
+  }
+
+  /// The A–Z card beside `card`, level with `books`: as tall as they are, or `height` centred on
+  /// them for the compact bar.
+  package static func railFrame(card: CGRect, books: CGRect, side: RailSide, height: CGFloat?)
+    -> CGRect
+  {
+    let height = min(height ?? books.height, books.height)
+    let x = side == .trailing ? card.maxX + gap : card.minX - gap - railWidth
+    return CGRect(x: x, y: books.midY - height / 2, width: railWidth, height: height)
+  }
+}
+
+/// Where the panel's window goes under the status item, in screen coordinates: the card where it
+/// would be in a window of `PanelView.margins`, and the window around it with the floating cards'
+/// room. On a screen too short for the whole card, the card gives up height so the window ends at
+/// the screen's bottom.
+package struct PanelPlacement: Equatable, Sendable {
+  package let card: CGRect
+  package let window: CGRect
+  package let margins: EdgeInsets
+  package let side: RailSide
+  /// The status item's centre, from the card's leading edge.
+  package let arrowX: CGFloat
+
+  package init(below anchor: CGRect, in screen: CGRect) {
+    let base = PanelView.margins
+    let size = PanelView.windowSize
+    let x = max(
+      screen.minX + 4 - base.leading,
+      min(anchor.midX - size.width / 2, screen.maxX - size.width + base.trailing - 4)
+    ).rounded()
+    let top = (anchor.minY + 3 - base.top).rounded()
+    let whole = CGRect(
+      x: x + base.leading, y: top - Theme.cardSize.height, width: Theme.cardSize.width,
+      height: Theme.cardSize.height)
+    side = FloatingControls.side(card: whole, screen: screen)
+    margins = FloatingControls.margins(side: side)
+    let height = CardHeight.fitting(top - margins.bottom - screen.minY)
+    card = CGRect(x: whole.minX, y: top - height, width: whole.width, height: height)
+    window = CGRect(
+      x: card.minX - margins.leading, y: card.minY - margins.bottom,
+      width: card.width + margins.leading + margins.trailing,
+      height: card.height + margins.top + margins.bottom)
+    arrowX = anchor.midX - card.minX
+  }
+}
