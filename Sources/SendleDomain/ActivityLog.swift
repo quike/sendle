@@ -18,6 +18,7 @@ public enum LogArea: String, Hashable, Sendable, CaseIterable {
   case usb
   case library
   case epub
+  case lookup
   /// Sendle's own housekeeping: settings, the Keychain, launch at login.
   case app
 
@@ -28,6 +29,7 @@ public enum LogArea: String, Hashable, Sendable, CaseIterable {
     case .usb: "USB"
     case .library: "LIB"
     case .epub: "EPUB"
+    case .lookup: "LOOKUP"
     case .app: "APP"
     }
   }

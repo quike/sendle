@@ -263,7 +263,7 @@ extension LogArea {
     case .mail: Color(hex: 0x7fb2ff)
     case .boko: Color(hex: 0xfbbf24)
     case .usb: Theme.live
-    case .library, .epub: Color(hex: 0xc4b5fd)
+    case .library, .epub, .lookup: Color(hex: 0xc4b5fd)
     case .app: Theme.muted
     }
   }

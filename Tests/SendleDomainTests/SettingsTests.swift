@@ -64,6 +64,21 @@ struct AppSettingsTests {
     #expect(settings.savedKindleAddresses == [.fixture])
   }
 
+  @Test func lookupSourcesDefaultToOpenLibraryAndApple() throws {
+    #expect(AppSettings.defaults.lookupSources == [.openLibrary, .appleBooks])
+    let old = try JSONDecoder().decode(AppSettings.self, from: Data("{}".utf8))
+    #expect(old.lookupSources == [.openLibrary, .appleBooks])
+    let bad = try JSONDecoder().decode(
+      AppSettings.self, from: Data(#"{"lookupSources":["nope"]}"#.utf8))
+    #expect(bad.lookupSources == [.openLibrary, .appleBooks])
+  }
+
+  @Test func lookupSourcesRoundTrip() throws {
+    let saved = AppSettings(lookupSources: [.googleBooks])
+    let data = try JSONEncoder().encode(saved)
+    #expect(try JSONDecoder().decode(AppSettings.self, from: data).lookupSources == [.googleBooks])
+  }
+
   /// An older build ignores the keys it doesn't know, so going back to it keeps the setup.
   @Test func anOlderBuildCanStillReadTheFile() throws {
     struct OlderSettings: Decodable {
