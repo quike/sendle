@@ -427,7 +427,8 @@ package final class BookDetailsViewModel {
     return editions.enumerated().map { EditionRow(id: $0.offset, edition: $0.element) }
   }
 
-  /// Shows the row's edition at once, then as its source has it under its ISBN.
+  /// Shows the row's edition at once, then as its source has it under its ISBN, keeping the
+  /// row's values for what the source's record leaves out.
   package func pick(_ row: EditionRow) {
     guard let lookup, isPickingEdition else { return }
     isPickingEdition = false
@@ -437,7 +438,7 @@ package final class BookDetailsViewModel {
     refineTask = Task { [weak self] in
       let refined = await lookup.refine(row.edition)
       guard let self, !Task.isCancelled else { return }
-      pickedEdition = refined
+      pickedEdition = Self.edition(row.edition, filledFrom: refined)
       fetchFoundCover()
     }
   }
@@ -678,6 +679,18 @@ package final class BookDetailsViewModel {
       guard let self, !Task.isCancelled, case .success(let file) = file else { return }
       foundCover = FoundCover(url: url, file: file)
     }
+  }
+
+  /// `refined`'s values, and `picked`'s where it has none.
+  private static func edition(
+    _ picked: FoundEdition, filledFrom refined: FoundEdition
+  ) -> FoundEdition {
+    FoundEdition(
+      source: picked.source, title: refined.title ?? picked.title,
+      author: refined.author ?? picked.author, year: refined.year ?? picked.year,
+      isbn: refined.isbn ?? picked.isbn, language: refined.language ?? picked.language,
+      publisher: refined.publisher ?? picked.publisher, cover: refined.cover ?? picked.cover,
+      thumbnail: refined.thumbnail ?? picked.thumbnail, link: refined.link ?? picked.link)
   }
 
   private func forgetPick() {

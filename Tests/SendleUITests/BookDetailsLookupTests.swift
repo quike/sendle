@@ -356,6 +356,26 @@ struct BookDetailsLookupTests {
     #expect(sheet.shownEdition == refinedFirst)
   }
 
+  @Test func aRefineFillsInThePickedEditionWithoutLosingWhatItHad() async {
+    let picked = editions[1]
+    let refined = FoundEdition(
+      source: .openLibrary, title: "Los ritos del agua (Booket)", isbn: picked.isbn,
+      language: "es", publisher: "Booket", cover: coverURL)
+    let script = ScriptedLookup(refined: [picked: refined])
+    let sheet = sheet(fileValues: nil, lookup: script.lookup())
+    sheet.lookUp()
+    script.send(progress(.titleAndAuthor, title: [.openLibrary: .found(editions)]))
+    #expect(await eventually { sheet.isPickingEdition })
+
+    sheet.pick(sheet.editionRows[1])
+
+    let merged = FoundEdition(
+      source: .openLibrary, title: "Los ritos del agua (Booket)", author: picked.author,
+      year: picked.year, isbn: picked.isbn, language: "es", publisher: "Booket", cover: coverURL,
+      thumbnail: picked.thumbnail)
+    #expect(await eventually { sheet.shownEdition == merged })
+  }
+
   @Test func sourceMenuStatuses() async {
     let script = ScriptedLookup()
     let sheet = sheet(lookup: script.lookup(sources: LookupSource.allCases))
