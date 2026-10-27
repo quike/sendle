@@ -641,6 +641,46 @@ struct BookDetailsLookupTests {
     #expect(sheet.author == "Eva García Sáenz")
   }
 
+  @Test func switchingSourceShowsItsOwnBubbles() async {
+    let script = ScriptedLookup()
+    let sheet = sheet(lookup: script.lookup(sources: LookupSource.allCases))
+    let google = FoundEdition.fixture(.googleBooks, author: "Eva Garcia Saenz", year: "2018")
+    sheet.lookUp()
+    let found = progress(
+      sources: LookupSource.allCases,
+      isbn: [
+        .openLibrary: .found([openLibrary]), .googleBooks: .found([google]),
+        .appleBooks: .found([apple]),
+      ])
+    script.send(found)
+    #expect(await eventually { sheet.progress == found })
+    sheet.use(.year)
+    #expect(
+      sheet.sourceMenu.map(\.status) == [
+        "2 differences", "1 difference", "Agrees with everything",
+      ])
+
+    sheet.show(.googleBooks)
+    #expect(sheet.found(.year) == .differs("2018"))
+    #expect(sheet.differences == 1)
+    sheet.use(.year)
+    #expect(sheet.year == "2018")
+    #expect(sheet.found(.year) == .used(was: "2017"))
+    #expect(sheet.differences == 1)
+
+    // A source with no year shows no year bubble, and doesn't count the used one.
+    sheet.show(.appleBooks)
+    #expect(sheet.found(.year) == nil)
+    #expect(sheet.differences == 0)
+    #expect(sheet.banner == .found(.appleBooks, differences: 0))
+    #expect(sheet.sourceMenu.last?.status == "Agrees with everything")
+
+    sheet.show(.googleBooks)
+    sheet.undo(.year)
+    #expect(sheet.year == "2017")
+    #expect(sheet.found(.year) == .differs("2018"))
+  }
+
   @Test func useAuthorShowsTheWriterBox() async {
     let script = ScriptedLookup()
     let others = [

@@ -462,20 +462,20 @@ package final class BookDetailsViewModel {
 
   // MARK: Found details
 
-  /// The bubble under a compared field, if it has one.
+  /// The bubble under a compared field, if the shown edition has a value for it.
   package func found(_ field: Field) -> FoundValue? {
-    if let used = usedValues[field] { return .used(was: Self.bubbleText(used.was, for: field)) }
     switch shownEdition.flatMap({ match(field, in: $0) }) {
     case .differs(let value)?: return .differs(Self.bubbleText(value, for: field))
-    case .matches?: return .matches
+    case .matches?:
+      guard let used = usedValues[field] else { return .matches }
+      return .used(was: Self.bubbleText(used.was, for: field))
     case nil: return nil
     }
   }
 
   /// Fills a differing field with the found value, as typing or choosing it would.
   package func use(_ field: Field) {
-    guard usedValues[field] == nil, let edition = shownEdition,
-      case .differs(let value)? = match(field, in: edition)
+    guard let edition = shownEdition, case .differs(let value)? = match(field, in: edition)
     else { return }
     let was = typedValue(field)
     fill(field, with: value)
@@ -563,10 +563,14 @@ package final class BookDetailsViewModel {
     }
   }
 
+  /// A field Use filled from this edition still counts.
   private func differences(in edition: FoundEdition) -> Int {
     Field.allCases.filter { field in
-      guard usedValues[field] == nil else { return true }
-      return if case .differs = match(field, in: edition) { true } else { false }
+      switch match(field, in: edition) {
+      case .differs?: true
+      case .matches?: usedValues[field] != nil
+      case nil: false
+      }
     }.count
   }
 
