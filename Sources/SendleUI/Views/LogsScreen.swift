@@ -197,7 +197,7 @@ private struct LogRow: View {
       Text(entry.area.tag)
         .font(.system(size: 8.5, weight: .bold))
         .foregroundStyle(entry.area.color)
-        .frame(width: 30, alignment: .leading)
+        .frame(width: 40, alignment: .leading)
       VStack(alignment: .leading, spacing: 4) {
         HStack(alignment: .firstTextBaseline, spacing: 5) {
           LevelBubble(level: entry.level)
