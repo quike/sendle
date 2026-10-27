@@ -64,10 +64,7 @@ public struct LookupQuery: Hashable, Sendable {
     self.title = title.trimmingCharacters(in: .whitespacesAndNewlines)
     self.author = Self.trimmed(author)
     self.isbn = isbn.flatMap(ISBN.normalised)
-    self.language = Self.trimmed(language).flatMap { text in
-      let primary = text.lowercased().prefix { $0 != "-" && $0 != "_" }
-      return primary.isEmpty ? nil : String(primary)
-    }
+    self.language = language.flatMap(LanguageTag.primary)
   }
 
   private static func trimmed(_ text: String?) -> String? {
