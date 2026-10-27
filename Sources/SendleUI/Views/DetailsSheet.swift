@@ -14,7 +14,8 @@ struct DetailsDim: View {
 }
 
 /// A book's details, in a sheet that rises over the bottom of the library. A lookup's banner
-/// tops it, and its edition list takes the fields' place while the user picks one.
+/// tops it, its found cover takes the facts row's place, and its edition list takes the fields'
+/// place while the user picks one.
 struct DetailsSheet: View {
   /// How much of the card's height the sheet covers.
   static let share: CGFloat = 0.7
@@ -35,10 +36,10 @@ struct DetailsSheet: View {
       } else {
         if let cover = details.foundCover {
           FoundCoverRow(panel: panel, details: details, cover: cover)
-            .padding(.bottom, 10)
-        }
-        DetailsFactsRow(facts: details.facts) {
-          DetailsCover(panel: panel, details: details)
+        } else {
+          DetailsFactsRow(facts: details.facts) {
+            DetailsCover(panel: panel, details: details)
+          }
         }
         DetailsFields(details: details)
       }

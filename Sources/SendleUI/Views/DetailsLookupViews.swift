@@ -219,7 +219,8 @@ struct FoundMatch: View {
   }
 }
 
-/// The sheet's cover → the shown edition's, with its size and Use cover, or Undo once used.
+/// The sheet's cover, which still changes and reverts as the facts row's does, → the shown
+/// edition's, with its size and Use cover, or Undo once used.
 struct FoundCoverRow: View {
   let panel: PanelModel
   let details: BookDetailsViewModel
@@ -227,25 +228,20 @@ struct FoundCoverRow: View {
 
   var body: some View {
     let book = details.coverBook
-    let slot = panel.covers.slot(for: book, size: .large)
-    // Once used, the found cover is the sheet's, so the book's own stands for the one it replaced.
-    let current = details.isFoundCoverUsed ? nil : details.coverPreview
     HStack(alignment: .bottom, spacing: 12) {
       HStack(spacing: 10) {
-        CoverFace(
-          data: current ?? slot.data, isPending: current == nil && slot.isPending,
-          title: book.title, seed: book.id, titleSize: 9
-        )
-        .frame(width: 60, height: 90)
+        DetailsCover(
+          panel: panel, details: details, size: CGSize(width: 60, height: 90), titleSize: 9)
         Image(systemName: "arrow.right")
           .font(.system(size: 12, weight: .semibold))
           .foregroundStyle(Theme.faint)
+          .accessibilityHidden(true)
         CoverFace(data: cover.file.preview, title: book.title, seed: book.id, titleSize: 9)
           .frame(width: 60, height: 90)
+          .shadow(color: .black.opacity(0.6), radius: 7, y: 6)
+          .accessibilityElement(children: .ignore)
+          .accessibilityLabel("Found cover, \(cover.sizeText)")
       }
-      .shadow(color: .black.opacity(0.6), radius: 7, y: 6)
-      .accessibilityElement(children: .ignore)
-      .accessibilityLabel("Found cover, \(cover.sizeText)")
       VStack(alignment: .leading, spacing: 6) {
         Text(cover.sizeText)
           .font(.system(size: 11))
@@ -263,7 +259,6 @@ struct FoundCoverRow: View {
       }
       Spacer(minLength: 0)
     }
-    .task(id: book) { await panel.covers.load(book, size: .large) }
   }
 }
 

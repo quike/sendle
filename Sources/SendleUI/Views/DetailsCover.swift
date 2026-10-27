@@ -32,6 +32,8 @@ struct DetailsFactsRow<Cover: View>: View {
 struct DetailsCover: View {
   let panel: PanelModel
   @Bindable var details: BookDetailsViewModel
+  var size = CGSize(width: 78, height: 117)
+  var titleSize: CGFloat = 10
 
   var body: some View {
     let book = details.coverBook
@@ -75,7 +77,7 @@ struct DetailsCover: View {
     } isTargeted: { isTargeted in
       details.isCoverHovered = isTargeted
     }
-    .frame(width: 78, height: 117)
+    .frame(width: size.width, height: size.height)
     .shadow(color: .black.opacity(0.6), radius: 7, y: 6)
     .task(id: book) { await panel.covers.load(book, size: .large) }
   }
@@ -86,7 +88,7 @@ struct DetailsCover: View {
     let preview = details.coverPreview
     return CoverFace(
       data: preview ?? slot.data, isPending: preview == nil && slot.isPending, title: book.title,
-      seed: book.id, titleSize: 10
+      seed: book.id, titleSize: titleSize
     )
     .overlay {
       if details.isCoverHovered, details.canChangeCover {
@@ -102,7 +104,7 @@ struct DetailsCover: View {
         .clipShape(CoverFace.shape)
       }
     }
-    .frame(width: 78, height: 117)
+    .frame(width: size.width, height: size.height)
     .contentShape(CoverFace.shape)
   }
 }
