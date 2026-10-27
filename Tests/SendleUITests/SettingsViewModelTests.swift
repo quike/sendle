@@ -675,7 +675,7 @@ struct SettingsViewModelTests {
     await lookupKeys.setPassword("k", for: "api-key")
     await model.open(at: nil)
     await model.setLookupSource(.googleBooks, isOn: true)
-    #expect(model.summary(of: .lookup) == "Open Library, Google Books, Apple Books")
+    #expect(model.summary(of: .lookup) == "Open Library, Apple Books, Google Books")
 
     for source in LookupSource.allCases { await model.setLookupSource(source, isOn: false) }
     #expect(model.summary(of: .lookup) == "Off")

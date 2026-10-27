@@ -581,8 +581,9 @@ private struct LookupPage: View {
     let settings = panel.settings
     VStack(alignment: .leading, spacing: 12) {
       SettingsGroup {
-        ForEach(LookupSource.allCases, id: \.self) { source in
-          if source != LookupSource.allCases.first { RowDivider() }
+        let sources = SettingsViewModel.lookupSourceOrder
+        ForEach(sources, id: \.self) { source in
+          if source != sources.first { RowDivider() }
           LookupSourceRow(settings: settings, source: source)
           if source == .googleBooks {
             GoogleKeyField(settings: settings) { url in

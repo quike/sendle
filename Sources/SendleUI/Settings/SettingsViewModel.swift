@@ -29,6 +29,9 @@ public final class SettingsViewModel {
   /// The boko the user chose, found or not.
   package private(set) var chosenBoko: URL?
   package private(set) var bokoError: String?
+  /// The lookup sources as Settings lists them: Google Books, the only one needing a key, last.
+  package static let lookupSourceOrder: [LookupSource] = [.openLibrary, .appleBooks, .googleBooks]
+
   package private(set) var lookupSources = AppSettings.defaults.lookupSources
   package private(set) var hasGoogleKey = false
   /// What is typed for the Google Books key; never filled from the Keychain.
@@ -161,7 +164,7 @@ public final class SettingsViewModel {
     case .usb:
       return bokoTitle
     case .lookup:
-      let names = LookupSource.allCases.filter(lookupSources.contains).map(\.name)
+      let names = Self.lookupSourceOrder.filter(lookupSources.contains).map(\.name)
       return names.isEmpty ? "Off" : names.joined(separator: ", ")
     }
   }
