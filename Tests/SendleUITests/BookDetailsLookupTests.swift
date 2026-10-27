@@ -509,6 +509,28 @@ struct BookDetailsLookupTests {
         == LookupBanner.unreachable([.openLibrary]).text)
   }
 
+  @Test func retryForgetsTheChosenSource() async {
+    let script = ScriptedLookup()
+    let sheet = sheet(lookup: script.lookup())
+    let appleList = [FoundEdition.fixture(.appleBooks, isbn: nil)]
+    sheet.lookUp()
+    let listed = progress(
+      .titleAndAuthor, isbn: [.openLibrary: .notFound, .appleBooks: .notFound],
+      title: [.openLibrary: .found(editions), .appleBooks: .found(appleList)])
+    script.send(listed)
+    #expect(await eventually { sheet.isPickingEdition })
+    sheet.show(.appleBooks)
+    #expect(sheet.shownSource == .appleBooks)
+
+    sheet.retry()
+    script.send(
+      progress(
+        .titleAndAuthor, title: [.openLibrary: .found(editions), .appleBooks: .found(appleList)]))
+
+    #expect(await eventually { sheet.shownSource == .openLibrary })
+    #expect(sheet.editionRows.map(\.edition) == editions)
+  }
+
   @Test func noRetryWithoutATitle() async {
     let script = ScriptedLookup()
     let sheet = sheet(lookup: script.lookup())
