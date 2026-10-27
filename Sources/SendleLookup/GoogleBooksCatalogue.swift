@@ -34,8 +34,8 @@ public struct GoogleBooksCatalogue: BookCatalogue {
     -> [FoundEdition]
   {
     let key = try await apiKey()
-    var terms = ["intitle:\(title)"]
-    if let author { terms.append("inauthor:\(author)") }
+    var terms = [Self.phrase("intitle", title)]
+    if let author { terms.append(Self.phrase("inauthor", author)) }
     var parameters = [("printType", "books"), ("maxResults", "10"), ("key", key)]
     if let language { parameters.append(("langRestrict", language)) }
     let search: VolumeList? = try await decoded(
@@ -62,6 +62,11 @@ public struct GoogleBooksCatalogue: BookCatalogue {
       let height = properties[kCGImagePropertyPixelHeight] as? Int
     else { return false }
     return width < height && (width, height) != placeholder
+  }
+
+  /// A search term for `field`, quoted so that the whole `text` is searched in it.
+  private static func phrase(_ field: String, _ text: String) -> String {
+    "\(field):\"\(text.replacing("\"", with: ""))\""
   }
 
   /// A request URL: the `terms` are joined with "+", which Google reads as a space between them.

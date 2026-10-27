@@ -16,9 +16,9 @@ struct GoogleBooksCatalogueTests {
   static let searchURL = "\(volumes)?q=isbn:\(isbn)&key=\(key)"
   static let volumeURL = "\(volumes)/Fx3dDwAAQBAJ?key=\(key)"
   static let listURL =
-    "\(volumes)?q=intitle:Cien%20a%C3%B1os%20de%20soledad"
-    + "+inauthor:Gabriel%20Garc%C3%ADa%20M%C3%A1rquez&printType=books&maxResults=10&key=\(key)"
-    + "&langRestrict=es"
+    "\(volumes)?q=intitle:%22Cien%20a%C3%B1os%20de%20soledad%22"
+    + "+inauthor:%22Gabriel%20Garc%C3%ADa%20M%C3%A1rquez%22&printType=books&maxResults=10"
+    + "&key=\(key)&langRestrict=es"
   static let coverURL =
     "https://books.google.com/books/content?id=X&printsec=frontcover&img=1&zoom=1&source=gbs_api"
 
@@ -192,8 +192,8 @@ struct GoogleBooksCatalogueTests {
 
   @Test func listLeavesOutWhatIsMissing() async throws {
     let url =
-      "\(Self.volumes)?q=intitle:Cien%20a%C3%B1os%20de%20soledad&printType=books&maxResults=10"
-      + "&key=\(Self.key)"
+      "\(Self.volumes)?q=intitle:%22Cien%20a%C3%B1os%20de%20soledad%22&printType=books"
+      + "&maxResults=10&key=\(Self.key)"
     let fetcher = FixtureFetcher([url: (200, "google/search-empty.json")])
     #expect(try await titleSearch(catalogue(fetcher), author: nil, language: nil) == [])
     #expect(fetcher.requests == [url])
@@ -201,9 +201,20 @@ struct GoogleBooksCatalogueTests {
 
   @Test func listEncodesPlusAndAmpersand() async throws {
     let url =
-      "\(Self.volumes)?q=intitle:C%2B%2B%20%26%20Go&printType=books&maxResults=10&key=\(Self.key)"
+      "\(Self.volumes)?q=intitle:%22C%2B%2B%20%26%20Go%22&printType=books&maxResults=10"
+      + "&key=\(Self.key)"
     let fetcher = FixtureFetcher([url: (200, "google/search-empty.json")])
     _ = try await catalogue(fetcher).editions(title: "C++ & Go", author: nil, language: nil)
+    #expect(fetcher.requests == [url])
+  }
+
+  @Test func quotesInTheTitleAndAuthorAreLeftOut() async throws {
+    let url =
+      "\(Self.volumes)?q=intitle:%22Cien%20a%C3%B1os%22+inauthor:%22Gabriel%20Garc%C3%ADa%22"
+      + "&printType=books&maxResults=10&key=\(Self.key)"
+    let fetcher = FixtureFetcher([url: (200, "google/search-empty.json")])
+    _ = try await catalogue(fetcher).editions(
+      title: #"Cien "años""#, author: #""Gabriel" García"#, language: nil)
     #expect(fetcher.requests == [url])
   }
 
