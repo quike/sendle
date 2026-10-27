@@ -21,14 +21,17 @@ private final class ScriptedLookup: Sendable {
   /// A refine of an edition with a gate waits for it to fire.
   private let gates: [FoundEdition: Signal]
   private let images: [URL: Data]
+  /// Likewise an image.
+  private let imageGates: [URL: Signal]
 
   init(
     refined: [FoundEdition: FoundEdition] = [:], gates: [FoundEdition: Signal] = [:],
-    images: [URL: Data] = [:]
+    images: [URL: Data] = [:], imageGates: [URL: Signal] = [:]
   ) {
     self.refined = refined
     self.gates = gates
     self.images = images
+    self.imageGates = imageGates
   }
 
   func lookup(sources: [LookupSource] = [.openLibrary, .appleBooks]) -> DetailsLookup {
@@ -50,6 +53,7 @@ private final class ScriptedLookup: Sendable {
       },
       image: { url, _ in
         self.state.withLock { $0.imageRequests.append(url) }
+        await self.imageGates[url]?.wait()
         return self.images[url]
       })
   }
@@ -77,16 +81,41 @@ struct BookDetailsLookupTests {
   private let openLibrary = FoundEdition.fixture()
   /// Agrees with the sheet in everything it has.
   private let apple = FoundEdition.fixture(.appleBooks, author: "Eva Garcia Saenz", year: nil)
+  private let coverURL: URL
 
+  init() throws {
+    coverURL = try #require(URL(string: "https://covers.example/1-L.jpg"))
+  }
+
+  /// `openLibrary` with a cover.
+  private var withCover: FoundEdition {
+    var edition = openLibrary
+    edition.cover = coverURL
+    return edition
+  }
+
+  /// `library` holds the other books, and `saved` records what saving saves.
   private func sheet(
-    _ book: Book? = nil, fileValues: Edition? = Edition(isbn: "9788408172277", year: "2016"),
-    lookup: DetailsLookup?
+    _ book: Book? = nil, library: [Book] = [],
+    fileValues: Edition? = Edition(isbn: "9788408172277", year: "2016"),
+    saved: Recorder<BookDetailsDraft>? = nil, lookup: DetailsLookup?
   ) -> BookDetailsViewModel {
     let book = book ?? eva
     return BookDetailsViewModel(
-      book: book, library: [book], fileValues: fileValues, authorSort: .surname, lastSend: nil,
-      now: Date(timeIntervalSince1970: 1_800_000_000), zone: .gmt,
-      save: { (_: BookDetailsDraft) async throws(EditDetailsError) in }, lookup: lookup)
+      book: book, library: [book] + library, fileValues: fileValues, authorSort: .surname,
+      lastSend: nil, now: Date(timeIntervalSince1970: 1_800_000_000), zone: .gmt,
+      save: { (draft: BookDetailsDraft) async throws(EditDetailsError) in
+        await saved?.record(draft)
+      }, lookup: lookup)
+  }
+
+  /// Starts a lookup whose first answer is Open Library's `edition`, and waits for it to show.
+  private func lookUp(
+    _ sheet: BookDetailsViewModel, _ script: ScriptedLookup, finding edition: FoundEdition
+  ) async -> Bool {
+    sheet.lookUp()
+    script.send(progress(isbn: [.openLibrary: .found([edition])]))
+    return await eventually { sheet.shownEdition == edition }
   }
 
   private func progress(
@@ -525,6 +554,282 @@ struct BookDetailsLookupTests {
     #expect(throws: EditDetailsError.unreadableImage) {
       try CoverImageFile.make(from: Data("not an image".utf8)).get()
     }
+  }
+
+  @Test func differingFieldsShowFoundValues() async {
+    let script = ScriptedLookup()
+    let sheet = sheet(lookup: script.lookup())
+    sheet.language = "en"
+    #expect(sheet.found(.year) == nil)
+    #expect(await lookUp(sheet, script, finding: openLibrary))
+
+    #expect(sheet.found(.title) == .matches)
+    #expect(sheet.found(.author) == .differs("Eva García Sáenz"))
+    #expect(sheet.found(.year) == .differs("2017"))
+    #expect(sheet.found(.isbn) == .matches)
+    #expect(sheet.found(.language) == .differs("Spanish"))
+    #expect(sheet.found(.sortTitle) == nil && sheet.found(.sortName) == nil)
+    #expect(sheet.differences == 3)
+
+    // A field the source has no value for shows nothing.
+    #expect(await lookUp(sheet, script, finding: .fixture(year: nil)))
+    #expect(sheet.found(.year) == nil)
+  }
+
+  @Test func useFillsAndUndoRestores() async {
+    let script = ScriptedLookup()
+    let sheet = sheet(lookup: script.lookup())
+    sheet.language = "en"
+    #expect(await lookUp(sheet, script, finding: openLibrary))
+
+    sheet.use(.year)
+    #expect(sheet.year == "2017")
+    #expect(sheet.isEdited(.year))
+    #expect(sheet.found(.year) == .used(was: "2016"))
+    sheet.use(.language)
+    #expect(sheet.language == "es")
+    #expect(sheet.found(.language) == .used(was: "English"))
+    #expect(sheet.differences == 3)
+
+    // A matching field has nothing to use.
+    sheet.use(.title)
+    #expect(sheet.found(.title) == .matches)
+
+    sheet.undo(.year)
+    #expect(sheet.year == "2016")
+    #expect(!sheet.isEdited(.year))
+    #expect(sheet.found(.year) == .differs("2017"))
+    sheet.undo(.language)
+    #expect(sheet.language == "en")
+    #expect(sheet.found(.language) == .differs("Spanish"))
+
+    // An emptied field showed what it goes back to.
+    sheet.year = ""
+    sheet.use(.year)
+    #expect(sheet.found(.year) == .used(was: "—"))
+    sheet.undo(.year)
+    #expect(sheet.year == "")
+
+    let untagged = Book.fixture(
+      id: "untagged", title: "Los ritos del agua", author: "Eva Garcia Saenz", language: nil)
+    let other = self.sheet(untagged, lookup: script.lookup())
+    #expect(await lookUp(other, script, finding: openLibrary))
+    other.use(.language)
+    #expect(other.found(.language) == .used(was: "—"))
+    other.undo(.language)
+    #expect(other.language == nil)
+  }
+
+  @Test func typingAfterUseDropsTheUndo() async {
+    let script = ScriptedLookup()
+    let sheet = sheet(lookup: script.lookup())
+    #expect(await lookUp(sheet, script, finding: openLibrary))
+    sheet.use(.author)
+    sheet.use(.year)
+
+    sheet.author = "Someone"
+    #expect(sheet.found(.author) == .differs("Eva García Sáenz"))
+    sheet.undo(.author)
+    #expect(sheet.author == "Someone")
+
+    // Typing the found value back doesn't bring Undo back.
+    sheet.author = "Eva García Sáenz"
+    #expect(sheet.found(.author) == .matches)
+
+    sheet.undo(.year)
+    #expect(sheet.year == "2016")
+    #expect(sheet.author == "Eva García Sáenz")
+  }
+
+  @Test func useAuthorShowsTheWriterBox() async {
+    let script = ScriptedLookup()
+    let others = [
+      Book.fixture(id: "b", author: "Eva García Sáenz"),
+      .fixture(id: "c", author: "Saenz, Eva Garcia"),
+    ]
+    let sheet = sheet(library: others, lookup: script.lookup())
+    #expect(await lookUp(sheet, script, finding: openLibrary))
+    #expect(!sheet.showsWriterCheckbox)
+
+    sheet.use(.author)
+    #expect(sheet.author == "Eva García Sáenz")
+    #expect(sheet.isEdited(.author))
+    #expect(sheet.showsWriterCheckbox)
+    #expect(sheet.changesWriter)
+    #expect(sheet.writerCheckboxTitle == "Also change the 2 other books by \"Eva Garcia Saenz\"")
+  }
+
+  @Test func useAllSkipsTheCover() async throws {
+    let script = ScriptedLookup(images: [coverURL: try png(width: 40, height: 60)])
+    let sheet = sheet(lookup: script.lookup())
+    sheet.language = "en"
+    sheet.lookUp()
+    script.send(
+      progress(isbn: [.openLibrary: .found([withCover]), .appleBooks: .notFound], finished: true))
+    #expect(await eventually { sheet.foundCover != nil })
+
+    sheet.useAll()
+    #expect(sheet.found(.author) == .used(was: "Eva Garcia Saenz"))
+    #expect(sheet.found(.year) == .used(was: "2016"))
+    #expect(sheet.found(.language) == .used(was: "English"))
+    #expect(sheet.found(.title) == .matches && sheet.found(.isbn) == .matches)
+    #expect(!sheet.isCoverEdited)
+    #expect(!sheet.isFoundCoverUsed)
+    // What was used still counts, so the banner doesn't turn into "agrees with everything".
+    #expect(sheet.differences == 3)
+    #expect(sheet.banner == .found(.openLibrary, differences: 3))
+    #expect(sheet.sourceMenu.first?.status == "3 differences")
+  }
+
+  @Test func pdfComparesOnlyTitleAndAuthor() async {
+    let script = ScriptedLookup()
+    let pdf = Book.fixture(
+      id: "pdf", title: "Los ritos del agua", author: "Eva Garcia Saenz", language: "en",
+      format: .pdf)
+    let sheet = sheet(pdf, lookup: script.lookup())
+    #expect(await lookUp(sheet, script, finding: withCover))
+
+    #expect(sheet.found(.author) == .differs("Eva García Sáenz"))
+    #expect(sheet.found(.year) == nil)
+    #expect(sheet.found(.isbn) == nil)
+    #expect(sheet.found(.language) == nil)
+    sheet.useAll()
+    #expect(sheet.found(.author) == .used(was: "Eva Garcia Saenz"))
+    #expect(sheet.year == "2016" && sheet.language == "en")
+    await settle()
+    #expect(sheet.foundCover == nil)
+    #expect(script.imageRequests.isEmpty)
+  }
+
+  @Test func foundCoverIsOfferedNotCounted() async throws {
+    let image = try png(width: 40, height: 60)
+    let script = ScriptedLookup(images: [coverURL: image])
+    let sheet = sheet(lookup: script.lookup())
+    #expect(!sheet.isFoundCoverUsed)
+    #expect(await lookUp(sheet, script, finding: withCover))
+    #expect(await eventually { sheet.foundCover != nil })
+
+    let cover = try #require(sheet.foundCover)
+    #expect(cover.url == coverURL)
+    #expect(cover.sizeText == "40 × 60")
+    #expect(cover.file.data == image)
+    #expect(script.imageRequests == [coverURL])
+    #expect(sheet.differences == 2)
+    #expect(!sheet.isFoundCoverUsed)
+
+    sheet.useFoundCover()
+    #expect(sheet.isCoverEdited)
+    #expect(sheet.isFoundCoverUsed)
+    #expect(sheet.coverPreview == cover.file.preview)
+    #expect(sheet.differences == 2)
+
+    sheet.undoFoundCover()
+    #expect(!sheet.isCoverEdited)
+    #expect(!sheet.isFoundCoverUsed)
+    #expect(sheet.coverPreview == nil)
+
+    // Choosing another image after Use cover leaves nothing to undo.
+    sheet.useFoundCover()
+    sheet.setCover(Data("chosen".utf8))
+    #expect(!sheet.isFoundCoverUsed)
+    sheet.undoFoundCover()
+    #expect(sheet.coverPreview == Data("chosen".utf8))
+
+    // An image that isn't one offers no cover.
+    let broken = try #require(URL(string: "https://covers.example/broken-L.jpg"))
+    var unreadable = openLibrary
+    unreadable.cover = broken
+    let junk = ScriptedLookup(images: [broken: Data("not an image".utf8)])
+    let other = self.sheet(lookup: junk.lookup())
+    #expect(await lookUp(other, junk, finding: unreadable))
+    #expect(await eventually { junk.imageRequests == [broken] })
+    await settle()
+    #expect(other.foundCover == nil)
+  }
+
+  @Test func noCoverRowWhenCoverCantChange() async throws {
+    let script = ScriptedLookup(images: [coverURL: try png(width: 40, height: 60)])
+    let inCloud = Book.fixture(
+      id: "cloud", title: "Los ritos del agua", author: "Eva Garcia Saenz", language: "es",
+      availability: .inCloudOnly)
+    let sheet = sheet(inCloud, lookup: script.lookup())
+    #expect(await lookUp(sheet, script, finding: withCover))
+    await settle()
+
+    #expect(sheet.foundCover == nil)
+    #expect(script.imageRequests.isEmpty)
+    sheet.useFoundCover()
+    #expect(!sheet.isCoverEdited)
+  }
+
+  @Test func aCoverNoLongerShownIsDropped() async throws {
+    let appleCover = try #require(URL(string: "https://covers.example/apple-L.jpg"))
+    let openLibraryGate = Signal()
+    let appleGate = Signal()
+    let script = ScriptedLookup(
+      images: [
+        coverURL: try png(width: 40, height: 60), appleCover: try png(width: 50, height: 75),
+      ],
+      imageGates: [coverURL: openLibraryGate, appleCover: appleGate])
+    let sheet = sheet(lookup: script.lookup())
+    var apple = self.apple
+    apple.cover = appleCover
+    sheet.lookUp()
+    script.send(progress(isbn: [.openLibrary: .found([withCover]), .appleBooks: .found([apple])]))
+    #expect(await eventually { script.imageRequests == [coverURL] })
+
+    // Open Library's cover arrives once Apple Books is shown.
+    sheet.show(.appleBooks)
+    #expect(await eventually { script.imageRequests == [coverURL, appleCover] })
+    await openLibraryGate.fire()
+    await settle()
+    #expect(sheet.foundCover == nil)
+
+    // Apple Books' arrives once the lookup has ended.
+    sheet.cancelLookup()
+    await appleGate.fire()
+    await settle()
+    #expect(sheet.foundCover == nil)
+  }
+
+  @Test func endingTheLookupKeepsWhatWasUsed() async throws {
+    let script = ScriptedLookup(images: [coverURL: try png(width: 40, height: 60)])
+    let sheet = sheet(lookup: script.lookup())
+    #expect(await lookUp(sheet, script, finding: openLibrary))
+    sheet.use(.year)
+
+    // A new lookup finds the used value as the field's own.
+    #expect(await lookUp(sheet, script, finding: withCover))
+    #expect(sheet.year == "2017")
+    #expect(sheet.found(.year) == .matches)
+    #expect(await eventually { sheet.foundCover != nil })
+    sheet.use(.author)
+    sheet.useFoundCover()
+
+    sheet.cancelLookup()
+    #expect(sheet.author == "Eva García Sáenz" && sheet.isCoverEdited)
+    #expect(sheet.found(.author) == nil)
+    #expect(sheet.foundCover == nil && !sheet.isFoundCoverUsed)
+    sheet.undo(.author)
+    sheet.undoFoundCover()
+    #expect(sheet.author == "Eva García Sáenz" && sheet.isCoverEdited)
+  }
+
+  @Test func savingAfterUseSavesTheFoundValues() async throws {
+    let image = try png(width: 40, height: 60)
+    let script = ScriptedLookup(images: [coverURL: image])
+    let saved = Recorder<BookDetailsDraft>()
+    let sheet = sheet(saved: saved, lookup: script.lookup())
+    #expect(await lookUp(sheet, script, finding: withCover))
+    #expect(await eventually { sheet.foundCover != nil })
+    sheet.use(.year)
+    sheet.useFoundCover()
+
+    #expect(await sheet.save())
+    let draft = try #require(await saved.values.last)
+    #expect(draft.year == "2017")
+    #expect(draft.author == "Eva Garcia Saenz")
+    #expect(draft.cover == .replace(image))
   }
 
   private func png(width: Int, height: Int) throws -> Data {

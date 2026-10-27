@@ -4,7 +4,7 @@ import SendleDomain
 import UniformTypeIdentifiers
 
 /// An image file chosen or dropped as a book's cover, checked as saving it checks it.
-package struct CoverImageFile: Sendable {
+package struct CoverImageFile: Equatable, Sendable {
   /// What saving scales and re-encodes.
   package let data: Data
   /// A small copy for the sheet to draw, so a large image isn't decoded while it draws.

@@ -15,11 +15,11 @@ package final class BookDetailsViewModel {
   }
 
   package let book: Book
-  package var title: String
-  package var author: String
-  package var year: String
-  package var isbn: String
-  package var language: String?
+  package var title: String { didSet { forgetUse(of: .title, unlessHolding: title) } }
+  package var author: String { didSet { forgetUse(of: .author, unlessHolding: author) } }
+  package var year: String { didSet { forgetUse(of: .year, unlessHolding: year) } }
+  package var isbn: String { didSet { forgetUse(of: .isbn, unlessHolding: isbn) } }
+  package var language: String? { didSet { forgetUse(of: .language, unlessHolding: language) } }
   /// "Also change the N other books by …".
   package var changesWriter: Bool
   package var isCoverHovered = false
@@ -39,7 +39,8 @@ package final class BookDetailsViewModel {
   private var typedSortName: String?
   /// Set by "Revert all", which leaves the writer's sort name to the checkbox.
   private var revertedAll = false
-  private var cover = CoverChange.keep
+  /// Choosing, dropping or reverting a cover forgets what Use cover replaced.
+  private var cover = CoverChange.keep { didSet { coverUse = nil } }
   private let opened: BookDetailsDraft
   private let otherBooks: Int
   private let fileValues: Edition?
@@ -63,6 +64,15 @@ package final class BookDetailsViewModel {
   @ObservationIgnored private var lookupGeneration = 0
   @ObservationIgnored private var refineTask: Task<Void, Never>?
   @ObservationIgnored private var thumbnailTasks: [URL: Task<Void, Never>] = [:]
+  /// The shown edition's cover, once fetched, when the book's cover can change.
+  package private(set) var foundCover: FoundCover?
+  /// What Use put in each field, and the field's value before, while the field still holds it.
+  private var usedValues: [Field: (was: String?, value: String)] = [:]
+  /// What Use cover replaced, while the sheet still shows the cover it put there.
+  private var coverUse: (was: CoverChange, preview: Data?, url: URL)?
+  /// The cover `foundCover` is, or is being fetched, for.
+  @ObservationIgnored private var coverURL: URL?
+  @ObservationIgnored private var coverTask: Task<Void, Never>?
 
   /// `save` must save the draft for this `book` and `fileValues`.
   package init(
@@ -407,6 +417,7 @@ package final class BookDetailsViewModel {
     chosenSource = source
     forgetPick()
     if case .editions = result { openEditionList() } else { isPickingEdition = false }
+    fetchFoundCover()
   }
 
   package var editionRows: [EditionRow] {
@@ -422,10 +433,12 @@ package final class BookDetailsViewModel {
     isPickingEdition = false
     forgetPick()
     pickedEdition = row.edition
+    fetchFoundCover()
     refineTask = Task { [weak self] in
       let refined = await lookup.refine(row.edition)
       guard let self, !Task.isCancelled else { return }
       pickedEdition = refined
+      fetchFoundCover()
     }
   }
 
@@ -442,9 +455,59 @@ package final class BookDetailsViewModel {
     return edition
   }
 
-  /// The compared fields the shown edition differs in.
+  /// The compared fields the shown edition differs in, and those Use filled; never the cover.
   package var differences: Int {
     shownEdition.map(differences(in:)) ?? 0
+  }
+
+  // MARK: Found details
+
+  /// The bubble under a compared field, if it has one.
+  package func found(_ field: Field) -> FoundValue? {
+    if let used = usedValues[field] { return .used(was: Self.bubbleText(used.was, for: field)) }
+    switch shownEdition.flatMap({ match(field, in: $0) }) {
+    case .differs(let value)?: return .differs(Self.bubbleText(value, for: field))
+    case .matches?: return .matches
+    case nil: return nil
+    }
+  }
+
+  /// Fills a differing field with the found value, as typing or choosing it would.
+  package func use(_ field: Field) {
+    guard usedValues[field] == nil, let edition = shownEdition,
+      case .differs(let value)? = match(field, in: edition)
+    else { return }
+    let was = typedValue(field)
+    fill(field, with: value)
+    usedValues[field] = (was: was, value: value)
+  }
+
+  package func undo(_ field: Field) {
+    guard let used = usedValues.removeValue(forKey: field) else { return }
+    fill(field, with: used.was)
+  }
+
+  /// Uses every differing field, leaving the cover alone.
+  package func useAll() {
+    for field in Field.allCases { use(field) }
+  }
+
+  package var isFoundCoverUsed: Bool {
+    guard let coverUse, let foundCover else { return false }
+    return coverUse.url == foundCover.url
+  }
+
+  package func useFoundCover() {
+    guard let foundCover, !isFoundCoverUsed else { return }
+    let replaced = (was: cover, preview: coverPreview, url: foundCover.url)
+    setCover(foundCover.file.data, preview: foundCover.file.preview)
+    coverUse = replaced
+  }
+
+  package func undoFoundCover() {
+    guard isFoundCoverUsed, let coverUse else { return }
+    cover = coverUse.was
+    coverPreview = coverUse.preview
   }
 
   package var banner: LookupBanner? {
@@ -500,11 +563,60 @@ package final class BookDetailsViewModel {
     }
   }
 
-  /// A PDF compares only its title and author.
   private func differences(in edition: FoundEdition) -> Int {
-    let fields: [LookupField] = isPDF ? [.title, .author] : LookupField.allCases
-    let found = LookupDifferences.compare(edition, with: shownDetails)
-    return fields.filter { if case .differs = found[$0] { true } else { false } }.count
+    Field.allCases.filter { field in
+      guard usedValues[field] == nil else { return true }
+      return if case .differs = match(field, in: edition) { true } else { false }
+    }.count
+  }
+
+  /// How the edition's value for a field compares with what the field shows; nil when it has no
+  /// value for it, or the field isn't compared. A PDF compares only its title and author.
+  private func match(_ field: Field, in edition: FoundEdition) -> FieldMatch? {
+    let compared: LookupField? =
+      switch field {
+      case .title: .title
+      case .author: .author
+      case .year: isPDF ? nil : .year
+      case .isbn: isPDF ? nil : .isbn
+      case .language: isPDF ? nil : .language
+      case .sortTitle, .sortName: nil
+      }
+    return compared.flatMap { LookupDifferences.compare(edition, with: shownDetails)[$0] }
+  }
+
+  /// A compared field's value as typed; a language as its tag.
+  private func typedValue(_ field: Field) -> String? {
+    switch field {
+    case .title: title
+    case .author: author
+    case .year: year
+    case .isbn: isbn
+    case .language: language
+    case .sortTitle, .sortName: nil
+    }
+  }
+
+  private func fill(_ field: Field, with value: String?) {
+    switch field {
+    case .title: title = value ?? ""
+    case .author: author = value ?? ""
+    case .year: year = value ?? ""
+    case .isbn: isbn = value ?? ""
+    case .language:
+      if let value { chooseLanguage(value) } else { revert(.language) }
+    case .sortTitle, .sortName: break
+    }
+  }
+
+  /// Typing over a used value forgets what it replaced.
+  private func forgetUse(of field: Field, unlessHolding value: String?) {
+    if let used = usedValues[field], used.value != value { usedValues[field] = nil }
+  }
+
+  private static func bubbleText(_ value: String?, for field: Field) -> String {
+    guard let value = value?.trimmed, !value.isEmpty else { return "—" }
+    return field == .language ? Formatting.languageName(value) : value
   }
 
   /// What the fields show: the typed value, or what an emptied field shows in its place.
@@ -517,6 +629,7 @@ package final class BookDetailsViewModel {
 
   private func receive(_ progress: LookupProgress) {
     self.progress = progress
+    fetchFoundCover()
     guard !hasOpenedEditionList, progress.method == .titleAndAuthor, let source = shownSource,
       case .editions = progress.result(for: source)
     else { return }
@@ -542,13 +655,29 @@ package final class BookDetailsViewModel {
     }
   }
 
+  /// Fetches the shown edition's cover, dropping a fetch for one no longer shown.
+  private func fetchFoundCover() {
+    let edition = canChangeCover ? shownEdition : nil
+    guard edition?.cover != coverURL else { return }
+    coverTask?.cancel()
+    coverURL = edition?.cover
+    foundCover = nil
+    guard let lookup, let edition, let url = edition.cover else { return }
+    coverTask = Task { [weak self] in
+      guard let data = await lookup.image(url, edition.source), !Task.isCancelled else { return }
+      let file = await Task.detached { CoverImageFile.make(from: data) }.value
+      guard let self, !Task.isCancelled, case .success(let file) = file else { return }
+      foundCover = FoundCover(url: url, file: file)
+    }
+  }
+
   private func forgetPick() {
     refineTask?.cancel()
     refineTask = nil
     pickedEdition = nil
   }
 
-  /// Stops the running lookup and forgets everything about it.
+  /// Stops the running lookup and forgets everything about it, leaving what Use filled.
   private func endLookup() {
     lookupGeneration += 1
     lookupTask?.cancel()
@@ -557,6 +686,12 @@ package final class BookDetailsViewModel {
     for task in thumbnailTasks.values { task.cancel() }
     thumbnailTasks = [:]
     thumbnails = [:]
+    coverTask?.cancel()
+    coverTask = nil
+    coverURL = nil
+    foundCover = nil
+    coverUse = nil
+    usedValues = [:]
     progress = nil
     query = nil
     chosenSource = nil

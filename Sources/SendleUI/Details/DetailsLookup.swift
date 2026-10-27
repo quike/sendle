@@ -60,6 +60,24 @@ package enum LookupBanner: Equatable, Sendable {
   }
 }
 
+/// What the bubble under a field says about the shown edition's value, as the bubble shows it: a
+/// language by name, and an empty value as "—".
+package enum FoundValue: Equatable, Sendable {
+  case differs(String)
+  case matches
+  /// Use filled the field; Undo puts back what it held.
+  case used(was: String)
+}
+
+/// The shown edition's cover, offered in place of the book's.
+package struct FoundCover: Equatable, Sendable {
+  package let url: URL
+  package let file: CoverImageFile
+
+  /// "1600 × 2400".
+  package var sizeText: String { "\(file.pixelWidth) × \(file.pixelHeight)" }
+}
+
 /// One edition in the list the user picks theirs from.
 package struct EditionRow: Identifiable, Equatable, Sendable {
   /// The edition's place in the list.
