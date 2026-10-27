@@ -190,6 +190,38 @@ struct LookUpBookTests {
     #expect(log.entries().isEmpty)
   }
 
+  @Test func aSourceSlowerThanTheDeadlineTimesOut() async {
+    let open = FakeCatalogue(
+      .openLibrary, byISBN: [isbn: .success(.fixture())], byTitle: .success([.fixture()]),
+      gate: Signal())
+    let use = LookUpBook(
+      catalogues: [open], settings: InMemorySettingsStore(), deadline: .milliseconds(50))
+
+    let byISBN = await collect(use.lookUp(query)).last
+    #expect(byISBN?.isbnAnswers[.openLibrary] == .failed(.timedOut))
+    #expect(byISBN?.isFinished == true)
+
+    let noISBN = LookupQuery(title: query.title, author: query.author, isbn: nil, language: "es")
+    let byTitle = await collect(use.lookUp(noISBN)).last
+    #expect(byTitle?.titleAnswers[.openLibrary] == .failed(.timedOut))
+    #expect(byTitle?.isFinished == true)
+
+    #expect(open.cancelledRequests == ["isbn:\(isbn)", titleRequest])
+  }
+
+  @Test func aRefineSlowerThanTheDeadlineKeepsThePickedEdition() async {
+    let open = FakeCatalogue(.openLibrary, byISBN: [isbn: .success(.fixture())], gate: Signal())
+    let use = LookUpBook(
+      catalogues: [open], settings: InMemorySettingsStore(), deadline: .milliseconds(50))
+    let picked = FoundEdition.fixture(year: nil)
+
+    #expect(await use.refine(picked) == picked)
+    #expect(await use.refine(picked) == picked)
+
+    #expect(open.requests == ["isbn:\(isbn)", "isbn:\(isbn)"])
+    #expect(open.cancelledRequests == ["isbn:\(isbn)", "isbn:\(isbn)"])
+  }
+
   @Test func refineAsksByISBN() async {
     let open = FakeCatalogue(.openLibrary, byISBN: [isbn: .success(.fixture())])
     let use = LookUpBook(catalogues: [open], settings: InMemorySettingsStore())

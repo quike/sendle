@@ -21,6 +21,12 @@ struct URLSessionFetcherTests {
     return try #require(URL(string: url))
   }
 
+  @Test func aRequestHasTenSecondsInAll() {
+    let configuration = fetcher().session.configuration
+    #expect(configuration.timeoutIntervalForRequest == 10)
+    #expect(configuration.timeoutIntervalForResource == 10)
+  }
+
   @Test func urlErrorsMapToLookupErrors() {
     for code: URLError.Code in [
       .notConnectedToInternet, .networkConnectionLost, .dataNotAllowed, .cannotFindHost,

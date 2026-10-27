@@ -5,16 +5,19 @@ public struct LookUpBook: Sendable {
   private let catalogues: [LookupSource: any BookCatalogue]
   private let settings: any SettingsStore
   private let log: any ActivityLog
+  private let deadline: Duration
   private let cache = AnswerCache()
 
+  /// A catalogue that takes longer than `deadline` to answer a question has timed out.
   public init(
     catalogues: [any BookCatalogue], settings: any SettingsStore,
-    log: any ActivityLog = NoActivityLog()
+    log: any ActivityLog = NoActivityLog(), deadline: Duration = .seconds(10)
   ) {
     self.catalogues = Dictionary(
       catalogues.map { ($0.source, $0) }, uniquingKeysWith: { first, _ in first })
     self.settings = settings
     self.log = log
+    self.deadline = deadline
   }
 
   /// The catalogues' sources, in order.
@@ -124,15 +127,43 @@ public struct LookUpBook: Sendable {
     for question: Question, from catalogue: any BookCatalogue
   ) async throws(LookupError) -> [FoundEdition] {
     if let kept = await cache.editions(for: question, from: catalogue.source) { return kept }
-    let found: [FoundEdition]
-    switch question {
-    case .isbn(let isbn):
-      found = try await catalogue.edition(isbn: isbn).map { [$0] } ?? []
-    case .title(let title, let author, let language):
-      found = try await catalogue.editions(title: title, author: author, language: language)
+    let found = try await withinDeadline { () async throws(LookupError) -> [FoundEdition] in
+      switch question {
+      case .isbn(let isbn):
+        try await catalogue.edition(isbn: isbn).map { [$0] } ?? []
+      case .title(let title, let author, let language):
+        try await catalogue.editions(title: title, author: author, language: language)
+      }
     }
     await cache.keep(found, for: question, from: catalogue.source)
     return found
+  }
+
+  /// What `asking` answers, or `.timedOut` once the deadline passes, which cancels it.
+  private func withinDeadline(
+    _ asking: @escaping @Sendable () async throws(LookupError) -> [FoundEdition]
+  ) async throws(LookupError) -> [FoundEdition] {
+    let deadline = deadline
+    let answer = await withTaskGroup(of: Result<[FoundEdition], LookupError>?.self) { group in
+      group.addTask {
+        do throws(LookupError) {
+          return .success(try await asking())
+        } catch {
+          return .failure(error)
+        }
+      }
+      group.addTask {
+        // Cancelled, the clock leaves the answer to the catalogue.
+        guard (try? await Task.sleep(for: deadline)) != nil else { return nil }
+        return .failure(.timedOut)
+      }
+      defer { group.cancelAll() }
+      for await answer in group {
+        if let answer { return answer }
+      }
+      return .failure(.timedOut)
+    }
+    return try answer.get()
   }
 
   private func record(_ reply: SourceAnswer, from source: LookupSource, by method: LookupMethod) {

@@ -18,7 +18,7 @@ public protocol HTTPFetching: Sendable {
 
 /// Reaches the catalogues over HTTPS with Sendle's User-Agent and nothing kept between requests.
 public struct URLSessionFetcher: HTTPFetching {
-  private let session: URLSession
+  package let session: URLSession
   private let userAgent: String
   private let log: any ActivityLog
 
@@ -28,6 +28,7 @@ public struct URLSessionFetcher: HTTPFetching {
 
   package init(configuration: URLSessionConfiguration, userAgent: String, log: any ActivityLog) {
     configuration.timeoutIntervalForRequest = 10
+    configuration.timeoutIntervalForResource = 10
     session = URLSession(configuration: configuration)
     self.userAgent = userAgent
     self.log = log
