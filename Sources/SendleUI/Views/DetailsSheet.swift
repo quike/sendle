@@ -13,7 +13,8 @@ struct DetailsDim: View {
   }
 }
 
-/// A book's details, in a sheet that rises over the bottom of the library.
+/// A book's details, in a sheet that rises over the bottom of the library. A lookup's banner
+/// tops it, and its edition list takes the fields' place while the user picks one.
 struct DetailsSheet: View {
   /// How much of the card's height the sheet covers.
   static let share: CGFloat = 0.7
@@ -23,12 +24,30 @@ struct DetailsSheet: View {
 
   var body: some View {
     DetailsSheetFrame(panel: panel, label: "Edit details") {
-      DetailsFactsRow(facts: details.facts) {
-        DetailsCover(panel: panel, details: details)
+      if let banner = details.banner {
+        LookupBannerView(panel: panel, details: details, banner: banner)
+          // Clear of the edited mark in the corner.
+          .padding(.top, 4)
+          .padding(.bottom, 10)
       }
-      DetailsFields(details: details)
+      if details.isPickingEdition {
+        EditionList(details: details)
+      } else {
+        if let cover = details.foundCover {
+          FoundCoverRow(panel: panel, details: details, cover: cover)
+            .padding(.bottom, 10)
+        }
+        DetailsFactsRow(facts: details.facts) {
+          DetailsCover(panel: panel, details: details)
+        }
+        DetailsFields(details: details)
+      }
     } actions: {
-      DetailsActions(panel: panel, details: details)
+      if details.isPickingEdition {
+        EditionListActions(details: details)
+      } else {
+        DetailsActions(panel: panel, details: details)
+      }
     } badge: {
       EditedMark()
     }
@@ -80,7 +99,7 @@ struct DetailsSheetFrame<Content: View, Actions: View, Badge: View>: View {
   }
 }
 
-/// The error of a failed save above Revert all, Cancel and Save.
+/// The error of a failed save above Revert all, 🌐, Cancel and Save.
 private struct DetailsActions: View {
   let panel: PanelModel
   let details: BookDetailsViewModel
@@ -99,6 +118,16 @@ private struct DetailsActions: View {
         .buttonStyle(CircleButtonStyle())
         .help("Revert all to Books")
         .accessibilityLabel("Revert all to Books")
+        if details.canLookUp {
+          Button {
+            details.lookUp()
+          } label: {
+            Image(systemName: "globe")
+          }
+          .buttonStyle(CircleButtonStyle())
+          .help("Look up online (⌘L)")
+          .accessibilityLabel("Look up online")
+        }
         Spacer(minLength: 0)
         Button {
           panel.closeDetails()
