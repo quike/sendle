@@ -429,15 +429,22 @@ struct PanelDetailsTests {
     #expect(harness.system.closedPanel == 0)
   }
 
-  @Test func returnWhileChoosingAnEditionDoesNothing() async throws {
-    let panel = await launched(catalogues: [listing()])
+  @Test func returnWhileChoosingAnEditionRetries() async throws {
+    let catalogue = listing()
+    let panel = await launched(catalogues: [catalogue])
     await panel.openDetails(a)
     let details = try #require(panel.bookDetails)
     details.title = "Typee"
     #expect(panel.handle(commandL))
     #expect(await eventually { details.isPickingEdition })
+    let rows = details.editionRows
+    details.searchTitle = "Omoo"
+
+    #expect(panel.handle(KeyInput(.returnKey, isEditingText: true, isRepeat: true)))
+    #expect(!rows.isEmpty && details.editionRows == rows)
 
     #expect(panel.handle(KeyInput(.returnKey, isEditingText: true)))
+    #expect(await eventually { catalogue.requests.last == "title:Omoo|Herman Melville|en" })
     await panel.library.reload()
 
     #expect(panel.bookDetails != nil)

@@ -11,6 +11,7 @@ import os
 private final class ScriptedLookup: Sendable {
   private struct State {
     var queries: [LookupQuery] = []
+    var refreshes: [Bool] = []
     var streams: [AsyncStream<LookupProgress>.Continuation] = []
     var ended: Set<Int> = []
     var imageRequests: [URL] = []
@@ -37,10 +38,11 @@ private final class ScriptedLookup: Sendable {
   func lookup(sources: [LookupSource] = [.openLibrary, .appleBooks]) -> DetailsLookup {
     DetailsLookup(
       sources: sources,
-      search: { query in
+      search: { query, refreshing in
         let (stream, continuation) = AsyncStream.makeStream(of: LookupProgress.self)
         let index = self.state.withLock { state in
           state.queries.append(query)
+          state.refreshes.append(refreshing)
           state.streams.append(continuation)
           return state.streams.count - 1
         }
@@ -59,6 +61,8 @@ private final class ScriptedLookup: Sendable {
   }
 
   var queries: [LookupQuery] { state.withLock { $0.queries } }
+  /// Whether each search was to skip the cache.
+  var refreshes: [Bool] { state.withLock { $0.refreshes } }
   var imageRequests: [URL] { state.withLock { $0.imageRequests } }
 
   /// Whether the `search`th search's stream has ended, as cancelling it ends it.
@@ -138,6 +142,19 @@ struct BookDetailsLookupTests {
     var third = FoundEdition.fixture(title: "The Water Rituals", year: "2021", language: "en")
     third.thumbnail = URL(string: "https://covers.example/3-S.jpg")
     return [first, second, third]
+  }
+
+  /// Starts a lookup whose ISBN no source knows and whose search by title lists `editions` at
+  /// Open Library, and waits for the list.
+  private func openEditionList(
+    _ sheet: BookDetailsViewModel, _ script: ScriptedLookup
+  ) async -> Bool {
+    sheet.lookUp()
+    script.send(
+      progress(
+        .titleAndAuthor, isbn: [.openLibrary: .notFound, .appleBooks: .notFound],
+        title: [.openLibrary: .found(editions)]))
+    return await eventually { sheet.isPickingEdition }
   }
 
   /// Lets tasks already waiting for the main actor run, for checks that something didn't happen.
@@ -374,6 +391,107 @@ struct BookDetailsLookupTests {
       year: picked.year, isbn: picked.isbn, language: "es", publisher: "Booket", cover: coverURL,
       thumbnail: picked.thumbnail)
     #expect(await eventually { sheet.shownEdition == merged })
+  }
+
+  // MARK: Retry
+
+  @Test func searchWordsStartFromTheQuery() {
+    let script = ScriptedLookup()
+    let sheet = sheet(lookup: script.lookup())
+    sheet.title = " Typee "
+    sheet.author = "Herman Melville  "
+
+    sheet.lookUp()
+
+    #expect(sheet.searchTitle == "Typee")
+    #expect(sheet.searchAuthor == "Herman Melville")
+  }
+
+  @Test func retrySearchesTheTypedWordsAgain() async throws {
+    let script = ScriptedLookup()
+    let sheet = sheet(lookup: script.lookup())
+    #expect(await openEditionList(sheet, script))
+
+    sheet.searchTitle = " Los ritos "
+    sheet.searchAuthor = "Eva García Sáenz "
+    sheet.retry()
+
+    #expect(
+      script.queries.last
+        == LookupQuery(title: "Los ritos", author: "Eva García Sáenz", isbn: nil, language: "es"))
+    #expect(script.refreshes == [false, true])
+    #expect(sheet.searchTitle == " Los ritos " && sheet.searchAuthor == "Eva García Sáenz ")
+    #expect(sheet.isPickingEdition)
+    #expect(sheet.editionRows.isEmpty)
+    #expect(sheet.banner == .searching(.titleAndAuthor))
+    #expect(await eventually { script.hasEnded(0) })
+
+    let thumbnail = try #require(URL(string: "https://covers.example/9-S.jpg"))
+    var found = FoundEdition.fixture(title: "Los ritos del agua (Booket)", year: "2020")
+    found.thumbnail = thumbnail
+    script.send(progress(.titleAndAuthor, title: [.openLibrary: .found([found])]))
+    #expect(await eventually { sheet.editionRows.map(\.edition) == [found] })
+    #expect(sheet.isPickingEdition)
+    #expect(await eventually { script.imageRequests.contains(thumbnail) })
+  }
+
+  @Test func retryNeverTouchesTheBook() async {
+    let script = ScriptedLookup()
+    let sheet = sheet(lookup: script.lookup())
+    #expect(await openEditionList(sheet, script))
+
+    sheet.searchTitle = "Typee"
+    sheet.searchAuthor = "Herman Melville"
+    sheet.retry()
+    script.send(progress(.titleAndAuthor, title: [.openLibrary: .found(editions)]))
+    #expect(await eventually { !sheet.editionRows.isEmpty })
+
+    #expect(sheet.title == "Los ritos del agua" && sheet.author == "Eva Garcia Saenz")
+    #expect(sheet.year == "2016" && sheet.isbn == isbn && sheet.language == "es")
+  }
+
+  @Test func aRetryThatFindsNothingStaysOnThePage() async {
+    let script = ScriptedLookup()
+    let sheet = sheet(lookup: script.lookup())
+    #expect(await openEditionList(sheet, script))
+
+    sheet.retry()
+    let nothing = progress(
+      .titleAndAuthor, title: [.openLibrary: .found([]), .appleBooks: .notFound], finished: true)
+    script.send(nothing)
+    #expect(await eventually { sheet.progress == nothing })
+
+    #expect(sheet.isPickingEdition)
+    #expect(sheet.editionRows.isEmpty)
+    #expect(sheet.canRetry)
+  }
+
+  @Test func noRetryWithoutATitle() async {
+    let script = ScriptedLookup()
+    let sheet = sheet(lookup: script.lookup())
+    #expect(!sheet.canRetry)
+    #expect(await openEditionList(sheet, script))
+    #expect(sheet.canRetry)
+
+    sheet.searchTitle = "  "
+    sheet.retry()
+
+    #expect(!sheet.canRetry)
+    #expect(script.queries.count == 1)
+    #expect(sheet.editionRows.map(\.edition) == editions)
+  }
+
+  @Test func retryKeepsTheISBNWording() async {
+    let script = ScriptedLookup()
+    let sheet = sheet(lookup: script.lookup())
+    #expect(await openEditionList(sheet, script))
+    #expect(sheet.banner == .editions(.openLibrary, hadISBN: true))
+
+    sheet.retry()
+    script.send(progress(.titleAndAuthor, title: [.openLibrary: .found(editions)]))
+    #expect(await eventually { !sheet.editionRows.isEmpty })
+
+    #expect(sheet.banner == .editions(.openLibrary, hadISBN: true))
   }
 
   @Test func sourceMenuStatuses() async {

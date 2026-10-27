@@ -5,14 +5,14 @@ import SendleDomain
 package struct DetailsLookup: Sendable {
   /// The enabled sources, in order.
   package let sources: [LookupSource]
-  /// Ending the stream stops the lookup.
-  package let search: @Sendable (LookupQuery) -> AsyncStream<LookupProgress>
+  /// Refreshing skips the answers kept from earlier lookups. Ending the stream stops the lookup.
+  package let search: @Sendable (LookupQuery, _ refreshing: Bool) -> AsyncStream<LookupProgress>
   package let refine: @Sendable (FoundEdition) async -> FoundEdition
   package let image: @Sendable (URL, LookupSource) async -> Data?
 
   package init(
     sources: [LookupSource],
-    search: @escaping @Sendable (LookupQuery) -> AsyncStream<LookupProgress>,
+    search: @escaping @Sendable (LookupQuery, _ refreshing: Bool) -> AsyncStream<LookupProgress>,
     refine: @escaping @Sendable (FoundEdition) async -> FoundEdition,
     image: @escaping @Sendable (URL, LookupSource) async -> Data?
   ) {

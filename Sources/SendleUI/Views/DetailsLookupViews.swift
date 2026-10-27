@@ -262,10 +262,13 @@ struct FoundCoverRow: View {
   }
 }
 
-/// The editions a search by title and author found at the shown source, to pick the book's from.
+/// The editions a search by title and author found at the shown source, to pick the book's from,
+/// under the words it searched, which Retry searches again.
 struct EditionList: View {
+  private static let authorWidth: CGFloat = 150
+
   let panel: PanelModel
-  let details: BookDetailsViewModel
+  @Bindable var details: BookDetailsViewModel
 
   var body: some View {
     VStack(alignment: .leading, spacing: 0) {
@@ -278,7 +281,23 @@ struct EditionList: View {
       }
       FieldNote(text: "The date and cover come from the edition you pick.")
         .padding(.top, 2)
-      VStack(spacing: 6) {
+      HStack(spacing: 8) {
+        EditionSearchField(label: "Search title", prompt: "Title", text: $details.searchTitle)
+        EditionSearchField(label: "Search author", prompt: "Author", text: $details.searchAuthor)
+          .frame(width: Self.authorWidth)
+      }
+      .padding(.top, 10)
+      VStack(alignment: .leading, spacing: 6) {
+        if details.editionRows.isEmpty {
+          if details.progress?.isFinished ?? true {
+            FieldNote(text: "No editions found. Try other words, then Retry.")
+          } else {
+            HStack(spacing: 6) {
+              ProgressView().controlSize(.small)
+              Text("Searching…").font(.system(size: 11.5)).foregroundStyle(Theme.muted)
+            }
+          }
+        }
         ForEach(details.editionRows) { row in
           EditionRowView(
             panel: panel, row: row,
@@ -292,6 +311,22 @@ struct EditionList: View {
       .id(details.shownSource)
       .padding(.top, 10)
     }
+  }
+}
+
+/// One of the edition list's search words.
+private struct EditionSearchField: View {
+  let label: String
+  let prompt: String
+  @Binding var text: String
+
+  var body: some View {
+    TextField(label, text: $text, prompt: Text(prompt).foregroundStyle(Theme.faint))
+      .labelsHidden()
+      .textFieldStyle(.plain)
+      .font(.system(size: 12.5))
+      .accessibilityLabel(label)
+      .detailsField(isEdited: false)
   }
 }
 
@@ -345,7 +380,7 @@ private struct EditionRowView: View {
   }
 }
 
-/// "None of these" and Skip, which both go back to the sheet as it was.
+/// "None of these" and Skip, which both go back to the sheet as it was, and Retry.
 struct EditionListActions: View {
   let details: BookDetailsViewModel
 
@@ -356,6 +391,14 @@ struct EditionListActions: View {
         .font(.system(size: 12, weight: .semibold))
         .foregroundStyle(Theme.link)
       Spacer(minLength: 0)
+      Button {
+        details.retry()
+      } label: {
+        KeyHintLabel(title: "Retry", key: "↩")
+      }
+      .buttonStyle(SecondaryButtonStyle())
+      .disabled(!details.canRetry)
+      .accessibilityLabel("Retry")
       Button {
         details.skipEditionList()
       } label: {

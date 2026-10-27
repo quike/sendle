@@ -52,7 +52,11 @@ package final class BookDetailsViewModel {
   package private(set) var isPickingEdition = false
   /// Each row's thumbnail, by URL, once it has loaded.
   package private(set) var thumbnails: [URL: Data] = [:]
-  private var query: LookupQuery?
+  /// The edition list's search words, which Retry searches; typing them never changes the book.
+  package var searchTitle = ""
+  package var searchAuthor = ""
+  /// Whether the book's own lookup had an ISBN; a retry searches without one.
+  private var hadISBN = false
   /// The source chosen from the ▾ menu.
   private var chosenSource: LookupSource?
   /// The edition picked from the list, refined once its source answers.
@@ -379,22 +383,26 @@ package final class BookDetailsViewModel {
 
   /// Looks up what the fields show, in place of any lookup still running; edits stay.
   package func lookUp() {
-    guard let lookup, canLookUp else { return }
-    endLookup()
+    guard canLookUp else { return }
     let shown = shownDetails
     let query = LookupQuery(
       title: shown.title, author: shown.author, isbn: shown.isbn, language: shown.language)
-    self.query = query
-    progress = LookupProgress(
-      sources: lookup.sources, method: query.isbn == nil ? .titleAndAuthor : .isbn)
-    let generation = lookupGeneration
-    let stream = lookup.search(query)
-    lookupTask = Task { [weak self] in
-      for await update in stream {
-        guard let self, lookupGeneration == generation else { return }
-        receive(update)
-      }
-    }
+    start(query, refreshing: false)
+    searchTitle = query.title
+    searchAuthor = query.author ?? ""
+    hadISBN = query.isbn != nil
+  }
+
+  package var canRetry: Bool { isPickingEdition && !searchTitle.trimmed.isEmpty }
+
+  /// Searches every source again by the search words, in place of the running lookup, and stays
+  /// on the edition list while the answers come in.
+  package func retry() {
+    guard canRetry else { return }
+    let query = LookupQuery(
+      title: searchTitle, author: searchAuthor, isbn: nil, language: shownLanguage)
+    start(query, refreshing: true)
+    isPickingEdition = true
   }
 
   /// Ends the lookup and forgets what it found; the fields stay as they are.
@@ -518,7 +526,7 @@ package final class BookDetailsViewModel {
         ?? .found(edition.source, differences: differences)
     }
     if let source = shownSource, case .editions = progress.result(for: source) {
-      return .editions(source, hadISBN: query?.isbn != nil)
+      return .editions(source, hadISBN: hadISBN)
     }
     guard progress.isFinished else { return .searching(progress.method) }
     var failures: [LookupSource: LookupError] = [:]
@@ -637,6 +645,21 @@ package final class BookDetailsViewModel {
       isbn: isbn.trimmed.isEmpty ? placeholder(.isbn) : isbn.trimmed, language: shownLanguage)
   }
 
+  private func start(_ query: LookupQuery, refreshing: Bool) {
+    guard let lookup else { return }
+    endLookup()
+    progress = LookupProgress(
+      sources: lookup.sources, method: query.isbn == nil ? .titleAndAuthor : .isbn)
+    let generation = lookupGeneration
+    let stream = lookup.search(query, refreshing)
+    lookupTask = Task { [weak self] in
+      for await update in stream {
+        guard let self, lookupGeneration == generation else { return }
+        receive(update)
+      }
+    }
+  }
+
   private func receive(_ progress: LookupProgress) {
     self.progress = progress
     fetchFoundCover()
@@ -715,7 +738,6 @@ package final class BookDetailsViewModel {
     coverUse = nil
     usedValues = [:]
     progress = nil
-    query = nil
     chosenSource = nil
     isPickingEdition = false
     hasOpenedEditionList = false

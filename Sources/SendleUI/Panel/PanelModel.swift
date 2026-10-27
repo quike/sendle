@@ -594,7 +594,8 @@ public final class PanelModel {
     lookUp.map { lookUp in
       DetailsLookup(
         sources: lookUp.available.filter(settings.lookupSources.contains),
-        search: { lookUp.lookUp($0) }, refine: lookUp.refine, image: lookUp.image(at:from:))
+        search: lookUp.lookUp(_:refreshing:), refine: lookUp.refine,
+        image: lookUp.image(at:from:))
     }
   }
 
@@ -958,7 +959,8 @@ public final class PanelModel {
 
   /// True when the key was used, so the shell swallows it. A held Return settles no duplicate
   /// the user hasn't seen, saves no details twice, deletes nothing it didn't ask about, and sends
-  /// nothing after the sheet it saved; a held ⌘L looks up once.
+  /// nothing after the sheet it saved; a held ⌘L looks up once, and a held Return on the edition
+  /// list searches once.
   public func handle(_ key: KeyInput) -> Bool {
     guard let command = key.panelCommand else { return false }
     if duplicateReview != nil {
@@ -972,8 +974,11 @@ public final class PanelModel {
     if let details = bookDetails {
       switch command {
       case .escape: escape()
+      case .confirm where key.isRepeat: break
       case .confirm:
-        if !key.isRepeat, canSaveDetails, !details.isPickingEdition {
+        if details.isPickingEdition {
+          details.retry()
+        } else if canSaveDetails {
           Task { await saveDetails() }
         }
       case .lookUp: if !key.isRepeat { details.lookUp() }
