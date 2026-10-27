@@ -67,7 +67,7 @@ Notarizing needs a paid Apple Developer ID. Sendle is signed ad hoc instead, so 
 1. Quit Sendle from its menu (right-click the book in the menu bar).
 2. Delete Sendle from Applications.
 3. Delete `~/Library/Application Support/Sendle` and `~/Library/Caches/Sendle`.
-4. In Keychain Access, delete the password named `io.github.quike.Sendle.smtp`.
+4. In Keychain Access, delete the password named `io.github.quike.Sendle.smtp`, and the one named `io.github.quike.Sendle.google-books` if you added a Google Books key.
 5. Remove Sendle from **System Settings › Privacy & Security › Full Disk Access**, and from **General › Login Items** if you turned on Launch at login.
 
 ## Requirements
@@ -158,6 +158,7 @@ While books are sending, the menu bar shows `↑ 2/3`, and you can close the pan
 - **Kindle:** your Kindle email addresses, one of them active.
 - **Sender:** the account books are sent from, with Send test.
 - **USB:** where boko is.
+- **Online lookup:** the catalogues 🌐 asks (Open Library and Apple Books, and Google Books with your own free API key).
 
 ### Editing a book's details
 
@@ -167,9 +168,11 @@ While books are sending, the menu bar shows `↑ 2/3`, and you can close the pan
 
 Edits change only the copy Sendle sends; Books' library and files stay untouched. Each field shows what changed and can go back to the original with ↺. Hovering a book also shows a pencil beside the paper plane that opens the sheet. A pencil on the cover marks an edited book: send it again to update your Kindle. Renaming an author can update all their books at once. PDFs take a title and author only, which go into the file name.
 
+Press 🌐 in the sheet, or ⌘L, to look the book up online. Sendle searches by the ISBN in the sheet, or by title and author when there isn't a valid one, and shows each detail that differs in a blue bubble under its field. **Use** fills the field and **Undo** puts back what it held; **Use all** fills every bubble. When the edition has a cover, a row above the title offers it with **Use cover**. The ▾ beside a source's name switches to another source. A book with no ISBN, or one no source knows, gets a list of editions: pick yours, or choose **None of these** or **Skip** to leave the book as it is. Nothing changes until you press **Save**.
+
 ## Privacy
 
-Sendle runs on your Mac and talks to one server: your own email account's, when you send a book by email. It reads the Books library and never writes to it. [Privacy](docs/PRIVACY.md) lists everything it keeps and where.
+Sendle runs on your Mac. It talks to your own email account's server when you send a book by email, and to the lookup sources you have on only when you press 🌐. It reads the Books library and never writes to it. [Privacy](docs/PRIVACY.md) lists everything it keeps and where.
 
 ## Limitations
 
