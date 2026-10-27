@@ -31,7 +31,7 @@ struct DetailsSheet: View {
           .padding(.bottom, 10)
       }
       if details.isPickingEdition {
-        EditionList(details: details)
+        EditionList(panel: panel, details: details)
       } else {
         if let cover = details.foundCover {
           FoundCoverRow(panel: panel, details: details, cover: cover)

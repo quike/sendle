@@ -88,11 +88,14 @@ package struct EditionRow: Identifiable, Equatable, Sendable {
   package let detail: String
   /// Publisher and ISBN, only to tell editions apart; never for Apple Books.
   package let identifiers: String?
+  /// The edition's page, for Google Books, whose terms want each result to link to it.
+  package let link: URL?
 
   package init(id: Int, edition: FoundEdition) {
     self.id = id
     self.edition = edition
     title = edition.title ?? ""
+    link = edition.source == .googleBooks ? edition.link : nil
     if edition.source == .appleBooks {
       detail = Self.joined([edition.author, "Apple Books ebook"])
       identifiers = nil

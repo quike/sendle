@@ -530,6 +530,16 @@ struct BookDetailsLookupTests {
     #expect(bare.identifiers == nil)
   }
 
+  @Test func onlyGoogleRowsLinkToTheirPage() throws {
+    let page = try #require(URL(string: "https://books.google.com/books?id=a"))
+    var google = FoundEdition.fixture(.googleBooks)
+    google.link = page
+    var openLibrary = FoundEdition.fixture()
+    openLibrary.link = page
+    #expect(EditionRow(id: 0, edition: google).link == page)
+    #expect(EditionRow(id: 1, edition: openLibrary).link == nil)
+  }
+
   @Test func noSourcesNoLookup() {
     let script = ScriptedLookup()
     #expect(!self.sheet(lookup: nil).canLookUp)

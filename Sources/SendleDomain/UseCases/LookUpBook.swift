@@ -105,7 +105,7 @@ public struct LookUpBook: Sendable {
     }
   }
 
-  /// By ISBN the edition, by title the editions ranked.
+  /// By ISBN the edition, by title the editions ranked; Google Books' terms keep its own order.
   private func answer(
     to question: Question, from catalogue: any BookCatalogue
   ) async -> SourceAnswer {
@@ -114,6 +114,8 @@ public struct LookUpBook: Sendable {
       switch question {
       case .isbn:
         return found.first.map { .found([$0]) } ?? .notFound
+      case .title where catalogue.source == .googleBooks:
+        return .found(Array(found.prefix(EditionOrder.limit)))
       case .title(_, _, let language):
         return .found(EditionOrder.ranked(found, language: language))
       }

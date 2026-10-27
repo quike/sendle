@@ -1,5 +1,6 @@
 public enum EditionOrder {
-  private static let limit = 10
+  /// The most editions a list shows.
+  public static let limit = 10
 
   /// The first ten editions worth showing: one per ISBN, the book's language first, then those
   /// with an ISBN, then the newest.

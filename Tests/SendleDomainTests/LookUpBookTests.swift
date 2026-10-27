@@ -112,6 +112,19 @@ struct LookUpBookTests {
     #expect(open.requests == ["isbn:\(isbn)", titleRequest])
   }
 
+  @Test func googleBooksListKeepsItsOwnOrder() async {
+    let listed = (0..<12).map {
+      FoundEdition.fixture(.googleBooks, year: "\(2000 + $0)", isbn: nil)
+    }
+    let google = FakeCatalogue(.googleBooks, byTitle: .success(listed))
+    let use = LookUpBook(
+      catalogues: [google],
+      settings: InMemorySettingsStore(AppSettings(lookupSources: [.googleBooks])))
+    let noISBN = LookupQuery(title: query.title, author: query.author, isbn: nil, language: "es")
+    let last = await collect(use.lookUp(noISBN)).last
+    #expect(last?.titleAnswers[.googleBooks] == .found(Array(listed.prefix(10))))
+  }
+
   @Test func everySourceFailingStopsAtTheISBN() async {
     let open = FakeCatalogue(.openLibrary, byISBN: [isbn: .failure(.offline)])
     let apple = FakeCatalogue(.appleBooks, byISBN: [isbn: .failure(.offline)])

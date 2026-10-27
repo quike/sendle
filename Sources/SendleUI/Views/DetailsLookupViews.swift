@@ -14,17 +14,14 @@ struct LookupBannerView: View {
       Text("🌐").accessibilityHidden(true)
       switch banner {
       case .found(let source, let differences):
-        HStack(spacing: 5) {
-          sourceMenu(source)
-          if source == .googleBooks, let link = details.shownEdition?.link {
-            Button("↗") { Task { await panel.perform(.openURL(link)) } }
-              .buttonStyle(.plain)
-              .fontWeight(.semibold)
-              .foregroundStyle(Theme.link)
-              .help("Open on Google Books")
-              .accessibilityLabel("Open on Google Books")
+        credited {
+          HStack(spacing: 5) {
+            sourceMenu(source)
+            if source == .googleBooks, let link = details.shownEdition?.link {
+              GoogleLink(link: link, panel: panel)
+            }
+            tally(differences)
           }
-          tally(differences)
         }
         Spacer(minLength: 4)
         if differences > 0 {
@@ -39,7 +36,10 @@ struct LookupBannerView: View {
         Text(banner.text)
         Spacer(minLength: 4)
         ProgressView().controlSize(.small)
-      case .allAgree, .nothingFound, .offline, .unreachable:
+      case .allAgree:
+        credited { Text(banner.text).fixedSize(horizontal: false, vertical: true) }
+        Spacer(minLength: 0)
+      case .nothingFound, .offline, .unreachable:
         Text(banner.text).fixedSize(horizontal: false, vertical: true)
         Spacer(minLength: 0)
       }
@@ -51,6 +51,14 @@ struct LookupBannerView: View {
     .background(Theme.accent.opacity(0.1), in: shape)
     .overlay(shape.strokeBorder(Theme.accent.opacity(0.25)))
     .accessibilityElement(children: .contain)
+  }
+
+  /// The words, with Google's credit under them while Google Books' details are shown.
+  private func credited(@ViewBuilder _ words: () -> some View) -> some View {
+    VStack(alignment: .leading, spacing: 2) {
+      words()
+      if details.shownSource == .googleBooks { GoogleCredit() }
+    }
   }
 
   /// The banner's words, with the source's name in link blue and a ▾ that opens the menu.
@@ -116,6 +124,31 @@ struct LookupBannerView: View {
     BookDetailsViewModel.Field.allCases.contains { field in
       if case .differs? = details.found(field) { true } else { false }
     }
+  }
+}
+
+/// The credit Google Books' terms ask for beside its results.
+private struct GoogleCredit: View {
+  var body: some View {
+    Text("powered by Google")
+      .font(.system(size: 10))
+      .foregroundStyle(Theme.faint)
+      .fixedSize()
+  }
+}
+
+/// ↗, which opens an edition's page on Google Books.
+private struct GoogleLink: View {
+  let link: URL
+  let panel: PanelModel
+
+  var body: some View {
+    Button("↗") { Task { await panel.perform(.openURL(link)) } }
+      .buttonStyle(.plain)
+      .fontWeight(.semibold)
+      .foregroundStyle(Theme.link)
+      .help("Open on Google Books")
+      .accessibilityLabel("Open on Google Books")
   }
 }
 
@@ -236,19 +269,25 @@ struct FoundCoverRow: View {
 
 /// The editions a search by title and author found at the shown source, to pick the book's from.
 struct EditionList: View {
+  let panel: PanelModel
   let details: BookDetailsViewModel
 
   var body: some View {
     VStack(alignment: .leading, spacing: 0) {
-      Text("Which edition is yours?")
-        .font(.system(size: 14, weight: .semibold))
-        .accessibilityAddTraits(.isHeader)
+      HStack(alignment: .firstTextBaseline, spacing: 6) {
+        Text("Which edition is yours?")
+          .font(.system(size: 14, weight: .semibold))
+          .accessibilityAddTraits(.isHeader)
+        Spacer(minLength: 0)
+        if details.shownSource == .googleBooks { GoogleCredit() }
+      }
       FieldNote(text: "The date and cover come from the edition you pick.")
         .padding(.top, 2)
       VStack(spacing: 6) {
         ForEach(details.editionRows) { row in
           EditionRowView(
-            row: row, thumbnail: row.edition.thumbnail.flatMap { details.thumbnails[$0] }
+            panel: panel, row: row,
+            thumbnail: row.edition.thumbnail.flatMap { details.thumbnails[$0] }
           ) {
             details.pick(row)
           }
@@ -262,6 +301,7 @@ struct EditionList: View {
 }
 
 private struct EditionRowView: View {
+  let panel: PanelModel
   let row: EditionRow
   let thumbnail: Data?
   let pick: () -> Void
@@ -278,6 +318,9 @@ private struct EditionRowView: View {
       }
       .accessibilityElement(children: .combine)
       Spacer(minLength: 6)
+      if let link = row.link {
+        GoogleLink(link: link, panel: panel).font(.system(size: 12))
+      }
       Button("This one", action: pick).buttonStyle(FoundButtonStyle())
     }
     .padding(.horizontal, 9)
