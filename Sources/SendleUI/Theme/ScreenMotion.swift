@@ -22,6 +22,12 @@ package enum ScreenMotion: Equatable, Sendable {
     reduceMotion ? .fade : .slide(section == nil ? .leading : .trailing)
   }
 
+  /// A lookup's edition list is pushed in over the details sheet's fields, and they come back
+  /// from the leading side.
+  package static func editionList(isShowing: Bool, reduceMotion: Bool) -> ScreenMotion {
+    reduceMotion ? .fade : .slide(isShowing ? .trailing : .leading)
+  }
+
   /// The books come in from their side of the Library | On Kindle switch.
   package static func books(_ side: LibrarySide, reduceMotion: Bool) -> ScreenMotion {
     reduceMotion ? .fade : .slide(side == .library ? .leading : .trailing)

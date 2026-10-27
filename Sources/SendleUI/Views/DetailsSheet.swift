@@ -22,36 +22,65 @@ struct DetailsSheet: View {
 
   let panel: PanelModel
   let details: BookDetailsViewModel
+  @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
   var body: some View {
     DetailsSheetFrame(panel: panel, label: "Edit details") {
-      if let banner = details.banner {
-        LookupBannerView(panel: panel, details: details, banner: banner)
-          // Clear of the edited mark in the corner.
-          .padding(.top, 4)
-          .padding(.bottom, 10)
-      }
-      if details.isPickingEdition {
-        EditionList(panel: panel, details: details)
-      } else {
-        if let cover = details.foundCover {
-          FoundCoverRow(panel: panel, details: details, cover: cover)
-        } else {
-          DetailsFactsRow(facts: details.facts) {
-            DetailsCover(panel: panel, details: details)
+      VStack(alignment: .leading, spacing: 0) {
+        if let banner = details.banner {
+          LookupBannerView(panel: panel, details: details, banner: banner)
+            // Clear of the edited mark in the corner.
+            .padding(.top, 4)
+            .padding(.bottom, 10)
+            .transition(.move(edge: .top).combined(with: .opacity))
+        }
+        // Stacked, so the page leaving and the one arriving pass over each other.
+        ZStack(alignment: .top) {
+          if details.isPickingEdition {
+            EditionList(panel: panel, details: details)
+              .transition(page(showingList: true))
+          } else {
+            VStack(alignment: .leading, spacing: 0) {
+              if let cover = details.foundCover {
+                FoundCoverRow(panel: panel, details: details, cover: cover)
+                  .transition(.opacity)
+              } else {
+                DetailsFactsRow(facts: details.facts) {
+                  DetailsCover(panel: panel, details: details)
+                }
+                .transition(.opacity)
+              }
+              DetailsFields(details: details)
+            }
+            .transition(page(showingList: false))
           }
         }
-        DetailsFields(details: details)
       }
+      .animation(motion, value: details.isPickingEdition)
+      .animation(motion, value: details.banner == nil)
+      .animation(motion, value: details.foundCover == nil)
+      .animation(motion, value: details.shownEdition)
     } actions: {
-      if details.isPickingEdition {
-        EditionListActions(details: details)
-      } else {
-        DetailsActions(panel: panel, details: details)
+      // A crossfade: the action row sits outside the scroll view, so a slide would leave the card.
+      ZStack {
+        if details.isPickingEdition {
+          EditionListActions(details: details).transition(.opacity)
+        } else {
+          DetailsActions(panel: panel, details: details).transition(.opacity)
+        }
       }
+      .animation(motion, value: details.isPickingEdition)
     } badge: {
       if !details.isPickingEdition { EditedMark() }
     }
+  }
+
+  private var motion: Animation {
+    ScreenMotion.animation(reduceMotion: reduceMotion)
+  }
+
+  private func page(showingList: Bool) -> AnyTransition {
+    ScreenMotion.editionList(isShowing: showingList, reduceMotion: reduceMotion).transition
   }
 }
 
