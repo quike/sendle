@@ -50,7 +50,7 @@ struct DetailsSheet: View {
         DetailsActions(panel: panel, details: details)
       }
     } badge: {
-      EditedMark()
+      if !details.isPickingEdition { EditedMark() }
     }
   }
 }
