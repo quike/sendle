@@ -133,6 +133,7 @@ Sorted by title or author, the library gets an A–Z bar to jump through it. **F
 | Return | Send the selection |
 | Click or drag along the A–Z bar | Jump to a letter (sort by title or author first) |
 | Right-click a book › Edit Details…, or ⌘I | Change its title, author, year, ISBN, language or cover |
+| 🌐 or ⌘L in a book's details | Look the book up online |
 | Right-click a book › Hide from Sendle | Hide it, or the selected books, from Sendle; the Hidden scope lists them, with Show in Sendle |
 | Right-click a book › Show in Books | Open it in Books, where you can delete it |
 | Library / On Kindle switch | With a Kindle plugged in, see what's on it |
