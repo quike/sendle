@@ -19,6 +19,8 @@ package enum SettingsItem: CaseIterable, Sendable {
   case sendTest
   case boko
   case bokoLocation
+  case lookupSources
+  case googleBooksKey
 
   package var title: String {
     switch self {
@@ -38,6 +40,8 @@ package enum SettingsItem: CaseIterable, Sendable {
     case .sendTest: "Send test"
     case .boko: "boko"
     case .bokoLocation: "boko location"
+    case .lookupSources: "Online lookup sources"
+    case .googleBooksKey: "Google Books API key"
     }
   }
 
@@ -47,6 +51,7 @@ package enum SettingsItem: CaseIterable, Sendable {
     case .kindleAddresses, .addAddress, .approvedSenders: .kindle
     case .mailProvider, .senderAddress, .appPassword, .mailServer, .sendTest: .sender
     case .boko, .bokoLocation: .usb
+    case .lookupSources, .googleBooksKey: .lookup
     }
   }
 
@@ -75,6 +80,12 @@ package enum SettingsItem: CaseIterable, Sendable {
     case .sendTest: ["check", "try"]
     case .boko: ["converter", "convert", "azw3", "epub"]
     case .bokoLocation: ["choose", "path", "folder", "where"]
+    case .lookupSources:
+      [
+        "lookup", "online", "internet", "open library", "google", "apple", "isbn", "metadata",
+        "details",
+      ]
+    case .googleBooksKey: ["google", "key", "api", "lookup"]
     }
   }
 }

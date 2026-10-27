@@ -24,13 +24,15 @@ final class FakeLoginItem: LoginItem {
 struct SettingsViewModelTests {
   let settings = InMemorySettingsStore(AppSettings(email: .fixture))
   let secrets = MemorySecretStore(["me@gmail.com": "saved"])
+  let lookupKeys = MemorySecretStore()
   let loginItem = FakeLoginItem()
   let converter = FakeFormatConverter(isAvailable: false)
   let log = FakeActivityLog()
 
   func makeModel(
     _ settings: InMemorySettingsStore? = nil,
-    toolRuns: Bool = true
+    toolRuns: Bool = true,
+    lookupKeys: (any SecretStore)? = nil
   ) -> SettingsViewModel {
     let settings = settings ?? self.settings
     return SettingsViewModel(
@@ -40,7 +42,8 @@ struct SettingsViewModelTests {
       addresses: ManageKindleAddresses(settings: settings),
       chooseTool: ChooseConverterTool(
         settings: settings, choice: converter, isExecutable: { _ in toolRuns }),
-      settings: settings, loginItem: loginItem, converter: converter, log: log)
+      settings: settings, loginItem: loginItem, converter: converter,
+      lookupKeys: lookupKeys ?? self.lookupKeys, log: log)
   }
 
   /// A model with nothing saved yet, as before the first setup.
@@ -52,7 +55,7 @@ struct SettingsViewModelTests {
         settings: empty, channels: FakeDeliveryChannelFactory(), staging: FakeStagingArea()),
       addresses: ManageKindleAddresses(settings: empty),
       chooseTool: ChooseConverterTool(settings: empty, choice: converter),
-      settings: empty, loginItem: loginItem, converter: converter)
+      settings: empty, loginItem: loginItem, converter: converter, lookupKeys: MemorySecretStore())
   }
 
   // MARK: Front page and search
@@ -68,7 +71,7 @@ struct SettingsViewModelTests {
         "Doesn't open at login · Controls: Floating · A–Z bar: Full · Authors by surname "
           + "· Formats on · Logs off",
         "reader@kindle.com",
-        "Gmail · me@gmail.com", "boko not found",
+        "Gmail · me@gmail.com", "boko not found", "Open Library, Apple Books",
       ])
   }
 
@@ -482,4 +485,205 @@ struct SettingsViewModelTests {
         == "Sendle looks only where you chose: /Users/reader/bin/boko. Choose it again, or reset "
         + "to look in the usual folders.")
   }
+
+  // MARK: Online lookup
+
+  @Test func readsTheLookupSourcesAndTheKeyBeforeSettingsOpen() async {
+    let model = makeModel(
+      InMemorySettingsStore(AppSettings(lookupSources: [.googleBooks])),
+      lookupKeys: MemorySecretStore(["api-key": "k"]))
+
+    await model.start()
+
+    #expect(model.lookupSources == [.googleBooks])
+    #expect(model.hasGoogleKey)
+  }
+
+  @Test func theLookupSourcesAndTheKeyAreReadAgainWhenSettingsOpen() async {
+    let model = makeModel()
+    await model.open(at: .lookup)
+    #expect(model.lookupSources == [.openLibrary, .appleBooks])
+    #expect(!model.hasGoogleKey)
+
+    _ = try? await settings.update { $0.lookupSources = [.openLibrary] }
+    await lookupKeys.setPassword("k", for: "api-key")
+    await model.open(at: .lookup)
+
+    #expect(model.lookupSources == [.openLibrary])
+    #expect(model.hasGoogleKey)
+  }
+
+  @Test func reopeningDropsAKeyThatWasTypedButNeverSaved() async {
+    let model = makeModel()
+    await model.open(at: .lookup)
+    await model.saveGoogleKey()
+    model.googleKey = "half"
+
+    await model.open(at: .lookup)
+
+    #expect(model.googleKey.isEmpty)
+    #expect(model.googleKeyError == nil)
+  }
+
+  @Test func treatsAKeychainThatCannotBeReadAsNoKey() async {
+    let keys = MemorySecretStore(["api-key": "secret-key"], readFailure: .keychain(status: -128))
+    let model = makeModel(lookupKeys: keys)
+
+    await model.open(at: .lookup)
+
+    #expect(!model.hasGoogleKey)
+    #expect(log.messages(in: .app).count == 1)
+    #expect(log.messages(in: .app).allSatisfy { !$0.contains("secret-key") })
+  }
+
+  @Test func savesAnotherSourceAtOnceAndSaysSo() async {
+    let model = makeModel()
+    var changes = 0
+    model.onChange = { changes += 1 }
+    await model.open(at: .lookup)
+
+    await model.setLookupSource(.openLibrary, isOn: false)
+    #expect(model.lookupSources == [.appleBooks])
+    #expect(await settings.settings.lookupSources == [.appleBooks])
+
+    await model.setLookupSource(.openLibrary, isOn: true)
+    #expect(model.lookupSources == [.openLibrary, .appleBooks])
+    #expect(await settings.settings.lookupSources == [.openLibrary, .appleBooks])
+    #expect(changes == 2)
+  }
+
+  @Test func googleNeedsAKeyFirst() async {
+    let model = makeModel()
+    var changes = 0
+    model.onChange = { changes += 1 }
+    await model.open(at: .lookup)
+
+    await model.setLookupSource(.googleBooks, isOn: true)
+
+    #expect(model.lookupSources == [.openLibrary, .appleBooks])
+    #expect(await settings.settings.lookupSources == [.openLibrary, .appleBooks])
+    #expect(changes == 0)
+  }
+
+  @Test func googleCanBeTurnedOffWithoutAKey() async {
+    let model = makeModel(InMemorySettingsStore(AppSettings(lookupSources: [.googleBooks])))
+    await model.open(at: .lookup)
+    #expect(!model.hasGoogleKey)
+
+    await model.setLookupSource(.googleBooks, isOn: false)
+
+    #expect(model.lookupSources.isEmpty)
+  }
+
+  @Test func savingAKeyTurnsGoogleOn() async {
+    let model = makeModel()
+    await model.open(at: .lookup)
+    model.googleKey = " k \n"
+
+    await model.saveGoogleKey()
+
+    #expect(await lookupKeys.passwords["api-key"] == "k")
+    #expect(model.googleKey.isEmpty)
+    #expect(model.hasGoogleKey)
+    #expect(model.googleKeyError == nil)
+    #expect(model.lookupSources.contains(.googleBooks))
+    #expect(await settings.settings.lookupSources.contains(.googleBooks))
+  }
+
+  @Test func emptyKeyIsRefused() async {
+    let model = makeModel()
+    await model.open(at: .lookup)
+    model.googleKey = "   "
+
+    await model.saveGoogleKey()
+
+    #expect(model.googleKeyError == "Paste your API key.")
+    #expect(await lookupKeys.passwords.isEmpty)
+    #expect(!model.hasGoogleKey)
+    #expect(!model.lookupSources.contains(.googleBooks))
+  }
+
+  @Test func aGoodKeyClearsTheEarlierError() async {
+    let model = makeModel()
+    await model.open(at: .lookup)
+    await model.saveGoogleKey()
+    #expect(model.googleKeyError != nil)
+
+    model.googleKey = "k"
+    await model.saveGoogleKey()
+
+    #expect(model.googleKeyError == nil)
+  }
+
+  @Test func removingTheKeyTurnsGoogleOff() async {
+    let keys = MemorySecretStore(["api-key": "k"])
+    let saved = InMemorySettingsStore(AppSettings(lookupSources: [.openLibrary, .googleBooks]))
+    let model = makeModel(saved, lookupKeys: keys)
+    await model.open(at: .lookup)
+    #expect(model.hasGoogleKey)
+
+    await model.removeGoogleKey()
+
+    #expect(await keys.passwords.isEmpty)
+    #expect(!model.hasGoogleKey)
+    #expect(model.googleKeyError == nil)
+    #expect(model.lookupSources == [.openLibrary])
+    #expect(await saved.settings.lookupSources == [.openLibrary])
+  }
+
+  @Test func aKeyThatCannotBeRemovedStaysAndKeepsGoogleOn() async {
+    let keys = MemorySecretStore(
+      ["api-key": "k"], removalFailure: .keychain(status: -25244))
+    let model = makeModel(
+      InMemorySettingsStore(AppSettings(lookupSources: [.googleBooks])), lookupKeys: keys)
+    await model.open(at: .lookup)
+
+    await model.removeGoogleKey()
+
+    #expect(
+      model.googleKeyError == "Couldn't remove the key: the Keychain refused it (-25244)")
+    #expect(model.hasGoogleKey)
+    #expect(model.lookupSources == [.googleBooks])
+    #expect(log.messages(in: .app).count == 1)
+  }
+
+  @Test func keyNeverReachesTheLog() async {
+    let model = makeModel(lookupKeys: RefusingSecretStore())
+    await model.open(at: .lookup)
+    model.googleKey = "secret-key"
+
+    await model.saveGoogleKey()
+
+    #expect(model.googleKeyError == "Couldn't save the key: the Keychain refused it (-25308)")
+    #expect(model.googleKeyError?.contains("secret-key") == false)
+    #expect(!model.hasGoogleKey)
+    #expect(!model.lookupSources.contains(.googleBooks))
+    #expect(log.entries().filter { $0.area == .app && $0.level == .error }.count == 1)
+    #expect(log.entries().allSatisfy { !$0.message.contains("secret-key") })
+  }
+
+  @Test func lookupSummary() async {
+    let model = makeModel()
+    await model.open(at: nil)
+    #expect(model.summary(of: .lookup) == "Open Library, Apple Books")
+
+    await lookupKeys.setPassword("k", for: "api-key")
+    await model.open(at: nil)
+    await model.setLookupSource(.googleBooks, isOn: true)
+    #expect(model.summary(of: .lookup) == "Open Library, Google Books, Apple Books")
+
+    for source in LookupSource.allCases { await model.setLookupSource(source, isOn: false) }
+    #expect(model.summary(of: .lookup) == "Off")
+  }
+}
+
+/// A Keychain that refuses to save.
+private struct RefusingSecretStore: SecretStore {
+  func password(for account: String) async throws(StorageError) -> String? { nil }
+
+  func setPassword(_ password: String, for account: String) async throws(StorageError) {
+    throw .keychain(status: -25308)
+  }
+
+  func removePassword(for account: String) async throws(StorageError) {}
 }

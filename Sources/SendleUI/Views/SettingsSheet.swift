@@ -45,6 +45,7 @@ struct SettingsSheet: View {
     case .kindle: KindlePage(panel: panel)
     case .sender: SenderPage(panel: panel)
     case .usb: USBPage(panel: panel)
+    case .lookup: LookupPage(panel: panel)
     }
   }
 }
@@ -195,6 +196,7 @@ struct SectionTile: View {
     case .kindle: "book.closed.fill"
     case .sender: "paperplane.fill"
     case .usb: "cable.connector"
+    case .lookup: "globe"
     }
   }
 
@@ -204,6 +206,7 @@ struct SectionTile: View {
     case .kindle: [Theme.brandStart, Theme.accent]
     case .sender: [Color(hex: 0xa855f7), Theme.brandStart]
     case .usb: [Color(hex: 0x22c55e), Color(hex: 0x15803d)]
+    case .lookup: [Color(hex: 0x38bdf8), Color(hex: 0x0369a1)]
     }
   }
 }
@@ -567,6 +570,109 @@ private struct USBPage: View {
     .frame(maxWidth: .infinity, alignment: .leading)
     .glass(cornerRadius: 14)
     .settingsHighlight(settings.highlighted == .boko)
+  }
+}
+
+/// Which catalogues a book's details can be looked up in, and the key Google Books needs.
+private struct LookupPage: View {
+  let panel: PanelModel
+
+  var body: some View {
+    let settings = panel.settings
+    VStack(alignment: .leading, spacing: 12) {
+      SettingsGroup {
+        ForEach(LookupSource.allCases, id: \.self) { source in
+          if source != LookupSource.allCases.first { RowDivider() }
+          LookupSourceRow(settings: settings, source: source)
+          if source == .googleBooks {
+            GoogleKeyField(settings: settings) { url in
+              Task { await panel.perform(.openURL(url)) }
+            }
+          }
+        }
+      }
+      .settingsHighlight(settings.highlighted == .lookupSources)
+      FieldNote(
+        text:
+          "Sendle only goes online when you press 🌐 in a book's details, and sends the book's "
+          + "ISBN, or its title and author, to the sources that are on.",
+        color: Theme.faint
+      )
+      .padding(.horizontal, 4)
+    }
+  }
+}
+
+private struct LookupSourceRow: View {
+  let settings: SettingsViewModel
+  let source: LookupSource
+
+  var body: some View {
+    let isOn = settings.lookupSources.contains(source)
+    HStack(spacing: 10) {
+      RowText(title: source.name, detail: detail)
+      Spacer(minLength: 8)
+      Toggle(
+        source.name,
+        isOn: Binding(
+          get: { isOn },
+          set: { on in Task { await settings.setLookupSource(source, isOn: on) } })
+      )
+      .toggleStyle(.switch)
+      .labelsHidden()
+      .disabled(source == .googleBooks && !settings.hasGoogleKey && !isOn)
+    }
+    .padding(12)
+  }
+
+  private var detail: String {
+    switch source {
+    case .openLibrary: "Free and open. Finds most printed editions."
+    case .googleBooks: "Needs your own free API key."
+    case .appleBooks: "Title, author and a large cover. It has no dates or ISBNs for your edition."
+    }
+  }
+}
+
+/// Under Google Books: a field for the key until one is saved, then a note that it is.
+private struct GoogleKeyField: View {
+  static let help = URL(string: "https://developers.google.com/books/docs/v1/using#APIKey")
+
+  @Bindable var settings: SettingsViewModel
+  let open: (URL) -> Void
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 8) {
+      if settings.hasGoogleKey {
+        HStack(spacing: 8) {
+          Text("Key saved in your Keychain")
+            .font(.system(size: 11.5))
+            .foregroundStyle(Theme.muted)
+          Spacer(minLength: 6)
+          Button("Remove") { Task { await settings.removeGoogleKey() } }
+            .buttonStyle(SecondaryButtonStyle())
+        }
+      } else {
+        HStack(spacing: 8) {
+          GlassTextField(
+            label: "API key", prompt: "API key", text: $settings.googleKey, isSecure: true)
+          Button("Save") { Task { await settings.saveGoogleKey() } }
+            .buttonStyle(SecondaryButtonStyle())
+        }
+        if let help = Self.help {
+          Button("Get a key ↗") { open(help) }
+            .buttonStyle(.plain)
+            .font(.system(size: 11.5, weight: .semibold))
+            .foregroundStyle(Theme.link)
+        }
+      }
+      if let error = settings.googleKeyError {
+        FieldNote(text: error, color: Theme.danger)
+      }
+    }
+    .padding(.horizontal, 12)
+    .padding(.bottom, 12)
+    .settingsHighlight(settings.highlighted == .googleBooksKey)
   }
 }
 

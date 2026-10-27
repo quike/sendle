@@ -28,6 +28,7 @@ struct Composition {
     let log = MemoryActivityLog()
     let settings = JSONSettingsStore(directory: data, log: log)
     let secrets = KeychainSecretStore()
+    let lookupKeys = KeychainSecretStore(service: "io.github.quike.Sendle.google-books")
     let staging = FileSystemStagingArea()
     let converter = BokoConverter(log: log)
     let channels =
@@ -71,7 +72,8 @@ struct Composition {
       settings: SettingsViewModel(
         configure: configure, sendTest: sendTest,
         addresses: ManageKindleAddresses(settings: settings, log: log), chooseTool: chooseTool,
-        settings: settings, loginItem: loginItem, converter: converter, log: log),
+        settings: settings, loginItem: loginItem, converter: converter, lookupKeys: lookupKeys,
+        log: log),
       covers: CoverStore(provider: CachedCoverProvider()),
       queue: SendQueueViewModel(
         sendBooks: SendBooks(

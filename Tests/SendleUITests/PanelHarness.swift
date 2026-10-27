@@ -83,7 +83,8 @@ struct PanelHarness {
         addresses: ManageKindleAddresses(settings: settings),
         chooseTool: ChooseConverterTool(
           settings: settings, choice: converter, isExecutable: { _ in true }),
-        settings: settings, loginItem: FakeLoginItem(), converter: converter),
+        settings: settings, loginItem: FakeLoginItem(), converter: converter,
+        lookupKeys: MemorySecretStore()),
       covers: CoverStore(provider: FakeCoverProvider()),
       queue: SendQueueViewModel(
         sendBooks: SendBooks(
