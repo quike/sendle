@@ -44,7 +44,7 @@ public struct LookUpBook: Sendable {
     guard let isbn = edition.isbn, let catalogue = catalogues[edition.source] else {
       return edition
     }
-    let reply = await answer(to: .isbn(isbn), from: catalogue)
+    let reply = await answer(to: .isbn(isbn), from: catalogue, refreshing: false)
     record(reply, from: edition.source, by: .isbn)
     guard case .found(let editions) = reply, let refined = editions.first else { return edition }
     return refined
@@ -111,7 +111,7 @@ public struct LookUpBook: Sendable {
 
   /// By ISBN the edition, by title the editions ranked; Google Books' terms keep its own order.
   private func answer(
-    to question: Question, from catalogue: any BookCatalogue, refreshing: Bool = false
+    to question: Question, from catalogue: any BookCatalogue, refreshing: Bool
   ) async -> SourceAnswer {
     do throws(LookupError) {
       let found = try await editions(for: question, from: catalogue, refreshing: refreshing)
