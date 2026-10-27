@@ -146,14 +146,6 @@ struct FoundBubble: View {
     }
   }
 
-  /// Whether the field has a bubble under it, which takes more room than a short field.
-  static func shows(_ found: FoundValue?) -> Bool {
-    switch found {
-    case .differs?, .used?: true
-    case .matches?, nil: false
-    }
-  }
-
   private func bubble(
     key: String, value: String, color: Color, @ViewBuilder action: () -> some View
   ) -> some View {

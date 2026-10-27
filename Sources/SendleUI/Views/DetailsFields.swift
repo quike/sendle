@@ -50,9 +50,12 @@ struct DetailsFields: View {
   }
 }
 
-/// Year and ISBN side by side; the ISBN is checked as it is typed, without blocking Save. The
-/// year widens to hold a found year's bubble.
+/// Year and ISBN side by side; the ISBN is checked as it is typed, without blocking Save.
 private struct EditionFields: View {
+  private static let yearWidth: CGFloat = 84
+  /// Room for a found year's bubble, or for the year beside "matches" and its ↺.
+  private static let foundYearWidth: CGFloat = 136
+
   @Bindable var details: BookDetailsViewModel
 
   var body: some View {
@@ -62,7 +65,7 @@ private struct EditionFields: View {
         DetailsField(label: "Year", text: $details.year, details: details, field: .year)
         FoundBubble(name: "year", details: details, field: .year)
       }
-      .frame(width: FoundBubble.shows(details.found(.year)) ? 136 : 84)
+      .frame(width: details.found(.year) == nil ? Self.yearWidth : Self.foundYearWidth)
       VStack(alignment: .leading, spacing: 0) {
         DetailsLabel("ISBN")
         DetailsField(label: "ISBN", text: $details.isbn, details: details, field: .isbn) {
