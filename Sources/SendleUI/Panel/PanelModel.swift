@@ -959,8 +959,8 @@ public final class PanelModel {
 
   /// True when the key was used, so the shell swallows it. A held Return settles no duplicate
   /// the user hasn't seen, saves no details twice, deletes nothing it didn't ask about, and sends
-  /// nothing after the sheet it saved; a held ⌘L looks up once, and a held Return on the edition
-  /// list searches once.
+  /// nothing after the sheet it saved; a held ⌘L looks up once. On the edition list, Return and ⌘L
+  /// both search again with the list's words.
   public func handle(_ key: KeyInput) -> Bool {
     guard let command = key.panelCommand else { return false }
     if duplicateReview != nil {
@@ -974,14 +974,11 @@ public final class PanelModel {
     if let details = bookDetails {
       switch command {
       case .escape: escape()
-      case .confirm where key.isRepeat: break
-      case .confirm:
-        if details.isPickingEdition {
-          details.retry()
-        } else if canSaveDetails {
-          Task { await saveDetails() }
-        }
-      case .lookUp: if !key.isRepeat { details.lookUp() }
+      case .confirm where key.isRepeat, .lookUp where key.isRepeat: break
+      case .confirm where details.isPickingEdition, .lookUp where details.isPickingEdition:
+        details.retry()
+      case .confirm: if canSaveDetails { Task { await saveDetails() } }
+      case .lookUp: details.lookUp()
       default: return false
       }
       return true

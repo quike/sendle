@@ -452,6 +452,27 @@ struct PanelDetailsTests {
     #expect(title(of: a, in: panel) == "Moby-Dick")
   }
 
+  @Test func commandLOnTheEditionPageRetries() async throws {
+    let catalogue = listing()
+    let panel = await launched(catalogues: [catalogue])
+    await panel.openDetails(a)
+    let details = try #require(panel.bookDetails)
+    details.title = "Typee"
+    #expect(panel.handle(commandL))
+    #expect(await eventually { details.isPickingEdition })
+    let rows = details.editionRows
+    details.searchTitle = "Omoo"
+
+    #expect(
+      panel.handle(KeyInput(.character("l"), command: true, isEditingText: true, isRepeat: true)))
+    #expect(!rows.isEmpty && details.editionRows == rows)
+
+    #expect(panel.handle(commandL))
+    #expect(await eventually { catalogue.requests.last == "title:Omoo|Herman Melville|en" })
+    #expect(details.isPickingEdition)
+    #expect(details.searchTitle == "Omoo")
+  }
+
   @Test func closingTheSheetCancelsItsLookup() async throws {
     let gate = Signal()
     let catalogue = FakeCatalogue(.openLibrary, gate: gate)
