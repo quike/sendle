@@ -352,6 +352,22 @@ struct PanelDetailsTests {
     await gate.fire()
   }
 
+  @Test func holdingCommandLLooksUpOnce() async throws {
+    let gate = Signal()
+    let catalogue = FakeCatalogue(.openLibrary, gate: gate)
+    let (panel, _) = try await sheet(catalogues: [catalogue])
+    #expect(panel.handle(commandL))
+    #expect(await eventually { catalogue.requests == ["isbn:\(isbn)"] })
+
+    #expect(
+      panel.handle(KeyInput(.character("l"), command: true, isEditingText: true, isRepeat: true)))
+
+    try await Task.sleep(for: .milliseconds(50))
+    #expect(catalogue.requests == ["isbn:\(isbn)"])
+    #expect(catalogue.cancelledRequests.isEmpty)
+    await gate.fire()
+  }
+
   @Test func onlyTheEnabledSourcesAreAsked() async throws {
     let openLibrary = FakeCatalogue(.openLibrary)
     let apple = FakeCatalogue(.appleBooks)
