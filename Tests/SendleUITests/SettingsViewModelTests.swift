@@ -667,6 +667,12 @@ struct SettingsViewModelTests {
     #expect(log.entries().allSatisfy { !$0.message.contains("secret-key") })
   }
 
+  @Test func settingsListsEveryLookupSourceOnce() {
+    let order = SettingsViewModel.lookupSourceOrder
+    #expect(Set(order) == Set(LookupSource.allCases))
+    #expect(order.count == LookupSource.allCases.count)
+  }
+
   @Test func lookupSummary() async {
     let model = makeModel()
     await model.open(at: nil)
