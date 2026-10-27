@@ -10,6 +10,7 @@ struct DetailsFields: View {
     VStack(alignment: .leading, spacing: 0) {
       DetailsLabel("Title")
       DetailsField(label: "Title", text: $details.title, details: details, field: .title)
+      FoundBubble(name: "title", details: details, field: .title)
       if details.showsSortTitle {
         SortLine(
           label: "Sort title", text: $details.sortTitle, isEditing: $details.isEditingSortTitle,
@@ -17,6 +18,7 @@ struct DetailsFields: View {
       }
       DetailsLabel("Author")
       DetailsField(label: "Author", text: $details.author, details: details, field: .author)
+      FoundBubble(name: "author", details: details, field: .author)
       if details.showsSortName {
         SortLine(
           label: "Sort name", text: $details.sortName, isEditing: $details.isEditingSortName,
@@ -39,6 +41,7 @@ struct DetailsFields: View {
         EditionFields(details: details)
         DetailsLabel("Language")
         LanguageField(details: details)
+        FoundBubble(name: "language", details: details, field: .language)
         if let warning = details.languageWarning {
           FieldNote(text: warning, color: Theme.warm).padding(.top, 4).padding(.horizontal, 2)
         }
@@ -49,6 +52,10 @@ struct DetailsFields: View {
 
 /// Year and ISBN side by side; the ISBN is checked as it is typed, without blocking Save.
 private struct EditionFields: View {
+  private static let yearWidth: CGFloat = 84
+  /// Room for a found year's bubble, or for the year beside "matches" and its ↺.
+  private static let foundYearWidth: CGFloat = 136
+
   @Bindable var details: BookDetailsViewModel
 
   var body: some View {
@@ -56,8 +63,9 @@ private struct EditionFields: View {
       VStack(alignment: .leading, spacing: 0) {
         DetailsLabel("Year")
         DetailsField(label: "Year", text: $details.year, details: details, field: .year)
+        FoundBubble(name: "year", details: details, field: .year)
       }
-      .frame(width: 84)
+      .frame(width: details.found(.year) == nil ? Self.yearWidth : Self.foundYearWidth)
       VStack(alignment: .leading, spacing: 0) {
         DetailsLabel("ISBN")
         DetailsField(label: "ISBN", text: $details.isbn, details: details, field: .isbn) {
@@ -68,6 +76,7 @@ private struct EditionFields: View {
               .accessibilityLabel("Valid ISBN")
           }
         }
+        FoundBubble(name: "ISBN", details: details, field: .isbn)
         if let warning = isbnWarning {
           FieldNote(text: warning, color: Theme.warm)
             .padding(.top, 4)
@@ -139,6 +148,8 @@ private struct LanguageField: View {
           HStack(spacing: 6) {
             Text(details.languageTitle).lineLimit(1)
             Spacer(minLength: 4)
+            // While a tag is typed, its field says it.
+            if !details.isTypingLanguage { FoundMatch(found: details.found(.language)) }
             Image(systemName: "chevron.down")
               .font(.system(size: 9, weight: .bold))
               .foregroundStyle(Theme.faint)
@@ -196,7 +207,7 @@ struct DetailsLabel: View {
 }
 
 /// A text field of the sheet. Emptied, it shows what it goes back to; edited, it gets a warm
-/// border and a ↺ that reverts it.
+/// border and a ↺ that reverts it. It says "matches" when a lookup found the same value.
 private struct DetailsField<Accessory: View>: View {
   let label: String
   @Binding var text: String
@@ -222,6 +233,7 @@ private struct DetailsField<Accessory: View>: View {
       .onAppear { if focusesOnAppear { isFocused = true } }
       .accessibilityLabel(label)
       accessory
+      FoundMatch(found: details.found(field))
       if isEdited {
         RevertButton(help: details.revertHelp(field), label: "Revert \(label.lowercased())") {
           details.revert(field)

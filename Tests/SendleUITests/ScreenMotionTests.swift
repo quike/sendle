@@ -21,11 +21,18 @@ struct ScreenMotionTests {
     #expect(ScreenMotion.books(.kindle, reduceMotion: false) == .slide(.trailing))
   }
 
+  @Test func theEditionListPushesOverTheFields() {
+    #expect(ScreenMotion.editionList(isShowing: true, reduceMotion: false) == .slide(.trailing))
+    #expect(ScreenMotion.editionList(isShowing: false, reduceMotion: false) == .slide(.leading))
+  }
+
   @Test func reduceMotionFadesInsteadOfMoving() {
     #expect(ScreenMotion.sheet(reduceMotion: true) == .fade)
     #expect(ScreenMotion.settingsPage(nil, reduceMotion: true) == .fade)
     #expect(ScreenMotion.settingsPage(.general, reduceMotion: true) == .fade)
     #expect(ScreenMotion.books(.library, reduceMotion: true) == .fade)
     #expect(ScreenMotion.books(.kindle, reduceMotion: true) == .fade)
+    #expect(ScreenMotion.editionList(isShowing: true, reduceMotion: true) == .fade)
+    #expect(ScreenMotion.editionList(isShowing: false, reduceMotion: true) == .fade)
   }
 }

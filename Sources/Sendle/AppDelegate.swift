@@ -18,14 +18,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     let kindleLibrary = remover.map {
       SnapshotKindleLibrary(cacheDirectory: DataDirectory.url(), remover: $0)
     }
+    let catalogue = snapshotFolder.map { _ in SnapshotCatalogue() }
     let composition = Composition(
       loginItem: MainAppLoginItem(), channels: snapshotFolder.map { _ in SnapshotChannels() },
-      kindles: kindles, kindleLibrary: kindleLibrary, remover: remover)
+      kindles: kindles, kindleLibrary: kindleLibrary, remover: remover,
+      catalogues: catalogue.map { [$0] })
     self.composition = composition
-    if let folder = snapshotFolder, let kindles, let kindleLibrary {
+    if let folder = snapshotFolder, let kindles, let kindleLibrary, let catalogue {
       Task {
         await Snapshot.render(
-          composition, kindles: kindles, kindleLibrary: kindleLibrary,
+          composition, kindles: kindles, kindleLibrary: kindleLibrary, catalogue: catalogue,
           to: URL(filePath: folder, directoryHint: .isDirectory))
         NSApp.terminate(nil)
       }

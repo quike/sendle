@@ -1,0 +1,30 @@
+{
+ "resultCount": 4,
+ "results": [
+  {
+   "wrapperType": "audiobook",
+   "trackName": "Los ritos del agua (audiolibro)",
+   "artistName": "Eva García Saénz de Urturi",
+   "artworkUrl100": "https://is1-ssl.mzstatic.com/image/thumb/Audio/v4/aa/bb/cc/audio/100x100bb.jpg",
+   "trackViewUrl": "https://books.apple.com/es/audiobook/los-ritos-del-agua/id1"
+  },
+  {
+   "kind": "song",
+   "trackName": "Ritos del agua",
+   "artistName": "Un cantante",
+   "artworkUrl100": "https://is1-ssl.mzstatic.com/image/thumb/Music/v4/dd/ee/ff/song/100x100bb.jpg",
+   "trackViewUrl": "https://music.apple.com/es/album/ritos-del-agua/id2"
+  },
+  {
+   "kind": "ebook",
+   "trackName": "Un libro sin portada"
+  },
+  {
+   "kind": "ebook",
+   "trackName": "Los ritos del agua",
+   "artistName": "Eva García Saénz de Urturi",
+   "artworkUrl100": "https://is1-ssl.mzstatic.com/image/thumb/Publication122/v4/9b/b2/f1/9bb2f10c-dc5a-b0a3-77ef-db0d21cfd556/9788408170877.jpg/100x100bb.jpg",
+   "trackViewUrl": "https://books.apple.com/es/book/los-ritos-del-agua/id1211896224?uo=4"
+  }
+ ]
+}

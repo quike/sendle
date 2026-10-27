@@ -39,7 +39,7 @@ enum Snapshot {
 
   static func render(
     _ composition: Composition, kindles: SnapshotKindles, kindleLibrary: SnapshotKindleLibrary,
-    to folder: URL
+    catalogue: SnapshotCatalogue, to folder: URL
   ) async {
     try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
     let panel = composition.panel
@@ -143,14 +143,14 @@ enum Snapshot {
     kindles.plugIn(["Kindle", "Kindle Oasis", "Kindle Scribe"])
     await panel.library.activate(.usb(kindles.volume(named: "Kindle Oasis")))
     await write(window, "library-usb-3.png", to: folder)
-    await renderDetails(panel, window: window, to: folder)
+    await renderDetails(panel, window: window, catalogue: catalogue, to: folder)
   }
 
   /// The edit sheet for an EPUB and for a PDF, and the list of books it edited, after the edits
   /// and the sends around them are saved through the stores. This runs last because it leaves
   /// them in the data folder.
   private static func renderDetails(
-    _ panel: PanelModel, window: NSWindow, to folder: URL
+    _ panel: PanelModel, window: NSWindow, catalogue: SnapshotCatalogue, to folder: URL
   ) async {
     await seedEdits(in: panel)
     await panel.library.activate(DestinationKind.email)
@@ -169,6 +169,43 @@ enum Snapshot {
 
     await panel.openDetails(BookID(rawValue: "A022"))
     await write(window, "edit-pdf.png", to: folder)
+    panel.closeDetails()
+
+    await renderLookup(panel, window: window, catalogue: catalogue, to: folder)
+  }
+
+  /// The sheet after a lookup that found the book and one of its details was used, after one that
+  /// offers editions, and after one that failed.
+  private static func renderLookup(
+    _ panel: PanelModel, window: NSWindow, catalogue: SnapshotCatalogue, to folder: URL
+  ) async {
+    catalogue.mode = .found
+    await panel.openDetails(BookID(rawValue: "A010"))
+    // The fixture's books have no ISBN, so one is typed to look up by it.
+    panel.bookDetails?.isbn = "9780141439563"
+    panel.bookDetails?.lookUp()
+    await until { if case .found? = panel.bookDetails?.banner { true } else { false } }
+    await until { panel.bookDetails?.foundCover != nil }
+    panel.bookDetails?.use(.year)
+    await write(window, "edit-lookup.png", to: folder)
+    scrollToEnd(
+      panel, at: CGPoint(x: Theme.cardWidth / 2, y: panel.cardSize.height * 0.6), in: window)
+    await write(window, "edit-lookup-used.png", to: folder)
+    panel.closeDetails()
+
+    catalogue.mode = .editions
+    await panel.openDetails(BookID(rawValue: "A010"))
+    panel.bookDetails?.lookUp()
+    await until { panel.bookDetails?.isPickingEdition == true }
+    await write(window, "edit-lookup-editions.png", to: folder)
+    panel.closeDetails()
+
+    // Another book, as a lookup keeps the answers it has had.
+    catalogue.mode = .failing
+    await panel.openDetails(BookID(rawValue: "A020"))
+    panel.bookDetails?.lookUp()
+    await until { if case .unreachable? = panel.bookDetails?.banner { true } else { false } }
+    await write(window, "edit-lookup-failed.png", to: folder)
     panel.closeDetails()
   }
 
@@ -704,6 +741,105 @@ final class SnapshotKindleRemover: KindleBookRemover {
   func finalize(_ item: HeldBook) async throws(KindleRemovalError) {}
 
   func clearLeftovers(on volume: KindleVolume) async -> Int { 0 }
+}
+
+/// Snapshot mode's Open Library, which never reaches the network: it answers with made-up editions
+/// and draws their covers.
+final class SnapshotCatalogue: BookCatalogue {
+  enum Mode: Sendable {
+    /// Every ISBN is a 2017 Great Expectations with a cover.
+    case found
+    /// No ISBN is known, and a search by title answers three editions.
+    case editions
+    case failing
+  }
+
+  let source = LookupSource.openLibrary
+  private let state = OSAllocatedUnfairLock(initialState: Mode.found)
+
+  private static let editions = [
+    FoundEdition(
+      source: .openLibrary, title: "Great Expectations", author: "Charles Dickens", year: "2017",
+      isbn: "9781981531073", language: "en", publisher: "Harbour Press",
+      thumbnail: coverURL(tint: 1)),
+    FoundEdition(
+      source: .openLibrary, title: "Great Expectations", author: "Charles Dickens", year: "1998",
+      isbn: "9780151000005", language: "en", publisher: "Lantern Editions",
+      thumbnail: coverURL(tint: 2)),
+    FoundEdition(
+      source: .openLibrary, title: "Les Grandes Espérances", author: "Charles Dickens",
+      year: "2012", isbn: "9781840000009", language: "fr", publisher: "Éditions du Phare",
+      thumbnail: coverURL(tint: 3)),
+  ]
+
+  private static let cloths = [
+    NSColor(srgbRed: 0.12, green: 0.23, blue: 0.37, alpha: 1),
+    NSColor(srgbRed: 0.48, green: 0.18, blue: 0.23, alpha: 1),
+    NSColor(srgbRed: 0.18, green: 0.36, blue: 0.31, alpha: 1),
+    NSColor(srgbRed: 0.60, green: 0.42, blue: 0.15, alpha: 1),
+  ]
+
+  var mode: Mode {
+    get { state.withLock { $0 } }
+    set { state.withLock { $0 = newValue } }
+  }
+
+  func edition(isbn: String) async throws(LookupError) -> FoundEdition? {
+    switch mode {
+    case .found:
+      FoundEdition(
+        source: source, title: "Great Expectations", author: "Charles John Huffam Dickens",
+        year: "2017", isbn: isbn, language: "en", cover: Self.coverURL(tint: 0))
+    case .editions: nil
+    case .failing: throw .refused(status: 503)
+    }
+  }
+
+  func editions(title: String, author: String?, language: String?) async throws(LookupError)
+    -> [FoundEdition]
+  {
+    switch mode {
+    case .found:
+      []
+    case .editions:
+      Self.editions
+    case .failing:
+      throw .refused(status: 503)
+    }
+  }
+
+  func image(at url: URL) async throws(LookupError) -> Data? {
+    let tint = Int(url.deletingPathExtension().lastPathComponent) ?? 0
+    return await MainActor.run { Self.cover(tint: tint) }
+  }
+
+  private static func coverURL(tint: Int) -> URL? {
+    URL(string: "https://catalogue.invalid/cover/\(tint).png")
+  }
+
+  /// A 1600 × 2400 PNG: a cloth-coloured board with a frame.
+  @MainActor private static func cover(tint: Int) -> Data? {
+    guard
+      let bitmap = NSBitmapImageRep(
+        bitmapDataPlanes: nil, pixelsWide: 1600, pixelsHigh: 2400, bitsPerSample: 8,
+        samplesPerPixel: 4, hasAlpha: true, isPlanar: false, colorSpaceName: .deviceRGB,
+        bytesPerRow: 0, bitsPerPixel: 0),
+      let context = NSGraphicsContext(bitmapImageRep: bitmap)
+    else { return nil }
+    NSGraphicsContext.saveGraphicsState()
+    defer { NSGraphicsContext.restoreGraphicsState() }
+    NSGraphicsContext.current = context
+    let cloth = cloths[tint % cloths.count]
+    let board = NSRect(x: 0, y: 0, width: 1600, height: 2400)
+    NSGradient(
+      starting: cloth.blended(withFraction: 0.12, of: .white) ?? cloth,
+      ending: cloth.blended(withFraction: 0.35, of: .black) ?? cloth)?.draw(in: board, angle: -90)
+    NSColor(srgbRed: 0.96, green: 0.92, blue: 0.85, alpha: 0.55).setStroke()
+    let frame = NSBezierPath(rect: board.insetBy(dx: 110, dy: 110))
+    frame.lineWidth = 8
+    frame.stroke()
+    return bitmap.representation(using: .png, properties: [:])
+  }
 }
 
 /// Snapshot mode sends nothing: to each destination, the first book goes at once and the next

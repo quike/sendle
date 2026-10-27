@@ -95,6 +95,8 @@ package enum PanelCommand: Equatable, Sendable {
   case refresh
   case openSettings
   case editDetails
+  /// ⌘L: looks the book in the details sheet up online.
+  case lookUp
   case undo
 }
 
@@ -122,6 +124,7 @@ extension KeyInput {
       case "r": return .refresh
       case ",": return .openSettings
       case "i": return isEditingText ? nil : .editDetails
+      case "l": return .lookUp
       case "z": return isEditingText ? nil : .undo
       default: return nil
       }

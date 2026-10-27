@@ -7,6 +7,7 @@ public enum SettingsSection: String, Hashable, Sendable, CaseIterable {
   case kindle
   case sender
   case usb
+  case lookup
 
   package var title: String {
     switch self {
@@ -14,6 +15,7 @@ public enum SettingsSection: String, Hashable, Sendable, CaseIterable {
     case .kindle: "Kindle"
     case .sender: "Sender"
     case .usb: "USB"
+    case .lookup: "Online lookup"
     }
   }
 }

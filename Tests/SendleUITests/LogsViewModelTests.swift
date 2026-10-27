@@ -60,6 +60,10 @@ struct LogsViewModelTests {
     #expect(messages(model) == ["settings.json couldn't be read"])
   }
 
+  @Test func libraryPillShowsLookupLines() {
+    #expect(LogAreaFilter.library.includes(.lookup))
+  }
+
   @Test func hidesTheLevelsTurnedOff() {
     recordASend()
     let model = makeModel()

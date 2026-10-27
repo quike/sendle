@@ -14,12 +14,17 @@ package final class BookDetailsViewModel {
     case empty, valid, wrongCheckDigit, notAnISBN
   }
 
+  /// What the edition list shows in place of rows.
+  package enum EmptyListState: Equatable, Sendable {
+    case searching, nothingFound
+  }
+
   package let book: Book
-  package var title: String
-  package var author: String
-  package var year: String
-  package var isbn: String
-  package var language: String?
+  package var title: String { didSet { forgetUse(of: .title, unlessHolding: title) } }
+  package var author: String { didSet { forgetUse(of: .author, unlessHolding: author) } }
+  package var year: String { didSet { forgetUse(of: .year, unlessHolding: year) } }
+  package var isbn: String { didSet { forgetUse(of: .isbn, unlessHolding: isbn) } }
+  package var language: String? { didSet { forgetUse(of: .language, unlessHolding: language) } }
   /// "Also change the N other books by …".
   package var changesWriter: Bool
   package var isCoverHovered = false
@@ -39,18 +44,51 @@ package final class BookDetailsViewModel {
   private var typedSortName: String?
   /// Set by "Revert all", which leaves the writer's sort name to the checkbox.
   private var revertedAll = false
-  private var cover = CoverChange.keep
+  /// Choosing, dropping or reverting a cover forgets what Use cover replaced.
+  private var cover = CoverChange.keep { didSet { coverUse = nil } }
   private let opened: BookDetailsDraft
   private let otherBooks: Int
   private let fileValues: Edition?
   private let authorSort: AuthorSort
   private let saveDraft: @MainActor (BookDetailsDraft) async throws(EditDetailsError) -> Void
 
+  private let lookup: DetailsLookup?
+  package private(set) var progress: LookupProgress?
+  package private(set) var isPickingEdition = false
+  /// Each row's thumbnail, by URL, once it has loaded.
+  package private(set) var thumbnails: [URL: Data] = [:]
+  /// The edition list's search words, which Retry searches; typing them never changes the book.
+  package var searchTitle = ""
+  package var searchAuthor = ""
+  /// Whether the book's own lookup had an ISBN; a retry searches without one.
+  private var hadISBN = false
+  /// The source chosen from the ▾ menu.
+  private var chosenSource: LookupSource?
+  /// The edition picked from the list, refined once its source answers.
+  private var pickedEdition: FoundEdition?
+  /// The list opens by itself only once in a lookup.
+  private var hasOpenedEditionList = false
+  @ObservationIgnored private var lookupTask: Task<Void, Never>?
+  /// Tells a replaced or cancelled lookup's progress from the current one's.
+  @ObservationIgnored private var lookupGeneration = 0
+  @ObservationIgnored private var refineTask: Task<Void, Never>?
+  @ObservationIgnored private var thumbnailTasks: [URL: Task<Void, Never>] = [:]
+  /// The shown edition's cover, once fetched, when the book's cover can change.
+  package private(set) var foundCover: FoundCover?
+  /// What Use put in each field, and the field's value before, while the field still holds it.
+  private var usedValues: [Field: (was: String?, value: String)] = [:]
+  /// What Use cover replaced, while the sheet still shows the cover it put there.
+  private var coverUse: (was: CoverChange, preview: Data?, url: URL)?
+  /// The cover `foundCover` is, or is being fetched, for.
+  @ObservationIgnored private var coverURL: URL?
+  @ObservationIgnored private var coverTask: Task<Void, Never>?
+
   /// `save` must save the draft for this `book` and `fileValues`.
   package init(
     book: Book, library: [Book], fileValues: Edition?, authorSort: AuthorSort,
     lastSend: SendRecord?, now: Date, zone: TimeZone = .current,
-    save: @escaping @MainActor (BookDetailsDraft) async throws(EditDetailsError) -> Void
+    save: @escaping @MainActor (BookDetailsDraft) async throws(EditDetailsError) -> Void,
+    lookup: DetailsLookup? = nil
   ) {
     let otherBooks = EditBookDetails.otherBooks(by: book, in: library).count
     let opened = BookDetailsDraft(showing: book, fileValues: fileValues, otherBooks: otherBooks)
@@ -67,6 +105,7 @@ package final class BookDetailsViewModel {
     self.fileValues = fileValues
     self.authorSort = authorSort
     saveDraft = save
+    self.lookup = lookup
   }
 
   // MARK: Sort lines
@@ -341,6 +380,379 @@ package final class BookDetailsViewModel {
   /// With no other books, the writer's sort name is effectively the book's own.
   private var removesWriterSortName: Bool {
     sortNameFollowsCheckbox && (otherBooks == 0 || savedChangesWriter)
+  }
+
+  // MARK: Lookup
+
+  package var canLookUp: Bool { !(lookup?.sources.isEmpty ?? true) }
+
+  /// Looks up what the fields show, in place of any lookup still running; edits stay.
+  package func lookUp() {
+    guard canLookUp else { return }
+    let shown = shownDetails
+    let query = LookupQuery(
+      title: shown.title, author: shown.author, isbn: shown.isbn, language: shown.language)
+    start(query, refreshing: false)
+    searchTitle = query.title
+    searchAuthor = query.author ?? ""
+    hadISBN = query.isbn != nil
+  }
+
+  package var canRetry: Bool { isPickingEdition && !searchTitle.trimmed.isEmpty }
+
+  /// Nil while the list has rows, and when the banner says why it has none, as a failure does.
+  package var emptyListState: EmptyListState? {
+    guard isPickingEdition, editionRows.isEmpty, let progress else { return nil }
+    guard progress.isFinished else { return .searching }
+    return banner == .nothingFound ? .nothingFound : nil
+  }
+
+  /// Searches every source again by the search words, in place of the running lookup, and stays
+  /// on the edition list while the answers come in.
+  package func retry() {
+    guard canRetry else { return }
+    let query = LookupQuery(
+      title: searchTitle, author: searchAuthor, isbn: nil, language: shownLanguage)
+    start(query, refreshing: true)
+    isPickingEdition = true
+  }
+
+  /// Ends the lookup and forgets what it found; the fields stay as they are.
+  package func cancelLookup() {
+    endLookup()
+  }
+
+  /// The ▾ menu's choice, else the first source in order with details.
+  package var shownSource: LookupSource? {
+    chosenSource ?? progress?.shownSource
+  }
+
+  /// Shows the source's edition, or its list; a source with nothing to show is ignored.
+  package func show(_ source: LookupSource) {
+    guard let result = progress?.result(for: source) else { return }
+    switch result {
+    case .asking, .notFound, .failed: return
+    case .edition, .editions: break
+    }
+    chosenSource = source
+    forgetPick()
+    if case .editions = result { openEditionList() } else { isPickingEdition = false }
+    fetchFoundCover()
+  }
+
+  package var editionRows: [EditionRow] {
+    guard isPickingEdition, let source = shownSource,
+      case .editions(let editions)? = progress?.result(for: source)
+    else { return [] }
+    return editions.enumerated().map { EditionRow(id: $0.offset, edition: $0.element) }
+  }
+
+  /// Shows the row's edition at once, then as its source has it under its ISBN, keeping the
+  /// row's values for what the source's record leaves out.
+  package func pick(_ row: EditionRow) {
+    guard let lookup, isPickingEdition else { return }
+    isPickingEdition = false
+    forgetPick()
+    pickedEdition = row.edition
+    fetchFoundCover()
+    refineTask = Task { [weak self] in
+      let refined = await lookup.refine(row.edition)
+      guard let self, !Task.isCancelled else { return }
+      pickedEdition = Self.edition(row.edition, filledFrom: refined)
+      fetchFoundCover()
+    }
+  }
+
+  /// Skip, "None of these" and esc: ends the lookup, leaving the fields as they are.
+  package func skipEditionList() {
+    guard isPickingEdition else { return }
+    endLookup()
+  }
+
+  package var shownEdition: FoundEdition? {
+    if let pickedEdition { return pickedEdition }
+    guard let source = shownSource, case .edition(let edition)? = progress?.result(for: source)
+    else { return nil }
+    return edition
+  }
+
+  /// The compared fields the shown edition differs in, and those Use filled; never the cover.
+  package var differences: Int {
+    shownEdition.map(differences(in:)) ?? 0
+  }
+
+  // MARK: Found details
+
+  /// The bubble under a compared field, if the shown edition has a value for it.
+  package func found(_ field: Field) -> FoundValue? {
+    switch shownEdition.flatMap({ match(field, in: $0) }) {
+    case .differs(let value)?: return .differs(Self.bubbleText(value, for: field))
+    case .matches?:
+      guard let used = usedValues[field] else { return .matches }
+      return .used(was: Self.bubbleText(used.was, for: field))
+    case nil: return nil
+    }
+  }
+
+  /// Fills a differing field with the found value, as typing or choosing it would.
+  package func use(_ field: Field) {
+    guard let edition = shownEdition, case .differs(let value)? = match(field, in: edition)
+    else { return }
+    let was = typedValue(field)
+    fill(field, with: value)
+    usedValues[field] = (was: was, value: value)
+  }
+
+  package func undo(_ field: Field) {
+    guard let used = usedValues.removeValue(forKey: field) else { return }
+    fill(field, with: used.was)
+  }
+
+  /// Uses every differing field, leaving the cover alone.
+  package func useAll() {
+    for field in Field.allCases { use(field) }
+  }
+
+  package var isFoundCoverUsed: Bool {
+    guard let coverUse, let foundCover else { return false }
+    return coverUse.url == foundCover.url
+  }
+
+  package func useFoundCover() {
+    guard let foundCover, !isFoundCoverUsed else { return }
+    let replaced = (was: cover, preview: coverPreview, url: foundCover.url)
+    setCover(foundCover.file.data, preview: foundCover.file.preview)
+    coverUse = replaced
+  }
+
+  package func undoFoundCover() {
+    guard isFoundCoverUsed, let coverUse else { return }
+    cover = coverUse.was
+    coverPreview = coverUse.preview
+  }
+
+  package var banner: LookupBanner? {
+    guard let progress else { return nil }
+    if let edition = shownEdition {
+      return agreeingSources.map { .allAgree($0) }
+        ?? .found(edition.source, differences: differences)
+    }
+    if let source = shownSource, case .editions = progress.result(for: source) {
+      return .editions(source, hadISBN: hadISBN)
+    }
+    guard progress.isFinished else { return .searching(progress.method) }
+    var failures: [LookupSource: LookupError] = [:]
+    for source in progress.sources {
+      if case .failed(let error) = progress.result(for: source) { failures[source] = error }
+    }
+    if failures.isEmpty { return .nothingFound }
+    let notFound = progress.sources.filter { failures[$0] == nil }
+    guard notFound.isEmpty else {
+      let failed = progress.sources.filter { failures[$0] != nil }
+      return .partlyUnreachable(failed: failed, notFound: notFound)
+    }
+    return failures.values.allSatisfy { $0 == .offline } ? .offline : .unreachable(progress.sources)
+  }
+
+  /// Every enabled source, with what it found.
+  package var sourceMenu: [(source: LookupSource, status: String)] {
+    guard let progress else { return [] }
+    return progress.sources.map { (source: $0, status: status(of: progress.result(for: $0))) }
+  }
+
+  /// Once the lookup is over, the sources whose edition agrees with every field, when they all do
+  /// and the shown edition is one of theirs.
+  private var agreeingSources: [LookupSource]? {
+    guard let progress, progress.isFinished, pickedEdition == nil else { return nil }
+    var agreeing: [LookupSource] = []
+    for source in progress.sources {
+      guard case .edition(let edition) = progress.result(for: source) else { continue }
+      guard differences(in: edition) == 0 else { return nil }
+      agreeing.append(source)
+    }
+    return agreeing.isEmpty ? nil : agreeing
+  }
+
+  private func status(of result: SourceResult) -> String {
+    switch result {
+    case .asking: "Asking…"
+    case .edition(let edition):
+      switch differences(in: edition) {
+      case 0: "Agrees with everything"
+      case 1: "1 difference"
+      case let count: "\(count) differences"
+      }
+    case .editions(let editions): editions.count == 1 ? "1 edition" : "\(editions.count) editions"
+    case .notFound: "Didn't find this book"
+    case .failed(.missingKey): "Needs your API key"
+    case .failed: "Couldn't reach it"
+    }
+  }
+
+  /// A field Use filled from this edition still counts.
+  private func differences(in edition: FoundEdition) -> Int {
+    Field.allCases.filter { field in
+      switch match(field, in: edition) {
+      case .differs?: true
+      case .matches?: usedValues[field] != nil
+      case nil: false
+      }
+    }.count
+  }
+
+  /// How the edition's value for a field compares with what the field shows; nil when it has no
+  /// value for it, or the field isn't compared. A PDF compares only its title and author.
+  private func match(_ field: Field, in edition: FoundEdition) -> FieldMatch? {
+    let compared: LookupField? =
+      switch field {
+      case .title: .title
+      case .author: .author
+      case .year: isPDF ? nil : .year
+      case .isbn: isPDF ? nil : .isbn
+      case .language: isPDF ? nil : .language
+      case .sortTitle, .sortName: nil
+      }
+    return compared.flatMap { LookupDifferences.compare(edition, with: shownDetails)[$0] }
+  }
+
+  /// A compared field's value as typed; a language as its tag.
+  private func typedValue(_ field: Field) -> String? {
+    switch field {
+    case .title: title
+    case .author: author
+    case .year: year
+    case .isbn: isbn
+    case .language: language
+    case .sortTitle, .sortName: nil
+    }
+  }
+
+  private func fill(_ field: Field, with value: String?) {
+    switch field {
+    case .title: title = value ?? ""
+    case .author: author = value ?? ""
+    case .year: year = value ?? ""
+    case .isbn: isbn = value ?? ""
+    case .language:
+      if let value { chooseLanguage(value) } else { revert(.language) }
+    case .sortTitle, .sortName: break
+    }
+  }
+
+  /// Typing over a used value forgets what it replaced.
+  private func forgetUse(of field: Field, unlessHolding value: String?) {
+    if let used = usedValues[field], used.value != value { usedValues[field] = nil }
+  }
+
+  private static func bubbleText(_ value: String?, for field: Field) -> String {
+    guard let value = value?.trimmed, !value.isEmpty else { return "—" }
+    return field == .language ? Formatting.languageName(value) : value
+  }
+
+  /// What the fields show: the typed value, or what an emptied field shows in its place.
+  private var shownDetails: ShownDetails {
+    ShownDetails(
+      title: shownTitle, author: shownAuthor,
+      year: year.trimmed.isEmpty ? placeholder(.year) : year.trimmed,
+      isbn: isbn.trimmed.isEmpty ? placeholder(.isbn) : isbn.trimmed, language: shownLanguage)
+  }
+
+  private func start(_ query: LookupQuery, refreshing: Bool) {
+    guard let lookup else { return }
+    endLookup()
+    progress = LookupProgress(
+      sources: lookup.sources, method: query.isbn == nil ? .titleAndAuthor : .isbn)
+    let generation = lookupGeneration
+    let stream = lookup.search(query, refreshing)
+    lookupTask = Task { [weak self] in
+      for await update in stream {
+        guard let self, lookupGeneration == generation else { return }
+        receive(update)
+      }
+    }
+  }
+
+  private func receive(_ progress: LookupProgress) {
+    self.progress = progress
+    fetchFoundCover()
+    guard !hasOpenedEditionList, progress.method == .titleAndAuthor, let source = shownSource,
+      case .editions = progress.result(for: source)
+    else { return }
+    openEditionList()
+  }
+
+  private func openEditionList() {
+    isPickingEdition = true
+    hasOpenedEditionList = true
+    loadThumbnails()
+  }
+
+  /// Asks for each row's thumbnail once.
+  private func loadThumbnails() {
+    guard let lookup else { return }
+    for edition in editionRows.map(\.edition) {
+      guard let url = edition.thumbnail, thumbnailTasks[url] == nil else { continue }
+      thumbnailTasks[url] = Task { [weak self] in
+        let data = await lookup.image(url, edition.source)
+        guard let self, !Task.isCancelled, let data else { return }
+        thumbnails[url] = data
+      }
+    }
+  }
+
+  /// Fetches the shown edition's cover, dropping a fetch for one no longer shown.
+  private func fetchFoundCover() {
+    let edition = canChangeCover ? shownEdition : nil
+    guard edition?.cover != coverURL else { return }
+    coverTask?.cancel()
+    coverURL = edition?.cover
+    foundCover = nil
+    guard let lookup, let edition, let url = edition.cover else { return }
+    coverTask = Task { [weak self] in
+      guard let data = await lookup.image(url, edition.source), !Task.isCancelled else { return }
+      let file = await Task.detached { CoverImageFile.make(from: data) }.value
+      guard let self, !Task.isCancelled, case .success(let file) = file else { return }
+      foundCover = FoundCover(url: url, file: file)
+    }
+  }
+
+  /// `refined`'s values, and `picked`'s where it has none.
+  private static func edition(
+    _ picked: FoundEdition, filledFrom refined: FoundEdition
+  ) -> FoundEdition {
+    FoundEdition(
+      source: picked.source, title: refined.title ?? picked.title,
+      author: refined.author ?? picked.author, year: refined.year ?? picked.year,
+      isbn: refined.isbn ?? picked.isbn, language: refined.language ?? picked.language,
+      publisher: refined.publisher ?? picked.publisher, cover: refined.cover ?? picked.cover,
+      thumbnail: refined.thumbnail ?? picked.thumbnail, link: refined.link ?? picked.link)
+  }
+
+  private func forgetPick() {
+    refineTask?.cancel()
+    refineTask = nil
+    pickedEdition = nil
+  }
+
+  /// Stops the running lookup and forgets everything about it, leaving what Use filled.
+  private func endLookup() {
+    lookupGeneration += 1
+    lookupTask?.cancel()
+    lookupTask = nil
+    forgetPick()
+    for task in thumbnailTasks.values { task.cancel() }
+    thumbnailTasks = [:]
+    thumbnails = [:]
+    coverTask?.cancel()
+    coverTask = nil
+    coverURL = nil
+    foundCover = nil
+    coverUse = nil
+    usedValues = [:]
+    progress = nil
+    chosenSource = nil
+    isPickingEdition = false
+    hasOpenedEditionList = false
   }
 
   // MARK: Private

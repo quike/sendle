@@ -1,0 +1,40 @@
+{
+  "numFound": 12,
+  "docs": [
+    {
+      "author_name": [
+        "Gabriel García Márquez"
+      ],
+      "key": "/works/OL274505W",
+      "title": "Cien años de soledad"
+    },
+    {
+      "author_name": [
+        "Gabriel García Márquez"
+      ],
+      "key": "/works/OL25917022W",
+      "title": "Cien años de Soledad. Edición Conmemorativa de la RAE / One Hundred Years of Sol Itude. Conmemorative Edition"
+    },
+    {
+      "author_name": [
+        "Gabriel García Márquez"
+      ],
+      "key": "/works/OL28027117W",
+      "title": "Cien Años de Soledad"
+    },
+    {
+      "author_name": [
+        "Gabriel García Márquez"
+      ],
+      "key": "/works/OL43144891W",
+      "title": "Cien Años De Soledad"
+    },
+    {
+      "author_name": [
+        "Gabriel García Márquez"
+      ],
+      "key": "/works/OL24213362W",
+      "title": "Cien años de soledad / One Hundred Years of Solitude"
+    }
+  ]
+}

@@ -61,6 +61,26 @@ struct SettingsSearchTests {
     #expect(SettingsItem.appPassword.title == "App password")
     #expect(SettingsItem.showLogs.section == .general)
     #expect(SettingsItem.bokoLocation.section == .usb)
-    #expect(SettingsSection.allCases.map(\.title) == ["General", "Kindle", "Sender", "USB"])
+    #expect(
+      SettingsSection.allCases.map(\.title)
+        == ["General", "Kindle", "Sender", "USB", "Online lookup"])
+  }
+
+  @Test func searchFindsOnlineLookup() {
+    for word in [
+      "lookup", "online", "internet", "Open Library", "Google", "Apple", "ISBN", "metadata",
+      "details",
+    ] {
+      #expect(SettingsSearch.results(for: word).contains(.lookupSources), "\(word)")
+    }
+    #expect(SettingsItem.lookupSources.title == "Online lookup sources")
+    #expect(SettingsItem.lookupSources.section == .lookup)
+  }
+
+  @Test func searchFindsTheGoogleBooksKey() {
+    #expect(SettingsSearch.results(for: "api key") == [.googleBooksKey])
+    #expect(SettingsSearch.results(for: "google").contains(.googleBooksKey))
+    #expect(SettingsItem.googleBooksKey.title == "Google Books API key")
+    #expect(SettingsItem.googleBooksKey.section == .lookup)
   }
 }

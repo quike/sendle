@@ -1,0 +1,25 @@
+{
+  "key": "/books/OL48571928M",
+  "title": "Cien años de soledad",
+  "works": [
+    {
+      "key": "/works/OL274505W"
+    }
+  ],
+  "publish_date": "1988",
+  "isbn_10": [
+    "8439711085"
+  ],
+  "languages": [
+    {
+      "key": "/languages/spa"
+    }
+  ],
+  "publishers": [
+    "Mondadori"
+  ],
+  "covers": [
+    -1,
+    14359127
+  ]
+}

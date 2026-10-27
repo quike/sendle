@@ -38,7 +38,7 @@ struct PanelHarness {
   /// details fails with `editFailure`. `hiddenBooks`, if given, keeps the hidden books in place of
   /// one holding `hidden`. `remover` removes the copy a Replace leaves behind, turns Replace on for
   /// copies Sendle did not name, and deletes from the Kindle sheet. That Undo and the hide's wait on
-  /// `removalSleep`.
+  /// `removalSleep`. The details sheet looks books up in `catalogues`, if there are any.
   func makePanel(
     _ saved: AppSettings = AppSettings(email: .fixture),
     channel: FakeDeliveryChannel = FakeDeliveryChannel(),
@@ -51,6 +51,7 @@ struct PanelHarness {
     hidden: Set<BookID> = [],
     hiddenBooks: InMemoryHiddenBooksStore? = nil,
     remover: FakeKindleBookRemover? = nil,
+    catalogues: [any BookCatalogue] = [],
     removalSleep: @escaping @Sendable (Duration) async -> Void = { _ in
       try? await Task.sleep(for: .seconds(60))
     },
@@ -83,7 +84,8 @@ struct PanelHarness {
         addresses: ManageKindleAddresses(settings: settings),
         chooseTool: ChooseConverterTool(
           settings: settings, choice: converter, isExecutable: { _ in true }),
-        settings: settings, loginItem: FakeLoginItem(), converter: converter),
+        settings: settings, loginItem: FakeLoginItem(), converter: converter,
+        lookupKeys: MemorySecretStore()),
       covers: CoverStore(provider: FakeCoverProvider()),
       queue: SendQueueViewModel(
         sendBooks: SendBooks(
@@ -99,6 +101,8 @@ struct PanelHarness {
       removal: remover.map {
         KindleRemovalModel(removals: KindleRemovals(remover: $0, log: log), sleep: removalSleep)
       },
+      lookUp: catalogues.isEmpty
+        ? nil : LookUpBook(catalogues: catalogues, settings: settings, log: log),
       sleep: removalSleep, log: log)
     panel.attach(system)
     return (panel, settings)

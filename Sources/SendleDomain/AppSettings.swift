@@ -47,6 +47,8 @@ public struct AppSettings: Hashable, Sendable, Codable {
   public var kindleAddresses: [KindleEmail]
   /// The boko the user chose; nil looks in the usual folders.
   public var bokoPath: String?
+  /// The catalogues online lookup asks.
+  public var lookupSources: Set<LookupSource>
 
   public static let defaults = AppSettings()
 
@@ -61,7 +63,8 @@ public struct AppSettings: Hashable, Sendable, Codable {
     showsLogs: Bool = false,
     authorSort: AuthorSort = .surname,
     kindleAddresses: [KindleEmail] = [],
-    bokoPath: String? = nil
+    bokoPath: String? = nil,
+    lookupSources: Set<LookupSource> = [.openLibrary, .appleBooks]
   ) {
     self.email = email
     self.layout = layout
@@ -74,6 +77,7 @@ public struct AppSettings: Hashable, Sendable, Codable {
     self.authorSort = authorSort
     self.kindleAddresses = kindleAddresses
     self.bokoPath = bokoPath
+    self.lookupSources = lookupSources
   }
 
   /// A missing or unknown value falls back to its default. An unreadable email block throws
@@ -95,6 +99,9 @@ public struct AppSettings: Hashable, Sendable, Codable {
     kindleAddresses =
       (try? container.decodeIfPresent([KindleEmail].self, forKey: .kindleAddresses)) ?? []
     bokoPath = (try? container.decodeIfPresent(String.self, forKey: .bokoPath)) ?? nil
+    lookupSources =
+      (try? container.decodeIfPresent(Set<LookupSource>.self, forKey: .lookupSources))
+      ?? [.openLibrary, .appleBooks]
   }
 
   /// The saved Kindle addresses with the active one among them, as a file from before the list

@@ -197,7 +197,7 @@ private struct LogRow: View {
       Text(entry.area.tag)
         .font(.system(size: 8.5, weight: .bold))
         .foregroundStyle(entry.area.color)
-        .frame(width: 30, alignment: .leading)
+        .frame(width: 40, alignment: .leading)
       VStack(alignment: .leading, spacing: 4) {
         HStack(alignment: .firstTextBaseline, spacing: 5) {
           LevelBubble(level: entry.level)
@@ -263,7 +263,7 @@ extension LogArea {
     case .mail: Color(hex: 0x7fb2ff)
     case .boko: Color(hex: 0xfbbf24)
     case .usb: Theme.live
-    case .library, .epub: Color(hex: 0xc4b5fd)
+    case .library, .epub, .lookup: Color(hex: 0xc4b5fd)
     case .app: Theme.muted
     }
   }

@@ -11,11 +11,15 @@ struct PanelDetailsTests {
   let a = BookID(rawValue: "a")
   let b = BookID(rawValue: "b")
   let commandI = KeyInput(.character("i"), command: true)
+  let commandL = KeyInput(.character("l"), command: true, isEditingText: true)
+  private let isbn = "9788408172277"
 
   private func launched(
-    editions: [BookID: Edition] = [:], editFailure: MetadataEditError? = nil
+    saved: AppSettings = AppSettings(email: .fixture), editions: [BookID: Edition] = [:],
+    editFailure: MetadataEditError? = nil, catalogues: [any BookCatalogue] = []
   ) async -> PanelModel {
-    let (panel, _) = harness.makePanel(editions: editions, editFailure: editFailure)
+    let (panel, _) = harness.makePanel(
+      saved, editions: editions, editFailure: editFailure, catalogues: catalogues)
     await panel.launch()
     return panel
   }
@@ -316,6 +320,189 @@ struct PanelDetailsTests {
     #expect(await panel.dropCover(cover) == false)
 
     #expect(details.coverPreview == nil)
+  }
+
+  // MARK: Lookup
+
+  /// The sheet of book `a`, with its ISBN, looking up in `catalogues`.
+  private func sheet(
+    saved: AppSettings = AppSettings(email: .fixture), catalogues: [any BookCatalogue]
+  ) async throws -> (panel: PanelModel, details: BookDetailsViewModel) {
+    let panel = await launched(
+      saved: saved, editions: [a: Edition(isbn: isbn)], catalogues: catalogues)
+    await panel.openDetails(a)
+    return (panel, try #require(panel.bookDetails))
+  }
+
+  /// Two editions to pick from, found by title alone.
+  private func listing() -> FakeCatalogue {
+    FakeCatalogue(
+      .openLibrary, byTitle: .success([.fixture(), .fixture(title: "Los ritos del agua II")]))
+  }
+
+  @Test func commandLInTheSheetStartsALookup() async throws {
+    let gate = Signal()
+    let catalogue = FakeCatalogue(.openLibrary, gate: gate)
+    let (panel, details) = try await sheet(catalogues: [catalogue])
+
+    #expect(panel.handle(commandL))
+
+    #expect(details.progress?.sources == [.openLibrary])
+    #expect(await eventually { catalogue.requests == ["isbn:\(isbn)"] })
+    await gate.fire()
+  }
+
+  @Test func holdingCommandLLooksUpOnce() async throws {
+    let gate = Signal()
+    let catalogue = FakeCatalogue(.openLibrary, gate: gate)
+    let (panel, _) = try await sheet(catalogues: [catalogue])
+    #expect(panel.handle(commandL))
+    #expect(await eventually { catalogue.requests == ["isbn:\(isbn)"] })
+
+    #expect(
+      panel.handle(KeyInput(.character("l"), command: true, isEditingText: true, isRepeat: true)))
+
+    try await Task.sleep(for: .milliseconds(50))
+    #expect(catalogue.requests == ["isbn:\(isbn)"])
+    #expect(catalogue.cancelledRequests.isEmpty)
+    await gate.fire()
+  }
+
+  @Test func onlyTheEnabledSourcesAreAsked() async throws {
+    let openLibrary = FakeCatalogue(.openLibrary)
+    let apple = FakeCatalogue(.appleBooks)
+    let (panel, details) = try await sheet(
+      saved: AppSettings(email: .fixture, lookupSources: [.appleBooks]),
+      catalogues: [openLibrary, apple])
+
+    #expect(panel.handle(commandL))
+
+    #expect(details.progress?.sources == [.appleBooks])
+    #expect(await eventually { apple.requests.first == "isbn:\(isbn)" })
+    #expect(openLibrary.requests.isEmpty)
+  }
+
+  @Test func noSourcesNoLookup() async throws {
+    let catalogue = FakeCatalogue(.openLibrary)
+    let (panel, details) = try await sheet(
+      saved: AppSettings(email: .fixture, lookupSources: []), catalogues: [catalogue])
+
+    #expect(!details.canLookUp)
+    #expect(panel.handle(commandL))
+
+    #expect(details.progress == nil)
+    #expect(catalogue.requests.isEmpty)
+  }
+
+  @Test func withoutACatalogueTheSheetCannotLookUp() async throws {
+    let (panel, details) = try await sheet(catalogues: [])
+
+    #expect(!details.canLookUp)
+    #expect(panel.handle(commandL))
+    #expect(details.progress == nil)
+  }
+
+  @Test func commandLOutsideTheSheetIsNotUsed() async {
+    let panel = await launched(catalogues: [FakeCatalogue(.openLibrary)])
+    panel.click(a, .plain)
+
+    #expect(!panel.handle(commandL))
+    #expect(panel.bookDetails == nil)
+  }
+
+  @Test func escapeLeavesTheEditionListBeforeTheSheet() async throws {
+    let panel = await launched(catalogues: [listing()])
+    await panel.openDetails(a)
+    let details = try #require(panel.bookDetails)
+    #expect(panel.handle(commandL))
+    #expect(await eventually { details.isPickingEdition })
+
+    #expect(panel.handle(KeyInput(.escape, isEditingText: true)))
+
+    #expect(panel.bookDetails != nil)
+    #expect(!details.isPickingEdition)
+    #expect(details.progress == nil)
+
+    #expect(panel.handle(KeyInput(.escape, isEditingText: true)))
+
+    #expect(panel.bookDetails == nil)
+    #expect(harness.system.closedPanel == 0)
+  }
+
+  @Test func returnWhileChoosingAnEditionRetries() async throws {
+    let catalogue = listing()
+    let panel = await launched(catalogues: [catalogue])
+    await panel.openDetails(a)
+    let details = try #require(panel.bookDetails)
+    details.title = "Typee"
+    #expect(panel.handle(commandL))
+    #expect(await eventually { details.isPickingEdition })
+    let rows = details.editionRows
+    details.searchTitle = "Omoo"
+
+    #expect(panel.handle(KeyInput(.returnKey, isEditingText: true, isRepeat: true)))
+    #expect(!rows.isEmpty && details.editionRows == rows)
+
+    #expect(panel.handle(KeyInput(.returnKey, isEditingText: true)))
+    #expect(await eventually { catalogue.requests.last == "title:Omoo|Herman Melville|en" })
+    await panel.library.reload()
+
+    #expect(panel.bookDetails != nil)
+    #expect(details.isPickingEdition)
+    #expect(title(of: a, in: panel) == "Moby-Dick")
+  }
+
+  @Test func commandLOnTheEditionPageRetries() async throws {
+    let catalogue = listing()
+    let panel = await launched(catalogues: [catalogue])
+    await panel.openDetails(a)
+    let details = try #require(panel.bookDetails)
+    details.title = "Typee"
+    #expect(panel.handle(commandL))
+    #expect(await eventually { details.isPickingEdition })
+    let rows = details.editionRows
+    details.searchTitle = "Omoo"
+
+    #expect(
+      panel.handle(KeyInput(.character("l"), command: true, isEditingText: true, isRepeat: true)))
+    #expect(!rows.isEmpty && details.editionRows == rows)
+
+    #expect(panel.handle(commandL))
+    #expect(await eventually { catalogue.requests.last == "title:Omoo|Herman Melville|en" })
+    #expect(details.isPickingEdition)
+    #expect(details.searchTitle == "Omoo")
+  }
+
+  @Test func closingTheSheetCancelsItsLookup() async throws {
+    let gate = Signal()
+    let catalogue = FakeCatalogue(.openLibrary, gate: gate)
+    let (panel, details) = try await sheet(catalogues: [catalogue])
+    #expect(panel.handle(commandL))
+    #expect(await eventually { !catalogue.requests.isEmpty })
+
+    panel.closeDetails()
+
+    #expect(panel.bookDetails == nil)
+    #expect(details.progress == nil)
+    #expect(await eventually { catalogue.cancelledRequests == ["isbn:\(isbn)"] })
+    await gate.fire()
+    #expect(details.progress == nil)
+  }
+
+  @Test func savingTheSheetCancelsItsLookup() async throws {
+    let gate = Signal()
+    let catalogue = FakeCatalogue(.openLibrary, gate: gate)
+    let (panel, details) = try await sheet(catalogues: [catalogue])
+    details.title = "Typee"
+    #expect(panel.handle(commandL))
+    #expect(await eventually { !catalogue.requests.isEmpty })
+
+    await panel.saveDetails()
+
+    #expect(panel.bookDetails == nil)
+    #expect(details.progress == nil)
+    #expect(await eventually { catalogue.cancelledRequests == ["isbn:\(isbn)"] })
+    await gate.fire()
   }
 
   private func png(width: Int = 2, height: Int = 3) throws -> Data {

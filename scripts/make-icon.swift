@@ -5,6 +5,8 @@
 // Usage: scripts/make-icon.swift <source.png> <output.icns>        the app icon, at every size
 //        scripts/make-icon.swift --logo <source.png> <output.png>  the panel header's logo: the
 //                                                                  tile alone, 128 px, no shadow
+//        scripts/make-icon.swift --png <source.png> <output.png>   the app icon at 256 px, for the
+//                                                                  README (docs/icon.png)
 import AppKit
 
 /// The tile in the source, in pixels from its top left: the edge just inside its rim, and its
@@ -22,10 +24,10 @@ func fail(_ message: String) -> Never {
 }
 
 let arguments = Array(CommandLine.arguments.dropFirst())
-let isLogo = arguments.first == "--logo"
-let paths = isLogo ? Array(arguments.dropFirst()) : arguments
-guard paths.count == 2 else {
-  fail("Usage: make-icon.swift [--logo] <source.png> <output.icns|output.png>")
+let option = arguments.first.flatMap { $0.hasPrefix("--") ? $0 : nil }
+let paths = option == nil ? arguments : Array(arguments.dropFirst())
+guard paths.count == 2, option == nil || ["--logo", "--png"].contains(option) else {
+  fail("Usage: make-icon.swift [--logo|--png] <source.png> <output.icns|output.png>")
 }
 guard let sourceData = try? Data(contentsOf: URL(fileURLWithPath: paths[0])),
   let source = NSBitmapImageRep(data: sourceData)?.cgImage
@@ -124,8 +126,12 @@ func scaled(_ image: CGImage, to pixels: Int) -> CGImage {
   return canvas.makeImage()!
 }
 
-if isLogo {
+if option == "--logo" {
   try png(logo(128)).write(to: output)
+  exit(0)
+}
+if option == "--png" {
+  try png(scaled(master(), to: 256)).write(to: output)
   exit(0)
 }
 

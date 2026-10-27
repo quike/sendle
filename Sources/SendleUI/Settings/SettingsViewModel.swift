@@ -29,8 +29,16 @@ public final class SettingsViewModel {
   /// The boko the user chose, found or not.
   package private(set) var chosenBoko: URL?
   package private(set) var bokoError: String?
+  /// The lookup sources as Settings lists them: Google Books, the only one needing a key, last.
+  package static let lookupSourceOrder: [LookupSource] = [.openLibrary, .appleBooks, .googleBooks]
+
+  package private(set) var lookupSources = AppSettings.defaults.lookupSources
+  package private(set) var hasGoogleKey = false
+  /// What is typed for the Google Books key; never filled from the Keychain.
+  package var googleKey = ""
+  package private(set) var googleKeyError: String?
   /// Told whenever a choice the panel shows changes: the controls, the A–Z bar, the author sort,
-  /// formats, logs, the Kindle address, boko.
+  /// formats, logs, the Kindle address, boko, the lookup sources.
   @ObservationIgnored package var onChange: (@MainActor () async -> Void)?
   @ObservationIgnored private var unmark: Task<Void, Never>?
   /// The email setup as saved; the form may hold edits that aren't.
@@ -41,6 +49,7 @@ public final class SettingsViewModel {
   private let chooseTool: ChooseConverterTool
   private let loginItem: any LoginItem
   private let converter: any FormatConverter & ToolChoice
+  private let lookupKeys: any SecretStore
   private let log: any ActivityLog
 
   public init(
@@ -51,6 +60,7 @@ public final class SettingsViewModel {
     settings: any SettingsStore,
     loginItem: any LoginItem,
     converter: any FormatConverter & ToolChoice,
+    lookupKeys: any SecretStore,
     log: any ActivityLog = NoActivityLog()
   ) {
     form = EmailForm(configure: configure, sendTest: sendTest)
@@ -59,10 +69,12 @@ public final class SettingsViewModel {
     self.settings = settings
     self.loginItem = loginItem
     self.converter = converter
+    self.lookupKeys = lookupKeys
     self.log = log
   }
 
-  /// Reads what the panel needs before Settings ever opens, such as whether logs are on.
+  /// Reads what the panel needs before Settings ever opens, such as whether logs are on. The
+  /// Google Books key waits for Settings, as reading the Keychain can bring up a prompt.
   package func start() async {
     let saved = await settings.load()
     jumpBar = saved.jumpBar
@@ -70,6 +82,7 @@ public final class SettingsViewModel {
     authorSort = saved.authorSort
     showsFormat = saved.showsFormat
     showsLogs = saved.showsLogs
+    lookupSources = saved.lookupSources
   }
 
   /// Starts from what is saved, so edits that were never saved are gone.
@@ -87,6 +100,9 @@ public final class SettingsViewModel {
     launchAtLoginError = nil
     readBoko()
     bokoError = nil
+    googleKey = ""
+    googleKeyError = nil
+    await readGoogleKey()
   }
 
   /// Catches up with a setup saved from elsewhere, such as by a test email.
@@ -147,6 +163,9 @@ public final class SettingsViewModel {
       return "\(savedEmail.provider.pickerName) · \(savedEmail.senderAddress)"
     case .usb:
       return bokoTitle
+    case .lookup:
+      let names = Self.lookupSourceOrder.filter(lookupSources.contains).map(\.name)
+      return names.isEmpty ? "Off" : names.joined(separator: ", ")
     }
   }
 
@@ -295,6 +314,47 @@ public final class SettingsViewModel {
       : "EPUBs are converted to AZW3 before they're copied to your Kindle."
   }
 
+  // MARK: Online lookup
+
+  /// Google Books waits for a key, so turning it on without one does nothing.
+  package func setLookupSource(_ source: LookupSource, isOn: Bool) async {
+    guard !(isOn && source == .googleBooks && !hasGoogleKey) else { return }
+    lookupSources.set(source, isOn: isOn)
+    await store { $0.lookupSources.set(source, isOn: isOn) }
+  }
+
+  package func saveGoogleKey() async {
+    let key = googleKey.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !key.isEmpty else {
+      googleKeyError = "Paste your API key."
+      return
+    }
+    do throws(StorageError) {
+      try await lookupKeys.setPassword(key, for: LookupSource.googleBooksKeyAccount)
+    } catch {
+      googleKeyError = "Couldn't save the key: \(error.detail)"
+      log.error(.app, "Couldn't save the Google Books key: \(error.detail)")
+      return
+    }
+    googleKey = ""
+    googleKeyError = nil
+    hasGoogleKey = true
+    await setLookupSource(.googleBooks, isOn: true)
+  }
+
+  package func removeGoogleKey() async {
+    do throws(StorageError) {
+      try await lookupKeys.removePassword(for: LookupSource.googleBooksKeyAccount)
+    } catch {
+      googleKeyError = "Couldn't remove the key: \(error.detail)"
+      log.error(.app, "Couldn't remove the Google Books key: \(error.detail)")
+      return
+    }
+    googleKeyError = nil
+    hasGoogleKey = false
+    await setLookupSource(.googleBooks, isOn: false)
+  }
+
   // MARK: Private
 
   private func show(_ saved: AppSettings) {
@@ -303,6 +363,7 @@ public final class SettingsViewModel {
     authorSort = saved.authorSort
     showsFormat = saved.showsFormat
     showsLogs = saved.showsLogs
+    lookupSources = saved.lookupSources
     savedEmail = saved.email
     kindleAddresses = saved.savedKindleAddresses
     activeKindleAddress = saved.email.flatMap { saved.savedSpelling(of: $0.kindleAddress) }
@@ -312,6 +373,17 @@ public final class SettingsViewModel {
     show(await settings.load())
     if let activeKindleAddress { form.kindleAddress = activeKindleAddress.rawValue }
     await onChange?()
+  }
+
+  /// A Keychain that can't be read counts as having no key.
+  private func readGoogleKey() async {
+    do throws(StorageError) {
+      hasGoogleKey =
+        try await lookupKeys.password(for: LookupSource.googleBooksKeyAccount) != nil
+    } catch {
+      hasGoogleKey = false
+      log.error(.app, "Couldn't read the Google Books key: \(error.detail)")
+    }
   }
 
   private func readBoko() {
@@ -335,5 +407,11 @@ public final class SettingsViewModel {
     case .active: "Make another address active before removing this one."
     case .storage(let failure): "Couldn't save the addresses: \(failure.detail)"
     }
+  }
+}
+
+extension Set<LookupSource> {
+  fileprivate mutating func set(_ source: LookupSource, isOn: Bool) {
+    if isOn { insert(source) } else { remove(source) }
   }
 }

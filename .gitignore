@@ -8,3 +8,4 @@ DerivedData/
 /.superpowers
 /.claude/settings.local.json
 /build
+.claude/

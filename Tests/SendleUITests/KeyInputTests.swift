@@ -44,6 +44,13 @@ struct KeyInputTests {
     #expect(KeyInput(.character("i")).panelCommand == nil)
   }
 
+  @Test func commandLLooksUpEvenWhileTyping() {
+    #expect(KeyInput(.character("l"), command: true).panelCommand == .lookUp)
+    #expect(KeyInput(.character("L"), command: true).panelCommand == .lookUp)
+    #expect(KeyInput(.character("l"), command: true, isEditingText: true).panelCommand == .lookUp)
+    #expect(KeyInput(.character("l")).panelCommand == nil)
+  }
+
   @Test func commandZUndoesUnlessATextFieldEdits() {
     #expect(KeyInput(.character("z"), command: true).panelCommand == .undo)
     #expect(KeyInput(.character("z"), command: true, isEditingText: true).panelCommand == nil)

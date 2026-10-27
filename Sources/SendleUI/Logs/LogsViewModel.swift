@@ -20,12 +20,12 @@ package enum LogAreaFilter: CaseIterable, Sendable {
     }
   }
 
-  func includes(_ area: LogArea) -> Bool {
+  package func includes(_ area: LogArea) -> Bool {
     switch self {
     case .all: true
     case .email: area == .mail
     case .usb: area == .usb || area == .boko
-    case .library: area == .library || area == .epub
+    case .library: area == .library || area == .epub || area == .lookup
     case .app: area == .app
     }
   }

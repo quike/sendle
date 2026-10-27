@@ -1,0 +1,45 @@
+{
+ "resultCount": 5,
+ "results": [
+  {
+   "kind": "ebook",
+   "trackName": "Los ritos del agua",
+   "artistName": "Eva García Saénz de Urturi",
+   "releaseDate": "2017-04-04T07:00:00Z",
+   "artworkUrl100": "https://is1-ssl.mzstatic.com/image/thumb/Publication122/v4/9b/b2/f1/9bb2f10c-dc5a-b0a3-77ef-db0d21cfd556/9788408170877.jpg/100x100bb.jpg",
+   "trackViewUrl": "https://books.apple.com/es/book/los-ritos-del-agua/id1211896224?uo=4"
+  },
+  {
+   "kind": "ebook",
+   "trackName": "Aquitania",
+   "artistName": "Eva García Saénz de Urturi",
+   "releaseDate": "2020-11-05T08:00:00Z",
+   "artworkUrl100": "https://is1-ssl.mzstatic.com/image/thumb/Publication115/v4/80/df/81/80df81c4-0d11-694f-bcc1-badf04abc0d9/9788408237747.jpg/100x100bb.jpg",
+   "trackViewUrl": "https://books.apple.com/es/book/aquitania/id1536651118?uo=4"
+  },
+  {
+   "kind": "ebook",
+   "trackName": "El silencio de la ciudad blanca",
+   "artistName": "Eva García Saénz de Urturi",
+   "releaseDate": "2016-04-12T07:00:00Z",
+   "artworkUrl100": "https://is1-ssl.mzstatic.com/image/thumb/Publication122/v4/bf/d6/3e/bfd63e03-b5cc-561e-81ad-ad78071c00b5/9788408154679.jpg/100x100bb.jpg",
+   "trackViewUrl": "https://books.apple.com/es/book/el-silencio-de-la-ciudad-blanca/id1087492535?uo=4"
+  },
+  {
+   "kind": "ebook",
+   "trackName": "Premio Planeta 2020: ganador y finalista (pack)",
+   "artistName": "Eva García Saénz de Urturi & Sandra Barneda",
+   "releaseDate": "2020-11-05T08:00:00Z",
+   "artworkUrl100": "https://is1-ssl.mzstatic.com/image/thumb/Publication112/v4/bd/71/60/bd7160cb-5ae9-1c62-3528-51d54f6659ac/9788408237839.jpg/100x100bb.jpg",
+   "trackViewUrl": "https://books.apple.com/es/book/premio-planeta-2020-ganador-y-finalista-pack/id1537188086?uo=4"
+  },
+  {
+   "kind": "ebook",
+   "trackName": "Aquitania",
+   "artistName": "Eva García Saénz de Urturi",
+   "releaseDate": "2023-12-05T08:00:00Z",
+   "artworkUrl100": "https://is1-ssl.mzstatic.com/image/thumb/Publication126/v4/ee/b9/11/eeb911b0-68d9-f32b-566b-1eef8fdabee8/9786069786970.jpg/100x100bb.jpg",
+   "trackViewUrl": "https://books.apple.com/es/book/aquitania/id6473789726?uo=4"
+  }
+ ]
+}
