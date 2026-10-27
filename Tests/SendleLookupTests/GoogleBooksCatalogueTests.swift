@@ -226,7 +226,7 @@ struct GoogleBooksCatalogueTests {
 
   static let dates: [(date: String, year: String?)] = [
     ("2017", "2017"), ("2017-03", "2017"), ("2017-03-01", "2017"), ("201", nil), ("", nil),
-    ("n.d.", nil), ("c. 1999", nil), ("١٩٨٨", nil),
+    ("n.d.", nil), ("c. 1999", nil), ("١٩٨٨", nil), ("0000", nil), ("0000-00-00", nil),
   ]
 
   @Test(arguments: dates)
@@ -235,6 +235,14 @@ struct GoogleBooksCatalogueTests {
     let fetcher = DataFetcher([Self.listURL: (200, Data(json.utf8))])
     let found = try await titleSearch(catalogue(fetcher))
     #expect(found.map(\.year) == [year])
+  }
+
+  @Test(arguments: ["und", "un", "zxx", ""])
+  func placeholderLanguagesAreLeftOut(_ language: String) async throws {
+    let json = #"{"items":[{"id":"a","volumeInfo":{"language":"\#(language)"}}]}"#
+    let fetcher = DataFetcher([Self.listURL: (200, Data(json.utf8))])
+    let found = try await titleSearch(catalogue(fetcher))
+    #expect(found.map(\.language) == [nil])
   }
 
   @Test(arguments: [

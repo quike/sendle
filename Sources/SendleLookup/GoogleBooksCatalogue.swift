@@ -12,6 +12,8 @@ public struct GoogleBooksCatalogue: BookCatalogue {
   private static let separator = " & "
   /// The size of Google's "image not available" picture.
   private static let placeholder = (width: 128, height: 170)
+  /// What Google sends for a language it doesn't know.
+  private static let unknownLanguages: Set = ["", "und", "un", "zxx"]
 
   public init(fetcher: any HTTPFetching, keys: any SecretStore) {
     self.fetcher = fetcher
@@ -121,17 +123,18 @@ public struct GoogleBooksCatalogue: BookCatalogue {
       author: info.authors.flatMap { $0.isEmpty ? nil : $0.joined(separator: Self.separator) },
       year: info.publishedDate.flatMap(Self.year),
       isbn: isbns.lazy.compactMap { ISBN.normalised($0.identifier) }.first,
-      language: info.language,
+      language: info.language.flatMap { Self.unknownLanguages.contains($0) ? nil : $0 },
       publisher: info.publisher,
       cover: info.imageLinks?.largest.flatMap(Self.secure),
       thumbnail: info.imageLinks?.smallest.flatMap(Self.secure),
       link: (info.canonicalVolumeLink ?? info.infoLink).flatMap { URL(string: $0) })
   }
 
-  /// The first four characters of `publishedDate` ("2017", "2017-03" or "2017-03-01").
+  /// The first four characters of `publishedDate` ("2017", "2017-03" or "2017-03-01"); never
+  /// "0000", which Google sends for an unknown date.
   private static func year(of date: String) -> String? {
     let year = date.prefix(4)
-    return year.count == 4 && year.allSatisfy { $0.isASCII && $0.isWholeNumber }
+    return year.count == 4 && year.allSatisfy { $0.isASCII && $0.isWholeNumber } && year != "0000"
       ? String(year) : nil
   }
 
