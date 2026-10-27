@@ -37,3 +37,25 @@ struct FixtureFetcher: HTTPFetching {
     return data
   }
 }
+
+/// Answers each URL it was given with the status and bytes it was given for it, and records what
+/// was asked. An URL it wasn't given fails the test.
+struct DataFetcher: HTTPFetching {
+  private let replies: [String: (status: Int, data: Data)]
+  private let asked = OSAllocatedUnfairLock<[String]>(initialState: [])
+
+  init(_ replies: [String: (Int, Data)]) {
+    self.replies = replies.mapValues { (status: $0.0, data: $0.1) }
+  }
+
+  var requests: [String] { asked.withLock { $0 } }
+
+  func get(_ url: URL) async throws(LookupError) -> HTTPReply {
+    asked.withLock { $0.append(url.absoluteString) }
+    guard let reply = replies[url.absoluteString] else {
+      Issue.record("Unexpected request: \(url.absoluteString)")
+      throw .unreadable
+    }
+    return HTTPReply(status: reply.status, data: reply.data)
+  }
+}

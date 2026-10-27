@@ -1,6 +1,6 @@
 # Recorded replies
 
-The Open Library JSON and HTML files are real replies, recorded on 2026-10-27 with
+The Open Library and Apple Books JSON and HTML files are real replies, recorded on 2026-10-27 with
 `curl -sL -A "Sendle/dev (+https://github.com/quike/sendle)"` at the URL the adapter asks for,
 then trimmed to the fields the adapter reads. Nothing here comes from anyone's own library.
 The Google Books files say below which of them are recordings and which are written by hand.
@@ -42,3 +42,17 @@ shape in Google's Books API reference. Their volume IDs are made up, and so are 
 
 The cover images the tests need (the 128 × 170 placeholder, a 300 × 48 banner and a 400 × 600
 cover) are drawn with CoreGraphics in `GoogleBooksCatalogueTests.swift`, not stored here.
+
+## apple/
+
+All with `country=es`, the storefront the tests use.
+
+| File | Recorded from | Edits |
+|---|---|---|
+| `lookup-los-ritos-del-agua.json` | `/lookup?isbn=9788408170877&country=es`: Los ritos del agua, Planeta's ebook, whose ISBN is in the cover's file name | trimmed to `kind`, `trackName`, `artistName`, `releaseDate`, `artworkUrl100`, `trackViewUrl` |
+| `lookup-unrelated-book.json` | `/lookup?isbn=9788408172277&country=es`: Apple answers with another book, Los héroes del tiempo by Francesc Marí, because that is the ebook with this ISBN | trimmed as above |
+| `lookup-empty.json` | `/lookup?isbn=9789999999991&country=es`: an ISBN Apple doesn't know | blank lines around the JSON removed |
+| `search-los-ritos-del-agua.json` | `/search?term=Los ritos del agua Eva García Sáenz&media=ebook&entity=ebook&limit=10&country=es`: five ebooks | trimmed as above |
+| `search-empty.json` | `/search?term=Zqxjvkw Qpltrz&media=ebook&entity=ebook&limit=10&country=es`: no results; the tests that only check the URL asked for use it as their reply | none |
+| `mixed-kinds.json` | an audiobook with no `kind`, a song, an ebook with only a title and a full ebook, as the replies would look with something besides ebooks in them | written by hand |
+| `html-200.html` | a captive-portal page, as a hotel network answers any request | written by hand |

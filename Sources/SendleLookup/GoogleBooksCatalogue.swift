@@ -12,8 +12,6 @@ public struct GoogleBooksCatalogue: BookCatalogue {
   private static let separator = " & "
   /// The size of Google's "image not available" picture.
   private static let placeholder = (width: 128, height: 170)
-  private static let unescaped = CharacterSet.urlQueryAllowed
-    .subtracting(CharacterSet(charactersIn: "+&=/?"))
 
   public init(fetcher: any HTTPFetching, keys: any SecretStore) {
     self.fetcher = fetcher
@@ -73,17 +71,13 @@ public struct GoogleBooksCatalogue: BookCatalogue {
   private static func url(
     id: String? = nil, terms: [String] = [], parameters: [(name: String, value: String)]
   ) throws(LookupError) -> URL {
-    var query = parameters.map { "\($0.name)=\(escaped($0.value))" }
-    if !terms.isEmpty { query.insert("q=" + terms.map(escaped).joined(separator: "+"), at: 0) }
-    let path = id.map { "/" + escaped($0) } ?? ""
+    var query = parameters.map { "\($0.name)=\(queryEscaped($0.value))" }
+    if !terms.isEmpty { query.insert("q=" + terms.map(queryEscaped).joined(separator: "+"), at: 0) }
+    let path = id.map { "/" + queryEscaped($0) } ?? ""
     guard let url = URL(string: "\(site)\(path)?" + query.joined(separator: "&")) else {
       throw .unreadable
     }
     return url
-  }
-
-  private static func escaped(_ text: String) -> String {
-    text.addingPercentEncoding(withAllowedCharacters: unescaped) ?? text
   }
 
   /// The user's key, which only ever goes into a request URL.
