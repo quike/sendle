@@ -423,6 +423,7 @@ struct BookDetailsLookupTests {
     #expect(sheet.searchTitle == " Los ritos " && sheet.searchAuthor == "Eva García Sáenz ")
     #expect(sheet.isPickingEdition)
     #expect(sheet.editionRows.isEmpty)
+    #expect(sheet.emptyListState == .searching)
     #expect(sheet.banner == .searching(.titleAndAuthor))
     #expect(await eventually { script.hasEnded(0) })
 
@@ -463,7 +464,49 @@ struct BookDetailsLookupTests {
 
     #expect(sheet.isPickingEdition)
     #expect(sheet.editionRows.isEmpty)
+    #expect(sheet.banner == .nothingFound)
+    #expect(sheet.emptyListState == .nothingFound)
     #expect(sheet.canRetry)
+  }
+
+  @Test func aFailedRetryShowsNoWordsNote() async {
+    let script = ScriptedLookup()
+    let sheet = sheet(lookup: script.lookup())
+    #expect(await openEditionList(sheet, script))
+
+    sheet.retry()
+    let failed = progress(
+      .titleAndAuthor, title: [.openLibrary: .failed(.timedOut), .appleBooks: .notFound],
+      finished: true)
+    script.send(failed)
+    #expect(await eventually { sheet.progress == failed })
+
+    #expect(sheet.isPickingEdition)
+    #expect(sheet.banner == .partlyUnreachable(failed: [.openLibrary], notFound: [.appleBooks]))
+    #expect(sheet.emptyListState == nil)
+  }
+
+  @Test func anOfflineRetryPointsAtRetry() async {
+    let script = ScriptedLookup()
+    let sheet = sheet(lookup: script.lookup())
+    #expect(await openEditionList(sheet, script))
+
+    sheet.retry()
+    let offline = progress(
+      .titleAndAuthor, title: [.openLibrary: .failed(.offline), .appleBooks: .failed(.offline)],
+      finished: true)
+    script.send(offline)
+    #expect(await eventually { sheet.progress == offline })
+
+    #expect(sheet.isPickingEdition)
+    #expect(sheet.banner == .offline)
+    #expect(sheet.emptyListState == nil)
+    #expect(
+      LookupBanner.offline.text(onEditionList: true) == "You're offline. Connect, then Retry.")
+    #expect(LookupBanner.offline.text == "You're offline. Connect and try 🌐 again.")
+    #expect(
+      LookupBanner.unreachable([.openLibrary]).text(onEditionList: true)
+        == LookupBanner.unreachable([.openLibrary]).text)
   }
 
   @Test func noRetryWithoutATitle() async {

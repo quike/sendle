@@ -8,6 +8,8 @@ struct LookupBannerView: View {
   let details: BookDetailsViewModel
   let banner: LookupBanner
 
+  private var text: String { banner.text(onEditionList: details.isPickingEdition) }
+
   var body: some View {
     let shape = RoundedRectangle(cornerRadius: 11, style: .continuous)
     HStack(spacing: 8) {
@@ -33,14 +35,14 @@ struct LookupBannerView: View {
         sourceMenu(source)
         Spacer(minLength: 0)
       case .searching:
-        Text(banner.text)
+        Text(text)
         Spacer(minLength: 4)
         ProgressView().controlSize(.small)
       case .allAgree:
-        credited { Text(banner.text).fixedSize(horizontal: false, vertical: true) }
+        credited { Text(text).fixedSize(horizontal: false, vertical: true) }
         Spacer(minLength: 0)
       case .nothingFound, .offline, .unreachable, .partlyUnreachable:
-        Text(banner.text).fixedSize(horizontal: false, vertical: true)
+        Text(text).fixedSize(horizontal: false, vertical: true)
         Spacer(minLength: 0)
       }
     }
@@ -87,12 +89,11 @@ struct LookupBannerView: View {
     .buttonStyle(.plain)
     .menuIndicator(.hidden)
     .help("Show another source's details")
-    .accessibilityLabel(banner.text)
+    .accessibilityLabel(text)
     .accessibilityHint("Shows another source's details")
   }
 
   private func sentence(naming source: LookupSource) -> Text {
-    let text = banner.text
     let name = Text("\(source.name) ▾").fontWeight(.semibold).foregroundStyle(Theme.link)
     guard let range = text.range(of: source.name) else { return Text("\(Text(text)) \(name)") }
     return Text(
@@ -288,15 +289,16 @@ struct EditionList: View {
       }
       .padding(.top, 10)
       VStack(alignment: .leading, spacing: 6) {
-        if details.editionRows.isEmpty {
-          if details.progress?.isFinished ?? true {
-            FieldNote(text: "No editions found. Try other words, then Retry.")
-          } else {
-            HStack(spacing: 6) {
-              ProgressView().controlSize(.small)
-              Text("Searching…").font(.system(size: 11.5)).foregroundStyle(Theme.muted)
-            }
+        switch details.emptyListState {
+        case .searching?:
+          HStack(spacing: 6) {
+            ProgressView().controlSize(.small)
+            Text("Searching…").font(.system(size: 11.5)).foregroundStyle(Theme.muted)
           }
+        case .nothingFound?:
+          FieldNote(text: "No editions found. Try other words, then Retry.")
+        case nil:
+          EmptyView()
         }
         ForEach(details.editionRows) { row in
           EditionRowView(

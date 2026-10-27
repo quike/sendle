@@ -14,6 +14,11 @@ package final class BookDetailsViewModel {
     case empty, valid, wrongCheckDigit, notAnISBN
   }
 
+  /// What the edition list shows in place of rows.
+  package enum EmptyListState: Equatable, Sendable {
+    case searching, nothingFound
+  }
+
   package let book: Book
   package var title: String { didSet { forgetUse(of: .title, unlessHolding: title) } }
   package var author: String { didSet { forgetUse(of: .author, unlessHolding: author) } }
@@ -394,6 +399,13 @@ package final class BookDetailsViewModel {
   }
 
   package var canRetry: Bool { isPickingEdition && !searchTitle.trimmed.isEmpty }
+
+  /// Nil while the list has rows, and when the banner says why it has none, as a failure does.
+  package var emptyListState: EmptyListState? {
+    guard isPickingEdition, editionRows.isEmpty, let progress else { return nil }
+    guard progress.isFinished else { return .searching }
+    return banner == .nothingFound ? .nothingFound : nil
+  }
 
   /// Searches every source again by the search words, in place of the running lookup, and stays
   /// on the edition list while the answers come in.

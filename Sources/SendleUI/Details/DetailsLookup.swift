@@ -36,7 +36,10 @@ package enum LookupBanner: Equatable, Sendable {
   case partlyUnreachable(failed: [LookupSource], notFound: [LookupSource])
 
   /// The view adds the difference count and the source's ▾ itself.
-  package var text: String {
+  package var text: String { text(onEditionList: false) }
+
+  /// On the edition list, which has Retry in place of 🌐, being offline points at Retry.
+  package func text(onEditionList: Bool) -> String {
     switch self {
     case .searching(.isbn): "Looking up by ISBN…"
     case .searching(.titleAndAuthor): "Looking up by title and author…"
@@ -48,7 +51,9 @@ package enum LookupBanner: Equatable, Sendable {
       (hadISBN ? "No source knows this ISBN" : "No ISBN")
         + ", so searched \(source.name) by title and author"
     case .nothingFound: "No source knows this book."
-    case .offline: "You're offline. Connect and try 🌐 again."
+    case .offline:
+      onEditionList
+        ? "You're offline. Connect, then Retry." : "You're offline. Connect and try 🌐 again."
     case .unreachable(let sources):
       "Couldn't reach \(Self.names(sources, or: "or")). Try again later."
     case .partlyUnreachable(let failed, let notFound):
