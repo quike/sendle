@@ -1,0 +1,35 @@
+{
+  "kind": "books#volume",
+  "id": "Fx3dDwAAQBAJ",
+  "volumeInfo": {
+    "title": "Los ritos del agua",
+    "subtitle": "Trilogía de la Ciudad Blanca 2",
+    "authors": [
+      "Eva García Sáenz de Urbina"
+    ],
+    "publisher": "Planeta",
+    "publishedDate": "2017-03-01",
+    "industryIdentifiers": [
+      {
+        "type": "ISBN_13",
+        "identifier": "9788408172277"
+      },
+      {
+        "type": "ISBN_10",
+        "identifier": "8408172271"
+      }
+    ],
+    "pageCount": 576,
+    "language": "es",
+    "imageLinks": {
+      "smallThumbnail": "http://books.google.com/books/content?id=Fx3dDwAAQBAJ&printsec=frontcover&img=1&zoom=5&edge=curl&source=gbs_api",
+      "thumbnail": "http://books.google.com/books/content?id=Fx3dDwAAQBAJ&printsec=frontcover&img=1&zoom=1&edge=curl&source=gbs_api",
+      "small": "http://books.google.com/books/content?id=Fx3dDwAAQBAJ&printsec=frontcover&img=1&zoom=2&edge=curl&source=gbs_api",
+      "medium": "http://books.google.com/books/content?id=Fx3dDwAAQBAJ&printsec=frontcover&img=1&zoom=3&edge=curl&source=gbs_api",
+      "large": "http://books.google.com/books/content?id=Fx3dDwAAQBAJ&printsec=frontcover&img=1&zoom=4&edge=curl&source=gbs_api",
+      "extraLarge": "http://books.google.com/books/content?id=Fx3dDwAAQBAJ&printsec=frontcover&img=1&zoom=6&edge=curl&source=gbs_api"
+    },
+    "infoLink": "http://books.google.com/books?id=Fx3dDwAAQBAJ&dq=isbn:9788408172277&hl=&source=gbs_api",
+    "canonicalVolumeLink": "https://books.google.com/books/about/Los_ritos_del_agua.html?hl=&id=Fx3dDwAAQBAJ"
+  }
+}

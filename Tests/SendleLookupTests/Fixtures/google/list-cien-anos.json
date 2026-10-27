@@ -1,0 +1,74 @@
+{
+  "kind": "books#volumes",
+  "totalItems": 3,
+  "items": [
+    {
+      "kind": "books#volume",
+      "id": "kQ2xDwAAQBAJ",
+      "volumeInfo": {
+        "title": "Cien años de soledad",
+        "authors": [
+          "Gabriel García Márquez"
+        ],
+        "publisher": "Debolsillo",
+        "publishedDate": "2009",
+        "industryIdentifiers": [
+          {
+            "type": "ISBN_10",
+            "identifier": "0307474720"
+          },
+          {
+            "type": "ISBN_13",
+            "identifier": "9780307474728"
+          }
+        ],
+        "language": "es",
+        "imageLinks": {
+          "smallThumbnail": "http://books.google.com/books/content?id=kQ2xDwAAQBAJ&printsec=frontcover&img=1&zoom=5&edge=curl&source=gbs_api",
+          "thumbnail": "http://books.google.com/books/content?id=kQ2xDwAAQBAJ&printsec=frontcover&img=1&zoom=1&edge=curl&source=gbs_api"
+        },
+        "infoLink": "http://books.google.com/books?id=kQ2xDwAAQBAJ&dq=intitle:Cien+inauthor:Gabriel&hl=&source=gbs_api",
+        "canonicalVolumeLink": "https://books.google.com/books/about/Cien_a%C3%B1os_de_soledad.html?hl=&id=kQ2xDwAAQBAJ"
+      }
+    },
+    {
+      "kind": "books#volume",
+      "id": "m9RtEAAAQBAJ",
+      "volumeInfo": {
+        "title": "Cien años de soledad",
+        "authors": [
+          "Gabriel García Márquez",
+          "Gregory Rabassa"
+        ],
+        "publisher": "Mondadori",
+        "publishedDate": "1988-05",
+        "industryIdentifiers": [
+          {
+            "type": "ISBN_10",
+            "identifier": "8439711085"
+          }
+        ],
+        "language": "es",
+        "infoLink": "http://books.google.com/books?id=m9RtEAAAQBAJ&dq=intitle:Cien+inauthor:Gabriel&hl=&source=gbs_api"
+      }
+    },
+    {
+      "kind": "books#volume",
+      "id": "t0hZDwAAQBAJ",
+      "volumeInfo": {
+        "title": "Cien años de soledad (edición conmemorativa)",
+        "publishedDate": "1967-06-05",
+        "industryIdentifiers": [
+          {
+            "type": "OTHER",
+            "identifier": "UOM:39015004215234"
+          }
+        ],
+        "imageLinks": {
+          "smallThumbnail": "http://books.google.com/books/content?id=t0hZDwAAQBAJ&printsec=frontcover&img=1&zoom=5&edge=curl&source=gbs_api"
+        },
+        "infoLink": "http://books.google.com/books?id=t0hZDwAAQBAJ&dq=intitle:Cien+inauthor:Gabriel&hl=&source=gbs_api"
+      }
+    }
+  ]
+}
