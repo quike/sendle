@@ -2,6 +2,7 @@ import Foundation
 import SendleDomain
 import SendleTestSupport
 import Testing
+import os
 
 private let isbn = "9788408172277"
 private let query = LookupQuery(
@@ -18,6 +19,28 @@ private func onlyApple(_ catalogue: FakeCatalogue) -> LookUpBook {
   LookUpBook(
     catalogues: [catalogue],
     settings: InMemorySettingsStore(AppSettings(lookupSources: [.appleBooks])))
+}
+
+/// Finds a later printing by title each time it is asked.
+private final class Reprints: BookCatalogue {
+  let source = LookupSource.openLibrary
+  private let asked = OSAllocatedUnfairLock(initialState: 0)
+
+  var requests: Int { asked.withLock { $0 } }
+
+  func edition(isbn: String) async throws(LookupError) -> FoundEdition? { nil }
+
+  func editions(title: String, author: String?, language: String?) async throws(LookupError)
+    -> [FoundEdition]
+  {
+    let count = asked.withLock { asked in
+      asked += 1
+      return asked
+    }
+    return [.fixture(year: "\(2016 + count)")]
+  }
+
+  func image(at url: URL) async throws(LookupError) -> Data? { nil }
 }
 
 @Suite(.timeLimit(.minutes(1)))
@@ -185,6 +208,22 @@ struct LookUpBookTests {
       apple.requests == [
         "isbn:\(isbn)", titleRequest, "title:Los ritos del agua|Eva García Sáenz|en",
       ])
+  }
+
+  @Test func refreshingAsksAgainAndKeepsTheNewAnswer() async {
+    let reprints = Reprints()
+    let use = LookUpBook(catalogues: [reprints], settings: InMemorySettingsStore())
+    let noISBN = LookupQuery(title: query.title, author: query.author, isbn: nil, language: "es")
+    let first = await collect(use.lookUp(noISBN)).last
+    #expect(first?.result(for: .openLibrary) == .editions([.fixture(year: "2017")]))
+
+    let refreshed = await collect(use.lookUp(noISBN, refreshing: true)).last
+    #expect(refreshed?.result(for: .openLibrary) == .editions([.fixture(year: "2018")]))
+    #expect(reprints.requests == 2)
+
+    let kept = await collect(use.lookUp(noISBN)).last
+    #expect(kept?.result(for: .openLibrary) == .editions([.fixture(year: "2018")]))
+    #expect(reprints.requests == 2)
   }
 
   @Test func endingTheStreamCancelsTheLookup() async throws {

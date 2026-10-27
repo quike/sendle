@@ -594,7 +594,7 @@ public final class PanelModel {
     lookUp.map { lookUp in
       DetailsLookup(
         sources: lookUp.available.filter(settings.lookupSources.contains),
-        search: lookUp.lookUp, refine: lookUp.refine, image: lookUp.image(at:from:))
+        search: { lookUp.lookUp($0) }, refine: lookUp.refine, image: lookUp.image(at:from:))
     }
   }
 

@@ -24,11 +24,14 @@ public struct LookUpBook: Sendable {
   public var available: [LookupSource] { catalogues.keys.sorted() }
 
   /// Asks the enabled sources by ISBN, then by title and author when no source with dates knows
-  /// the ISBN, and reports after each answer. Ending the stream stops the lookup.
-  public func lookUp(_ query: LookupQuery) -> AsyncStream<LookupProgress> {
+  /// the ISBN, and reports after each answer. Refreshing asks every source again instead of
+  /// answering from the cache. Ending the stream stops the lookup.
+  public func lookUp(
+    _ query: LookupQuery, refreshing: Bool = false
+  ) -> AsyncStream<LookupProgress> {
     let (stream, continuation) = AsyncStream.makeStream(of: LookupProgress.self)
     let task = Task {
-      await search(query, reporting: continuation)
+      await search(query, refreshing: refreshing, reporting: continuation)
       continuation.finish()
     }
     continuation.onTermination = { _ in task.cancel() }
@@ -53,7 +56,8 @@ public struct LookUpBook: Sendable {
   }
 
   private func search(
-    _ query: LookupQuery, reporting continuation: AsyncStream<LookupProgress>.Continuation
+    _ query: LookupQuery, refreshing: Bool,
+    reporting continuation: AsyncStream<LookupProgress>.Continuation
   ) async {
     let enabled = await settings.load().lookupSources
     var progress = LookupProgress(
@@ -61,7 +65,7 @@ public struct LookUpBook: Sendable {
       method: query.isbn == nil ? .titleAndAuthor : .isbn)
     if let isbn = query.isbn {
       progress = await ask(by: .isbn, progress, reporting: continuation) { catalogue in
-        let reply = await self.answer(to: .isbn(isbn), from: catalogue)
+        let reply = await self.answer(to: .isbn(isbn), from: catalogue, refreshing: refreshing)
         return Self.checked(reply, from: catalogue.source, for: query)
       }
       guard !Task.isCancelled else { return }
@@ -73,7 +77,7 @@ public struct LookUpBook: Sendable {
     if progress.method == .titleAndAuthor {
       let question = Question.title(query.title, author: query.author, language: query.language)
       progress = await ask(by: .titleAndAuthor, progress, reporting: continuation) { catalogue in
-        await self.answer(to: question, from: catalogue)
+        await self.answer(to: question, from: catalogue, refreshing: refreshing)
       }
       guard !Task.isCancelled else { return }
     }
@@ -107,10 +111,10 @@ public struct LookUpBook: Sendable {
 
   /// By ISBN the edition, by title the editions ranked; Google Books' terms keep its own order.
   private func answer(
-    to question: Question, from catalogue: any BookCatalogue
+    to question: Question, from catalogue: any BookCatalogue, refreshing: Bool = false
   ) async -> SourceAnswer {
     do throws(LookupError) {
-      let found = try await editions(for: question, from: catalogue)
+      let found = try await editions(for: question, from: catalogue, refreshing: refreshing)
       switch question {
       case .isbn:
         return found.first.map { .found([$0]) } ?? .notFound
@@ -124,11 +128,14 @@ public struct LookUpBook: Sendable {
     }
   }
 
-  /// At most one edition by ISBN; from the cache when the question was asked before.
+  /// At most one edition by ISBN; from the cache when the question was asked before, unless
+  /// refreshing.
   private func editions(
-    for question: Question, from catalogue: any BookCatalogue
+    for question: Question, from catalogue: any BookCatalogue, refreshing: Bool
   ) async throws(LookupError) -> [FoundEdition] {
-    if let kept = await cache.editions(for: question, from: catalogue.source) { return kept }
+    if !refreshing, let kept = await cache.editions(for: question, from: catalogue.source) {
+      return kept
+    }
     let found = try await withinDeadline { () async throws(LookupError) -> [FoundEdition] in
       switch question {
       case .isbn(let isbn):
