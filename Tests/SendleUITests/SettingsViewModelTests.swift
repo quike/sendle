@@ -488,14 +488,19 @@ struct SettingsViewModelTests {
 
   // MARK: Online lookup
 
-  @Test func readsTheLookupSourcesAndTheKeyBeforeSettingsOpen() async {
+  @Test func readsTheLookupSourcesButNotTheKeyBeforeSettingsOpen() async {
+    let keys = MemorySecretStore(["api-key": "k"])
     let model = makeModel(
-      InMemorySettingsStore(AppSettings(lookupSources: [.googleBooks])),
-      lookupKeys: MemorySecretStore(["api-key": "k"]))
+      InMemorySettingsStore(AppSettings(lookupSources: [.googleBooks])), lookupKeys: keys)
 
     await model.start()
 
     #expect(model.lookupSources == [.googleBooks])
+    #expect(await keys.reads.isEmpty)
+
+    await model.open(at: nil)
+
+    #expect(await keys.reads == ["api-key"])
     #expect(model.hasGoogleKey)
   }
 

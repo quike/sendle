@@ -70,7 +70,8 @@ public final class SettingsViewModel {
     self.log = log
   }
 
-  /// Reads what the panel needs before Settings ever opens, such as whether logs are on.
+  /// Reads what the panel needs before Settings ever opens, such as whether logs are on. The
+  /// Google Books key waits for Settings, as reading the Keychain can bring up a prompt.
   package func start() async {
     let saved = await settings.load()
     jumpBar = saved.jumpBar
@@ -79,7 +80,6 @@ public final class SettingsViewModel {
     showsFormat = saved.showsFormat
     showsLogs = saved.showsLogs
     lookupSources = saved.lookupSources
-    await readGoogleKey()
   }
 
   /// Starts from what is saved, so edits that were never saved are gone.

@@ -26,6 +26,8 @@ public actor InMemorySettingsStore: SettingsStore {
 
 public actor MemorySecretStore: SecretStore {
   public private(set) var passwords: [String: String]
+  /// The accounts whose password was read, in order.
+  public private(set) var reads: [String] = []
   private let removalFailure: StorageError?
   private let readFailure: StorageError?
 
@@ -40,6 +42,7 @@ public actor MemorySecretStore: SecretStore {
   }
 
   public func password(for account: String) throws(StorageError) -> String? {
+    reads.append(account)
     if let readFailure { throw readFailure }
     return passwords[account]
   }
