@@ -88,6 +88,17 @@ struct GoogleBooksCatalogueTests {
     #expect(fetcher.requests == [Self.searchURL, Self.volumeURL])
   }
 
+  @Test func theISBNSearchedIsTheOneFoundWhenTheVolumeListsSeveral() async throws {
+    let other = "9788408203119"
+    let fetcher = FixtureFetcher([
+      Self.searchURL: (200, "google/search-isbn.json"),
+      "\(Self.volumes)?q=isbn:\(other)&key=\(Self.key)": (200, "google/search-isbn.json"),
+      Self.volumeURL: (200, "google/volume-two-isbns.json"),
+    ])
+    #expect(try await catalogue(fetcher).edition(isbn: Self.isbn)?.isbn == Self.isbn)
+    #expect(try await catalogue(fetcher).edition(isbn: other)?.isbn == "9788408170877")
+  }
+
   @Test func unknownISBNIsNil() async throws {
     let fetcher = FixtureFetcher([Self.searchURL: (200, "google/search-empty.json")])
     #expect(try await catalogue(fetcher).edition(isbn: Self.isbn) == nil)

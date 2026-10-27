@@ -1,0 +1,33 @@
+{
+  "key": "/books/OL38570141M",
+  "title": "Cien años de soledad",
+  "authors": [
+    {
+      "key": "/authors/OL27363A"
+    }
+  ],
+  "works": [
+    {
+      "key": "/works/OL274505W"
+    }
+  ],
+  "publish_date": "2012",
+  "isbn_13": [
+    "9786070728792",
+    "9786070714863"
+  ],
+  "isbn_10": [
+    "6070714865"
+  ],
+  "languages": [
+    {
+      "key": "/languages/spa"
+    }
+  ],
+  "publishers": [
+    "Diana"
+  ],
+  "covers": [
+    12808734
+  ]
+}

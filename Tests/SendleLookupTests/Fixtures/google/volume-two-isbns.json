@@ -1,0 +1,24 @@
+{
+  "kind": "books#volume",
+  "id": "Fx3dDwAAQBAJ",
+  "volumeInfo": {
+    "title": "Los ritos del agua",
+    "authors": [
+      "Eva García Sáenz de Urbina"
+    ],
+    "publisher": "Planeta",
+    "publishedDate": "2017-03-01",
+    "industryIdentifiers": [
+      {
+        "type": "ISBN_13",
+        "identifier": "9788408170877"
+      },
+      {
+        "type": "ISBN_13",
+        "identifier": "9788408172277"
+      }
+    ],
+    "language": "es",
+    "canonicalVolumeLink": "https://books.google.com/books/about/Los_ritos_del_agua.html?hl=&id=Fx3dDwAAQBAJ"
+  }
+}

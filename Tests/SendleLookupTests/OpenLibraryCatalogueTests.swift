@@ -53,6 +53,18 @@ struct OpenLibraryCatalogueTests {
     #expect(fetcher.requests == [Self.spanishEditionURL, Self.marquezURL])
   }
 
+  @Test func theISBNSearchedIsTheOneFoundWhenTheEditionListsSeveral() async throws {
+    let fetcher = FixtureFetcher([
+      Self.spanishEditionURL: (200, "openlibrary/isbn-two-isbns.json"),
+      Self.unknownEditionURL: (200, "openlibrary/isbn-two-isbns.json"),
+      Self.marquezURL: (200, "openlibrary/author-OL27363A.json"),
+    ])
+    let searched = try await catalogue(fetcher).edition(isbn: Self.spanishISBN)
+    #expect(searched?.isbn == Self.spanishISBN)
+    let unlisted = try await catalogue(fetcher).edition(isbn: Self.unknownISBN)
+    #expect(unlisted?.isbn == "9786070728792")
+  }
+
   @Test func isbnTenAndWorkAuthorsAndMissingCover() async throws {
     let fetcher = FixtureFetcher([
       Self.tenOnlyEditionURL: (200, "openlibrary/isbn-ten-only.json"),

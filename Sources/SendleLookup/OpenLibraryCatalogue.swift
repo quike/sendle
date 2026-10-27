@@ -21,7 +21,7 @@ public struct OpenLibraryCatalogue: BookCatalogue {
     let record: EditionRecord? = try await decoded(at: "\(Self.site)/isbn/\(isbn).json")
     guard let record else { return nil }
     let author = try await authors(of: record)
-    return found(record, author: author)
+    return found(record, author: author, searched: isbn)
   }
 
   public func editions(title: String, author: String?, language: String?) async throws(LookupError)
@@ -78,7 +78,9 @@ public struct OpenLibraryCatalogue: BookCatalogue {
     return components.string ?? ""
   }
 
-  private func found(_ record: EditionRecord, author: String?) -> FoundEdition {
+  private func found(
+    _ record: EditionRecord, author: String?, searched: String? = nil
+  ) -> FoundEdition {
     let cover = record.covers?.first { $0 != -1 }
     let isbns = (record.isbn13 ?? []) + (record.isbn10 ?? [])
     let language = record.languages?.first?.key.split(separator: "/").last
@@ -87,7 +89,7 @@ public struct OpenLibraryCatalogue: BookCatalogue {
       title: record.title,
       author: author,
       year: record.publishDate.flatMap(firstYear),
-      isbn: isbns.lazy.compactMap(ISBN.normalised).first,
+      isbn: foundISBN(in: isbns, searched: searched),
       language: language.flatMap { MARCLanguages.bcp47(String($0)) },
       publisher: record.publishers?.first,
       cover: cover.flatMap { URL(string: "\(Self.covers)/\($0).jpg") },

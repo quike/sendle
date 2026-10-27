@@ -11,6 +11,7 @@ The Google Books files say below which of them are recordings and which are writ
 |---|---|---|
 | `isbn-spanish.json` | `/isbn/9786070714863.json` (it redirects to `/books/OL38570141M.json`): Cien años de soledad, Diana, 2012 | trimmed |
 | `isbn-ten-only.json` | `/isbn/9788439711087.json` (`/books/OL48571928M.json`): Cien años de soledad, Mondadori, 1988 | trimmed; `covers` was `[14359127]` and is now `[-1, 14359127]`, because no real edition with only an `isbn_10`, no `authors` and a leading `-1` cover turned up |
+| `isbn-two-isbns.json` | `isbn-spanish.json` with the ISBN-13 of `/books/OL40226882M` listed before its own, as a record that lists several ISBNs | written by hand |
 | `isbn-two-authors.json` | `/isbn/9780060114183.json` (`/books/OL28176709M.json`): One Hundred Years of Solitude, Harper & Row, 1970 | trimmed |
 | `work-OL274505W.json` | `/works/OL274505W.json` | trimmed to `key`, `title`, `authors` |
 | `author-OL27363A.json`, `author-OL2631013A.json` | `/authors/OL27363A.json`, `/authors/OL2631013A.json` | trimmed to `key`, `name` |
@@ -34,6 +35,7 @@ shape in Google's Books API reference. Their volume IDs are made up, and so are 
 | `bad-key-400.json` | the same URL with `&key=test-key`, which Google rejects as a key it doesn't know | none |
 | `search-isbn.json` | an ISBN search that finds one volume | written by hand |
 | `volume-los-ritos-del-agua.json` | `volumes/{id}` for that volume: every `imageLinks` size, a subtitle, both ISBNs, and a date with a day | written by hand |
+| `volume-two-isbns.json` | that volume listing two ISBN-13s, Planeta's ebook's before the searched one | written by hand |
 | `list-cien-anos.json` | a title-and-author search: three volumes, with ISBN-10 listed before ISBN-13, an ISBN-10 only, two authors, and only an `OTHER` identifier | written by hand |
 | `search-empty.json` | a search with no results, which has no `items` | written by hand |
 | `forbidden-403.json` | a key whose project doesn't have the Books API enabled | written by hand |

@@ -27,7 +27,7 @@ public struct GoogleBooksCatalogue: BookCatalogue {
     guard let id = search?.items?.first?.id else { return nil }
     let volume: Volume? = try await decoded(
       at: Self.url(id: id, parameters: [("key", key)]), missingIsNil: true)
-    return volume.map(found)
+    return volume.map { found($0, searched: isbn) }
   }
 
   public func editions(title: String, author: String?, language: String?) async throws(LookupError)
@@ -40,7 +40,7 @@ public struct GoogleBooksCatalogue: BookCatalogue {
     if let language { parameters.append(("langRestrict", language)) }
     let search: VolumeList? = try await decoded(
       at: Self.url(terms: terms, parameters: parameters))
-    return (search?.items ?? []).map(found)
+    return (search?.items ?? []).map { found($0) }
   }
 
   /// Nil for Google's "image not available" picture: a 128 × 170 PNG, or a banner as wide as it is
@@ -112,7 +112,7 @@ public struct GoogleBooksCatalogue: BookCatalogue {
     }
   }
 
-  private func found(_ volume: Volume) -> FoundEdition {
+  private func found(_ volume: Volume, searched: String? = nil) -> FoundEdition {
     let info = volume.volumeInfo
     let identifiers = info.industryIdentifiers ?? []
     let isbns =
@@ -122,7 +122,7 @@ public struct GoogleBooksCatalogue: BookCatalogue {
       title: info.title,
       author: info.authors.flatMap { $0.isEmpty ? nil : $0.joined(separator: Self.separator) },
       year: info.publishedDate.flatMap(Self.year),
-      isbn: isbns.lazy.compactMap { ISBN.normalised($0.identifier) }.first,
+      isbn: foundISBN(in: isbns.map(\.identifier), searched: searched),
       language: info.language.flatMap { Self.unknownLanguages.contains($0) ? nil : $0 },
       publisher: info.publisher,
       cover: info.imageLinks?.largest.flatMap(Self.secure),
