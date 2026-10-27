@@ -16,7 +16,7 @@ Sendle runs on your Mac. It talks to your own email account's server when you se
 
 - Sendle reads the Books library and book files, and never writes to them. Books that are only in iCloud are never opened, so nothing downloads.
 - Logs live in memory until Sendle quits. They also go to the macOS log under `io.github.quike.Sendle`, marked private. Passwords and your Google Books API key never appear in either.
-- A lookup sends the book's ISBN, or its title and author, to the sources that are on, and nothing else. Google Books gets your API key with it.
+- When you press 🌐 in a book's details, Sendle sends the book's ISBN, or its title and author, to the lookup sources you have on (Open Library, Apple Books, Google Books), then fetches the covers they point to. A search by title and author also sends the book's language to Open Library and Google Books. Each request carries Sendle's name and version; Apple Books also gets your Mac's region, and Google Books your API key.
 - An email carries the book, its title as the subject, your sender address and "Sent by Sendle."
 
 To remove everything Sendle keeps, see [Remove it](../README.md#remove-it).
