@@ -79,6 +79,7 @@ public final class PanelModel {
   @ObservationIgnored private weak var system: (any SystemActions)?
   @ObservationIgnored private let ejector: any KindleEjector
   @ObservationIgnored private let editDetails: EditBookDetails
+  @ObservationIgnored private let lookUp: LookUpBook?
   @ObservationIgnored private let log: any ActivityLog
   /// What the hide toast's time waits on.
   @ObservationIgnored private let sleep: @Sendable (Duration) async -> Void
@@ -107,6 +108,7 @@ public final class PanelModel {
     editDetails: EditBookDetails,
     ejector: any KindleEjector,
     removal: KindleRemovalModel? = nil,
+    lookUp: LookUpBook? = nil,
     sleep: @escaping @Sendable (Duration) async -> Void = { try? await Task.sleep(for: $0) },
     log: any ActivityLog = NoActivityLog()
   ) {
@@ -120,6 +122,7 @@ public final class PanelModel {
     self.editDetails = editDetails
     self.ejector = ejector
     self.removal = removal
+    self.lookUp = lookUp
     self.sleep = sleep
     self.log = log
     library.reportProblem = { [weak self] problem in self?.show(notice: problem) }
@@ -582,11 +585,22 @@ public final class PanelModel {
       authorSort: library.authorSort, lastSend: library.latestSend(of: id), now: Date(),
       save: { (draft: BookDetailsDraft) async throws(EditDetailsError) in
         try await editDetails.save(draft, for: book, fileValues: fileValues)
-      })
+      },
+      lookup: detailsLookup)
   }
 
-  /// Nothing is saved.
+  /// Looks up in the sources Settings has on.
+  private var detailsLookup: DetailsLookup? {
+    lookUp.map { lookUp in
+      DetailsLookup(
+        sources: lookUp.available.filter(settings.lookupSources.contains),
+        search: lookUp.lookUp, refine: lookUp.refine, image: lookUp.image(at:from:))
+    }
+  }
+
+  /// Nothing is saved, and a lookup still running stops.
   package func closeDetails() {
+    bookDetails?.cancelLookup()
     bookDetails = nil
   }
 
@@ -694,7 +708,7 @@ public final class PanelModel {
     isSavingDetails = true
     defer { isSavingDetails = false }
     guard await details.save() else { return }
-    if bookDetails === details { bookDetails = nil }
+    if bookDetails === details { closeDetails() }
     await library.reload()
   }
 
@@ -912,14 +926,15 @@ public final class PanelModel {
 
   // MARK: Keys
 
-  /// Esc closes the innermost thing: the duplicates, the edit sheet, the Kindle book's question or
-  /// its sheet, the settings sheet, a finished queue or a setup that can wait, the search, the
-  /// selection, then the panel. A running queue keeps going behind a closed panel.
+  /// Esc closes the innermost thing: the duplicates, the edit sheet's edition list and then the
+  /// sheet, the Kindle book's question or its sheet, the settings sheet, a finished queue or a setup
+  /// that can wait, the search, the selection, then the panel. A running queue keeps going behind a
+  /// closed panel.
   package func escape() {
     if duplicateReview != nil {
       cancelReview()
-    } else if bookDetails != nil {
-      closeDetails()
+    } else if let details = bookDetails {
+      if details.isPickingEdition { details.skipEditionList() } else { closeDetails() }
     } else if kindleDetails != nil {
       if removal?.stage == .confirming { cancelKindleDelete() } else { closeKindleDetails() }
     } else if isShowingSettings {
@@ -954,11 +969,14 @@ public final class PanelModel {
       }
       return true
     }
-    if bookDetails != nil {
+    if let details = bookDetails {
       switch command {
-      case .escape: closeDetails()
+      case .escape: escape()
       case .confirm:
-        if !key.isRepeat, canSaveDetails { Task { await saveDetails() } }
+        if !key.isRepeat, canSaveDetails, !details.isPickingEdition {
+          Task { await saveDetails() }
+        }
+      case .lookUp: details.lookUp()
       default: return false
       }
       return true
@@ -1006,6 +1024,8 @@ public final class PanelModel {
         canEditDetails(book)
       else { return false }
       Task { await openDetails(book.id) }
+    case .lookUp:
+      return false
     case .undo:
       guard !key.isRepeat else { return false }
       if shownHideToast != nil {
