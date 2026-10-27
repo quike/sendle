@@ -1,0 +1,35 @@
+{
+  "key": "/books/OL28176709M",
+  "title": "One Hundred Years of Solitude",
+  "authors": [
+    {
+      "key": "/authors/OL27363A"
+    },
+    {
+      "key": "/authors/OL2631013A"
+    }
+  ],
+  "works": [
+    {
+      "key": "/works/OL274505W"
+    }
+  ],
+  "publish_date": "Mar 25, 1970",
+  "isbn_13": [
+    "9780060114183"
+  ],
+  "isbn_10": [
+    "0060114185"
+  ],
+  "languages": [
+    {
+      "key": "/languages/eng"
+    }
+  ],
+  "publishers": [
+    "Harper & Row"
+  ],
+  "covers": [
+    10114038
+  ]
+}

@@ -1,0 +1,14 @@
+{
+  "key": "/works/OL274505W",
+  "title": "Cien años de soledad",
+  "authors": [
+    {
+      "author": {
+        "key": "/authors/OL27363A"
+      },
+      "type": {
+        "key": "/type/author_role"
+      }
+    }
+  ]
+}
