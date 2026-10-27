@@ -4,6 +4,7 @@ import SendleCovers
 import SendleDomain
 import SendleEPUB
 import SendleKindleUSB
+import SendleLookup
 import SendleMail
 import SendlePersistence
 import SendleUI
@@ -16,13 +17,14 @@ struct Composition {
   private let chooseTool: ChooseConverterTool
 
   /// Snapshot mode replaces every delivery, so that nothing is sent, the plugged-in Kindles, how
-  /// they are read and what removes a book from them.
+  /// they are read, what removes a book from them and the catalogues a lookup asks.
   init(
     loginItem: any LoginItem,
     channels override: (any DeliveryChannelFactory)? = nil,
     kindles: (any DestinationMonitor)? = nil,
     kindleLibrary: (any KindleLibrary)? = nil,
-    remover: (any KindleBookRemover)? = nil
+    remover: (any KindleBookRemover)? = nil,
+    catalogues: [any BookCatalogue]? = nil
   ) {
     let data = DataDirectory.url()
     let log = MemoryActivityLog()
@@ -83,11 +85,30 @@ struct Composition {
       logs: LogsViewModel(feed: log), kindle: kindle,
       editDetails: EditBookDetails(store: edits, settings: settings),
       ejector: VolumeEjector(log: log),
-      removal: KindleRemovalModel(removals: KindleRemovals(remover: remover, log: log)), log: log)
+      removal: KindleRemovalModel(removals: KindleRemovals(remover: remover, log: log)),
+      lookUp: LookUpBook(
+        catalogues: catalogues ?? Self.onlineCatalogues(keys: lookupKeys, log: log),
+        settings: settings, log: log),
+      log: log)
     self.settings = settings
     self.chooseTool = chooseTool
     // Clears folders an interrupted send left behind.
     staging.purge()
+  }
+
+  /// Open Library, Google Books with the user's own key, and Apple Books, all over one fetcher.
+  private static func onlineCatalogues(
+    keys: any SecretStore, log: any ActivityLog
+  ) -> [any BookCatalogue] {
+    let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "dev"
+    let fetcher = URLSessionFetcher(
+      userAgent: "Sendle/\(version) (+https://github.com/quike/sendle)", log: log)
+    let storefront = Locale.current.region?.identifier.lowercased() ?? "us"
+    return [
+      OpenLibraryCatalogue(fetcher: fetcher),
+      GoogleBooksCatalogue(fetcher: fetcher, keys: keys),
+      AppleBooksCatalogue(fetcher: fetcher, storefront: storefront),
+    ]
   }
 
   /// Loads the library and settings, and says so if the settings file had to be set aside.
