@@ -39,7 +39,7 @@ struct LookupBannerView: View {
       case .allAgree:
         credited { Text(banner.text).fixedSize(horizontal: false, vertical: true) }
         Spacer(minLength: 0)
-      case .nothingFound, .offline, .unreachable:
+      case .nothingFound, .offline, .unreachable, .partlyUnreachable:
         Text(banner.text).fixedSize(horizontal: false, vertical: true)
         Spacer(minLength: 0)
       }

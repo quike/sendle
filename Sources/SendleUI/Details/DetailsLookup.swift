@@ -32,6 +32,8 @@ package enum LookupBanner: Equatable, Sendable {
   case nothingFound
   case offline
   case unreachable([LookupSource])
+  /// Some sources failed and the rest didn't find the book.
+  case partlyUnreachable(failed: [LookupSource], notFound: [LookupSource])
 
   /// The view adds the difference count and the source's ▾ itself.
   package var text: String {
@@ -49,6 +51,9 @@ package enum LookupBanner: Equatable, Sendable {
     case .offline: "You're offline. Connect and try 🌐 again."
     case .unreachable(let sources):
       "Couldn't reach \(Self.names(sources, or: "or")). Try again later."
+    case .partlyUnreachable(let failed, let notFound):
+      "Couldn't reach \(Self.names(failed, or: "or")), and \(Self.names(notFound, or: "and"))"
+        + " didn't find this book. Try again later."
     }
   }
 

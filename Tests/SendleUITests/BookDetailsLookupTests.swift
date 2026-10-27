@@ -456,13 +456,40 @@ struct BookDetailsLookupTests {
     #expect(sheet.banner == .unreachable([.openLibrary, .appleBooks]))
 
     sheet.lookUp()
-    let nothing = progress(
+    let partly = progress(
       .titleAndAuthor, isbn: [.openLibrary: .notFound, .appleBooks: .notFound],
       title: [.openLibrary: .found([]), .appleBooks: .failed(.offline)], finished: true)
+    script.send(partly)
+    #expect(await eventually { sheet.progress == partly })
+    #expect(sheet.banner == .partlyUnreachable(failed: [.appleBooks], notFound: [.openLibrary]))
+    #expect(
+      sheet.banner?.text
+        == "Couldn't reach Apple Books, and Open Library didn't find this book. Try again later.")
+
+    sheet.lookUp()
+    let nothing = progress(
+      .titleAndAuthor, isbn: [.openLibrary: .notFound, .appleBooks: .notFound],
+      title: [.openLibrary: .found([]), .appleBooks: .notFound], finished: true)
     script.send(nothing)
     #expect(await eventually { sheet.progress == nothing })
     #expect(sheet.banner == .nothingFound)
     #expect(sheet.banner?.text == "No source knows this book.")
+  }
+
+  @Test func partlyUnreachableNamesBothKinds() {
+    #expect(
+      LookupBanner.partlyUnreachable(failed: [.openLibrary], notFound: [.appleBooks]).text
+        == "Couldn't reach Open Library, and Apple Books didn't find this book. Try again later.")
+    #expect(
+      LookupBanner.partlyUnreachable(failed: [.openLibrary, .googleBooks], notFound: [.appleBooks])
+        .text
+        == "Couldn't reach Open Library or Google Books, and Apple Books didn't find this book. "
+        + "Try again later.")
+    #expect(
+      LookupBanner.partlyUnreachable(failed: [.googleBooks], notFound: [.openLibrary, .appleBooks])
+        .text
+        == "Couldn't reach Google Books, and Open Library and Apple Books didn't find this book. "
+        + "Try again later.")
   }
 
   @Test func unreachableNamesTheSources() {

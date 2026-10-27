@@ -520,12 +520,17 @@ package final class BookDetailsViewModel {
       return .editions(source, hadISBN: query?.isbn != nil)
     }
     guard progress.isFinished else { return .searching(progress.method) }
-    let results = progress.sources.map(progress.result(for:))
-    let failures = results.compactMap { result -> LookupError? in
-      if case .failed(let error) = result { error } else { nil }
+    var failures: [LookupSource: LookupError] = [:]
+    for source in progress.sources {
+      if case .failed(let error) = progress.result(for: source) { failures[source] = error }
     }
-    guard !failures.isEmpty, failures.count == results.count else { return .nothingFound }
-    return failures.allSatisfy { $0 == .offline } ? .offline : .unreachable(progress.sources)
+    if failures.isEmpty { return .nothingFound }
+    let notFound = progress.sources.filter { failures[$0] == nil }
+    guard notFound.isEmpty else {
+      let failed = progress.sources.filter { failures[$0] != nil }
+      return .partlyUnreachable(failed: failed, notFound: notFound)
+    }
+    return failures.values.allSatisfy { $0 == .offline } ? .offline : .unreachable(progress.sources)
   }
 
   /// Every enabled source, with what it found.
